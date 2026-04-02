@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>建元资产管理数字化平台 - 演示版</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        /* 1. 铺底色：黑蓝色科技感 */
+        body {
+            margin: 0; background-color: #000a1a; color: white;
+            font-family: "Microsoft YaHei"; overflow: hidden;
+        }
+        
+        /* 2. 布局：左、中、右三格 */
+        #app {
+            display: flex; height: 100vh; padding: 10px; box-sizing: border-box;
+            background: radial-gradient(circle at center, #001d4d 0%, #000a1a 100%);
+        }
+
+        /* 侧边栏样式 */
+        .side-bar { width: 400px; display: flex; flex-direction: column; gap: 15px; }
+        
+        /* 中间地图区域 */
+        .main-content { flex: 1; margin: 0 15px; display: flex; flex-direction: column; }
+        
+        /* 面板装饰线（复刻原图的蓝色边框） */
+        .panel {
+            background: rgba(0, 40, 100, 0.3);
+            border: 1px solid #0055ff;
+            border-radius: 4px;
+            padding: 15px;
+            box-shadow: inset 0 0 15px rgba(0, 85, 255, 0.2);
+        }
+
+        .panel-title {
+            color: #00d2ff; font-weight: bold; margin-bottom: 15px;
+            border-left: 4px solid #00d2ff; padding-left: 10px;
+        }
+
+        /* 地图编辑工具栏 */
+        .map-tools {
+            position: absolute; top: 100px; left: 430px; z-index: 1000;
+            background: rgba(0,0,0,0.7); padding: 10px; border: 1px solid #00d2ff;
+        }
+        
+        button {
+            background: #0055ff; color: white; border: none; padding: 5px 10px;
+            cursor: pointer; border-radius: 3px;
+        }
+
+        #map { height: 100%; border-radius: 8px; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="side-bar">
+        <div class="panel">
+            <div class="panel-title">项目数据</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 28px; color: #00ffcc;">435</div>
+                    <div style="font-size: 12px; color: #aaa;">已租房源</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 28px; color: #fff;">445</div>
+                    <div style="font-size: 12px; color: #aaa;">总房源</div>
+                </div>
+            </div>
+            <div id="gauge-chart" style="height: 150px;"></div>
+        </div>
+
+        <div class="panel" style="flex: 1;">
+            <div class="panel-title">合同数据</div>
+            <div id="bar-chart" style="height: 250px;"></div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div style="text-align: center; font-size: 30px; font-weight: bold; margin-bottom: 10px; text-shadow: 0 0 10px #00d2ff;">
+            建元资产管理数字化平台
+        </div>
+        <div class="panel" style="flex: 1; position: relative; padding: 0;">
+            <div id="map"></div>
+            <div class="map-tools">
+                <span style="font-size: 12px;">编辑模式：</span>
+                <button @click="toggleEdit">{{ isEditing ? '✅ 退出编辑' : '🖱️ 开启编辑' }}</button>
+                <p v-if="isEditing" style="font-size: 11px; margin-top: 5px;">* 开启后点击地图任意位置添加标记</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="side-bar">
+        <div class="panel">
+            <div class="panel-title">财务数据</div>
+            <div style="color: #00ffcc; font-size: 24px; text-align: right;">￥ 3,617,000</div>
+        </div>
+        <div class="panel" style="flex: 1;">
+            <div class="panel-title">设备数据</div>
+            <div id="pie-chart" style="height: 300px;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, onMounted } = Vue;
+
+    createApp({
+        setup() {
+            const isEditing = ref(false);
+            let map = null;
+
+            const toggleEdit = () => {
+                isEditing.value = !isEditing.value;
+            };
+
+            onMounted(() => {
+                // 1. 初始化地图 (Leaflet)
+                map = L.map('map').setView([31.23, 121.47], 11);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+                // 地图编辑：点击添加标记
+                map.on('click', (e) => {
+                    if (isEditing.value) {
+                        L.marker(e.latlng).addTo(map).bindPopup('新资产点').openPopup();
+                    }
+                });
+
+                // 2. 左侧仪表盘 (ECharts)
+                const gChart = echarts.init(document.getElementById('gauge-chart'));
+                gChart.setOption({
+                    series: [{
+                        type: 'gauge',
+                        progress: { show: true },
+                        detail: { valueAnimation: true, formatter: '{value}%', color: '#00ffcc', fontSize: 20 },
+                        data: [{ value: 97.75 }],
+                        axisLabel: { show: false }
+                    }]
+                });
+
+                // 3. 左侧柱状图 (ECharts)
+                const bChart = echarts.init(document.getElementById('bar-chart'));
+                bChart.setOption({
+                    xAxis: { type: 'category', data: ['周一', '周二', '周三', '周四', '周五'], axisLabel: {color: '#fff'} },
+                    yAxis: { type: 'value', splitLine: {lineStyle: {color: '#222'}} },
+                    series: [{ data: [120, 200, 150, 80, 70], type: 'bar', itemStyle: {color: '#00aaff'} }]
+                });
+
+                // 4. 右侧设备图
+                const pChart = echarts.init(document.getElementById('pie-chart'));
+                pChart.setOption({
+                    series: [{
+                        type: 'pie',
+                        radius: ['40%', '70%'],
+                        data: [
+                            { value: 99, name: '智能电表' },
+                            { value: 100, name: '智能门锁' }
+                        ],
+                        label: { color: '#fff' }
+                    }]
+                });
+            });
+
+            return { isEditing, toggleEdit };
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>
