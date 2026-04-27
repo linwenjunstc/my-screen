@@ -3,274 +3,516 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>项目管理小工具</title>
+<title>PM Board — 协作看板</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+  /* ── Design tokens ─────────────────────────────────────────────────────── */
   :root {
-    --bg: #f5f4f0;
-    --surface: #ffffff;
-    --surface2: #f0efe9;
-    --border: #e2e0d8;
-    --border2: #cccac0;
-    --text: #1a1916;
-    --text2: #6b6860;
-    --text3: #a09e98;
-    --accent: #1a1916;
-    --red: #d94f3d; --red-bg: #fdf0ee; --red-border: #f5c4bc;
-    --amber: #b87333; --amber-bg: #fdf6ee; --amber-border: #f0d9b8;
-    --green: #2e7d52; --green-bg: #eef6f2; --green-border: #b8ddc9;
-    --blue: #2563a8; --blue-bg: #eef4fc; --blue-border: #b8d0ef;
-    --purple: #7c3aed; --purple-bg: #f5eefa; --purple-border: #d4b5f5;
-    --radius: 10px; --radius-sm: 6px; --radius-lg: 14px;
-    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
-    --shadow-modal: 0 8px 40px rgba(0,0,0,.14);
-    --font: 'DM Sans', -apple-system, sans-serif;
-    --mono: 'DM Mono', monospace;
-    --sidebar-w: 226px;
-    --header-h: 60px;
+    /* Surface */
+    --bg:          #f0ede6;
+    --surface:     #ffffff;
+    --surface2:    #f5f3ee;
+    --surface3:    #ebe9e3;
+
+    /* Borders */
+    --border:      #e4e1d8;
+    --border2:     #ccc9bf;
+
+    /* Text */
+    --text:        #1a1916;
+    --text2:       #5c5a54;
+    --text3:       #9c9a94;
+
+    /* Accent */
+    --accent:      #1a1916;
+    --accent-dim:  rgba(26,25,22,.06);
+
+    /* Semantic colours */
+    --red:         #c94040;   --red-bg:    #fdf2f2;  --red-border:    #f0c8c8;
+    --amber:       #a06020;   --amber-bg:  #fdf6ed;  --amber-border:  #edd8b0;
+    --green:       #1e6e44;   --green-bg:  #edf7f2;  --green-border:  #a8d8bc;
+    --blue:        #1a52a0;   --blue-bg:   #edf3fc;  --blue-border:   #a8c4ee;
+    --purple:      #6b28d0;   --purple-bg: #f4eefa;  --purple-border: #c8a4f0;
+    --teal:        #0e7268;   --teal-bg:   #edf6f5;  --teal-border:   #9acfca;
+
+    /* Sidebar (dark) */
+    --sb-bg:       #1a1916;
+    --sb-bg2:      #222220;
+    --sb-border:   rgba(255,255,255,.07);
+    --sb-text:     #c8c5be;
+    --sb-text2:    #7a7870;
+    --sb-active:   rgba(255,255,255,.1);
+    --sb-hover:    rgba(255,255,255,.055);
+
+    /* Shape */
+    --radius:      10px;
+    --radius-sm:   6px;
+    --radius-lg:   14px;
+
+    /* Shadow */
+    --shadow:      0 1px 2px rgba(0,0,0,.04), 0 3px 12px rgba(0,0,0,.05);
+    --shadow-md:   0 2px 8px rgba(0,0,0,.07), 0 8px 24px rgba(0,0,0,.06);
+    --shadow-modal:0 12px 48px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.08);
+
+    /* Type */
+    --font:        'DM Sans', -apple-system, sans-serif;
+    --mono:        'DM Mono', monospace;
+
+    /* Layout */
+    --sidebar-w:   232px;
+    --header-h:    56px;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* ── Reset ─────────────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; overflow: hidden; }
-  body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
 
-  /* Layout */
+  /* ── Layout ─────────────────────────────────────────────────────────────── */
   .layout { display: flex; height: 100vh; }
-  .sidebar { width: var(--sidebar-w); flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
-  .sidebar-logo { padding: 20px 20px 16px; border-bottom: 1px solid var(--border); }
-  .logo-text { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -.3px; }
-  .logo-sub { font-size: 11px; color: var(--text3); margin-top: 1px; font-family: var(--mono); }
-  .sidebar-date { padding: 14px 20px 10px; font-size: 11px; color: var(--text3); font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+
+  /* ── Sidebar ─────────────────────────────────────────────────────────────── */
+  .sidebar {
+    width: var(--sidebar-w);
+    flex-shrink: 0;
+    background: var(--sb-bg);
+    border-right: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-logo {
+    padding: 18px 18px 14px;
+    border-bottom: 1px solid var(--sb-border);
+  }
+  .logo-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: #f0ede6;
+    letter-spacing: -.2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .logo-text::before {
+    content: '';
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--teal);
+    box-shadow: 0 0 8px var(--teal);
+    flex-shrink: 0;
+  }
+  .logo-sub { font-size: 10px; color: var(--sb-text2); margin-top: 2px; font-family: var(--mono); letter-spacing: .04em; }
+
+  .sidebar-date { padding: 14px 18px 6px; font-size: 9.5px; color: var(--sb-text2); font-family: var(--mono); text-transform: uppercase; letter-spacing: .1em; }
   .sidebar-nav { flex: 1; padding: 4px 10px; overflow-y: auto; }
-  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13.5px; color: var(--text2); transition: all .15s; margin-bottom: 2px; user-select: none; border: none; background: transparent; width: 100%; text-align: left; }
-  .nav-item:hover { background: var(--surface2); color: var(--text); }
-  .nav-item.active { background: var(--accent); color: #fff; }
-  .nav-icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
-  .nav-badge { margin-left: auto; font-size: 11px; font-weight: 500; background: rgba(0,0,0,.08); color: inherit; padding: 1px 7px; border-radius: 20px; }
-  .nav-item.active .nav-badge { background: rgba(255,255,255,.2); color: #fff; }
-  .nav-section-label { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text3); padding: 14px 12px 6px; }
-  .sidebar-bottom { padding: 12px 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
-  .sidebar-add-btn { width: 100%; padding: 9px 12px; border-radius: var(--radius-sm); background: var(--accent); color: #fff; border: none; font-family: var(--font); font-size: 13px; font-weight: 500; cursor: pointer; transition: opacity .15s; display: flex; align-items: center; gap: 8px; }
-  .sidebar-add-btn:hover { opacity: .85; }
-  .sidebar-util-btn { width: 100%; padding: 7px 12px; border-radius: var(--radius-sm); background: transparent; color: var(--text3); border: 1px solid var(--border); font-family: var(--font); font-size: 12px; cursor: pointer; transition: all .15s; display: flex; align-items: center; gap: 8px; }
-  .sidebar-util-btn:hover { background: var(--surface2); color: var(--text); }
 
-  /* Main */
+  .nav-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--sb-text);
+    transition: background .12s, color .12s;
+    margin-bottom: 1px;
+    user-select: none;
+    border: none; background: transparent;
+    width: 100%; text-align: left;
+  }
+  .nav-item:hover { background: var(--sb-hover); color: #f0ede6; }
+  .nav-item.active { background: var(--sb-active); color: #f0ede6; font-weight: 500; }
+  .nav-icon { font-size: 13px; width: 16px; text-align: center; flex-shrink: 0; opacity: .7; }
+  .nav-item.active .nav-icon { opacity: 1; }
+  .nav-badge {
+    margin-left: auto;
+    font-size: 10px; font-weight: 600;
+    background: rgba(255,255,255,.12);
+    color: var(--sb-text);
+    padding: 1px 6px; border-radius: 20px;
+    font-family: var(--mono);
+  }
+  .nav-item.active .nav-badge { background: rgba(255,255,255,.18); color: #f0ede6; }
+  .nav-section-label {
+    font-size: 9.5px; font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase;
+    color: var(--sb-text2);
+    padding: 14px 10px 5px;
+  }
+  .nav-proj-wrap { position: relative; display: flex; align-items: center; }
+  .nav-proj-wrap:hover .nav-edit-btn { display: flex !important; }
+
+  .sidebar-bottom {
+    padding: 10px;
+    border-top: 1px solid var(--sb-border);
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .sidebar-add-btn {
+    width: 100%; padding: 9px 12px;
+    border-radius: var(--radius-sm);
+    background: rgba(255,255,255,.1);
+    color: #f0ede6;
+    border: 1px solid rgba(255,255,255,.1);
+    font-family: var(--font); font-size: 13px; font-weight: 500;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sidebar-add-btn:hover { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.18); }
+  .sidebar-util-btn {
+    width: 100%; padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--sb-text2);
+    border: 1px solid var(--sb-border);
+    font-family: var(--font); font-size: 11.5px;
+    cursor: pointer;
+    transition: background .12s, color .12s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sidebar-util-btn:hover { background: var(--sb-hover); color: var(--sb-text); }
+
+  /* ── Main ───────────────────────────────────────────────────────────────── */
   .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-  .main-header { height: var(--header-h); flex-shrink: 0; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 28px; gap: 16px; }
-  .main-title { font-size: 16px; font-weight: 600; color: var(--text); letter-spacing: -.2px; }
-  .main-subtitle { font-size: 12px; color: var(--text3); margin-top: 1px; }
+  .main-header {
+    height: var(--header-h); flex-shrink: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 24px; gap: 12px;
+    box-shadow: 0 1px 0 var(--border);
+  }
+  .main-title { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -.2px; }
+  .main-subtitle { font-size: 11px; color: var(--text3); margin-top: 1px; }
   .header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-  .header-search { display: flex; align-items: center; gap: 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 12px; }
-  .header-search input { border: none; background: transparent; font-family: var(--font); font-size: 13px; color: var(--text); outline: none; width: 180px; }
+
+  .header-search {
+    display: flex; align-items: center; gap: 7px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 6px 12px;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .header-search:focus-within { border-color: var(--border2); box-shadow: 0 0 0 3px var(--accent-dim); }
+  .header-search input { border: none; background: transparent; font-family: var(--font); font-size: 13px; color: var(--text); outline: none; width: 170px; }
   .header-search input::placeholder { color: var(--text3); }
-  .search-icon { color: var(--text3); font-size: 13px; }
-  .main-content { flex: 1; overflow-y: auto; padding: 28px; }
+  .search-icon { color: var(--text3); font-size: 14px; }
 
-  /* Stats */
-  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
-  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; box-shadow: var(--shadow); }
-  .stat-label { font-size: 11px; color: var(--text3); font-weight: 500; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
-  .stat-val { font-size: 28px; font-weight: 600; color: var(--text); line-height: 1; font-family: var(--mono); }
-  .stat-val.red { color: var(--red); } .stat-val.amber { color: var(--amber); } .stat-val.green { color: var(--green); }
+  .main-content { flex: 1; overflow-y: auto; padding: 24px; }
 
-  /* Task groups */
-  .task-group { margin-bottom: 24px; }
-  .group-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-  .group-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-  .group-title { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .06em; }
+  /* ── Stats ──────────────────────────────────────────────────────────────── */
+  .stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 22px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 16px 18px;
+    box-shadow: var(--shadow);
+    transition: box-shadow .15s, transform .15s;
+  }
+  .stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .stat-label { font-size: 10px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 8px; }
+  .stat-val { font-size: 26px; font-weight: 600; color: var(--text); line-height: 1; font-family: var(--mono); }
+  .stat-val.red { color: var(--red); }
+  .stat-val.amber { color: var(--amber); }
+  .stat-val.green { color: var(--green); }
+
+  /* ── Task groups ────────────────────────────────────────────────────────── */
+  .task-group { margin-bottom: 22px; }
+  .group-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .group-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .group-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; }
   .group-count { font-size: 11px; color: var(--text3); font-family: var(--mono); }
 
-  /* Task card */
-  .task-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: flex-start; gap: 13px; margin-bottom: 6px; cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .1s; box-shadow: var(--shadow); }
-  .task-card:hover { border-color: var(--border2); box-shadow: 0 2px 12px rgba(0,0,0,.08); transform: translateY(-1px); }
-  .task-card.done { opacity: .5; }
+  /* ── Task card ──────────────────────────────────────────────────────────── */
+  .task-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 13px 16px;
+    display: flex; align-items: flex-start; gap: 12px;
+    margin-bottom: 5px; cursor: pointer;
+    transition: border-color .15s, box-shadow .15s, transform .1s;
+    box-shadow: var(--shadow);
+    position: relative;
+  }
+  .task-card::before {
+    content: '';
+    position: absolute; left: 0; top: 20%; bottom: 20%;
+    width: 3px; border-radius: 0 2px 2px 0;
+    background: transparent;
+    transition: background .15s;
+  }
+  .task-card:hover { border-color: var(--border2); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .task-card:hover::before { background: var(--border2); }
+  .task-card.done { opacity: .48; }
   .task-card.done .task-title { text-decoration: line-through; }
-  .task-card.dep-blocked { border-left: 3px solid var(--amber); }
-  .check-wrap { padding-top: 1px; flex-shrink: 0; }
-  .check-btn { width: 19px; height: 19px; border-radius: 50%; border: 1.5px solid var(--border2); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0; }
-  .check-btn:hover { border-color: var(--green); }
-  .check-btn.checked { background: var(--green); border-color: var(--green); }
-  .check-btn.checked::after { content: ''; width: 5px; height: 8px; border: 1.5px solid #fff; border-top: none; border-left: none; transform: rotate(43deg) translate(-1px,-1px); }
-  .task-body { flex: 1; min-width: 0; }
-  .task-title { font-size: 14px; color: var(--text); font-weight: 400; line-height: 1.45; margin-bottom: 5px; }
-  .task-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .task-end { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .task-card.dep-blocked { border-left: none; }
+  .task-card.dep-blocked::before { background: var(--amber) !important; }
 
-  /* Pills */
-  .pill { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 20px; border: 1px solid transparent; white-space: nowrap; }
+  .check-wrap { padding-top: 2px; flex-shrink: 0; }
+  .check-btn {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 1.5px solid var(--border2);
+    background: transparent; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color .15s, background .15s, transform .1s;
+    flex-shrink: 0;
+  }
+  .check-btn:hover { border-color: var(--green); transform: scale(1.1); }
+  .check-btn.checked { background: var(--green); border-color: var(--green); }
+  .check-btn.checked::after { content: ''; width: 4px; height: 7px; border: 1.5px solid #fff; border-top: none; border-left: none; transform: rotate(43deg) translate(-1px,-1px); }
+
+  .task-body { flex: 1; min-width: 0; }
+  .task-title { font-size: 13.5px; color: var(--text); font-weight: 400; line-height: 1.45; margin-bottom: 5px; }
+  .task-meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .task-end { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+
+  /* ── Pills ──────────────────────────────────────────────────────────────── */
+  .pill { font-size: 11px; font-weight: 500; padding: 1px 8px; border-radius: 20px; border: 1px solid transparent; white-space: nowrap; }
   .pill-project { background: var(--surface2); color: var(--text2); border-color: var(--border); }
-  .pill-red { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
-  .pill-amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
-  .pill-green { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
-  .pill-blue { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
-  .pill-gray { background: var(--surface2); color: var(--text3); border-color: var(--border); }
+  .pill-red    { background: var(--red-bg);    color: var(--red);    border-color: var(--red-border);    }
+  .pill-amber  { background: var(--amber-bg);  color: var(--amber);  border-color: var(--amber-border);  }
+  .pill-green  { background: var(--green-bg);  color: var(--green);  border-color: var(--green-border);  }
+  .pill-blue   { background: var(--blue-bg);   color: var(--blue);   border-color: var(--blue-border);   }
+  .pill-gray   { background: var(--surface2);  color: var(--text3);  border-color: var(--border);        }
   .pill-purple { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
 
-  /* Icon buttons */
-  .icon-btn { width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text3); font-size: 13px; transition: all .15s; }
+  /* ── Icon buttons ───────────────────────────────────────────────────────── */
+  .icon-btn {
+    width: 28px; height: 28px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); background: transparent;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    color: var(--text3); font-size: 12px;
+    transition: background .12s, color .12s, border-color .12s;
+  }
   .icon-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
-  .log-count { font-size: 10px; font-family: var(--mono); color: var(--text3); }
 
-  /* Filters */
-  .filter-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
-  .filter-chip { padding: 5px 14px; font-size: 12px; font-weight: 500; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); color: var(--text2); cursor: pointer; transition: all .15s; font-family: var(--font); }
-  .filter-chip:hover { border-color: var(--border2); color: var(--text); }
+  /* ── Filters ────────────────────────────────────────────────────────────── */
+  .filter-bar { display: flex; align-items: center; gap: 5px; margin-bottom: 18px; flex-wrap: wrap; }
+  .filter-chip {
+    padding: 4px 13px; font-size: 12px; font-weight: 500;
+    border-radius: 20px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text2);
+    cursor: pointer; transition: all .13s; font-family: var(--font);
+  }
+  .filter-chip:hover { border-color: var(--border2); color: var(--text); background: var(--surface2); }
   .filter-chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-  /* Project cards */
-  .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-  .project-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 22px; box-shadow: var(--shadow); transition: box-shadow .15s, transform .15s; cursor: pointer; }
-  .project-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.09); transform: translateY(-2px); }
+  /* ── Project cards ──────────────────────────────────────────────────────── */
+  .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px,1fr)); gap: 12px; }
+  .project-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 20px;
+    box-shadow: var(--shadow);
+    transition: box-shadow .15s, transform .15s, border-color .15s;
+    cursor: pointer; position: relative; overflow: hidden;
+  }
+  .project-card::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+    opacity: 0; transition: opacity .2s;
+  }
+  .project-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); border-color: var(--border2); }
+  .project-card:hover::after { opacity: 1; }
   .proj-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
-  .proj-name { font-size: 15px; font-weight: 600; color: var(--text); }
-  .proj-actions { display: flex; gap: 4px; }
-  .progress-track { height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-bottom: 12px; }
-  .progress-fill { height: 100%; background: var(--green); border-radius: 3px; transition: width .5s cubic-bezier(.34,1.56,.64,1); }
-  .proj-stats { display: flex; gap: 12px; }
+  .proj-name { font-size: 14.5px; font-weight: 600; color: var(--text); line-height: 1.35; }
+  .proj-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
+  .project-card:hover .proj-actions { opacity: 1; }
+  .progress-track { height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden; margin-bottom: 14px; }
+  .progress-fill { height: 100%; border-radius: 2px; transition: width .6s cubic-bezier(.34,1.56,.64,1); }
+  .proj-stats { display: flex; gap: 14px; }
   .proj-stat { font-size: 12px; color: var(--text2); }
   .proj-stat strong { font-weight: 600; color: var(--text); }
-  .proj-badges { display: flex; gap: 5px; margin-top: 12px; flex-wrap: wrap; }
+  .proj-badges { display: flex; gap: 4px; margin-top: 12px; flex-wrap: wrap; }
 
-  /* Member avatars */
-  .member-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-  .member-chip { display: flex; align-items: center; gap: 5px; padding: 3px 10px 3px 5px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; font-size: 12px; color: var(--text2); }
+  /* ── Members ────────────────────────────────────────────────────────────── */
+  .member-row { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+  .member-chip { display: flex; align-items: center; gap: 5px; padding: 3px 9px 3px 5px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; font-size: 12px; color: var(--text2); }
   .member-avatar { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #fff; flex-shrink: 0; }
   .member-tag { display: flex; align-items: center; gap: 5px; padding: 2px 8px 2px 5px; border-radius: 20px; font-size: 11px; font-weight: 500; border: 1px solid var(--border); background: var(--surface2); color: var(--text2); }
 
-  /* Tags */
-  .tag-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+  /* ── Tags ───────────────────────────────────────────────────────────────── */
+  .tag-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
   .tag-chip { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 20px; border: 1px solid; white-space: nowrap; cursor: pointer; transition: opacity .15s; }
   .tag-chip:hover { opacity: .75; }
   .tag-chip.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-  /* Subtasks */
+  /* ── Subtasks ───────────────────────────────────────────────────────────── */
   .subtask-list { margin-top: 4px; }
-  .subtask-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--surface2); border-radius: var(--radius-sm); margin-bottom: 4px; }
-  .subtask-check { width: 16px; height: 16px; border-radius: 3px; border: 1.5px solid var(--border2); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s; }
+  .subtask-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--surface2); border-radius: var(--radius-sm); margin-bottom: 4px; transition: background .1s; }
+  .subtask-item:hover { background: var(--surface3); }
+  .subtask-check { width: 15px; height: 15px; border-radius: 3px; border: 1.5px solid var(--border2); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s; }
   .subtask-check:hover { border-color: var(--green); }
   .subtask-check.done { background: var(--green); border-color: var(--green); }
-  .subtask-check.done::after { content: ''; width: 4px; height: 6px; border: 1.5px solid #fff; border-top: none; border-left: none; transform: rotate(43deg); }
+  .subtask-check.done::after { content: ''; width: 3px; height: 5px; border: 1.5px solid #fff; border-top: none; border-left: none; transform: rotate(43deg); }
   .subtask-text { flex: 1; font-size: 13px; color: var(--text); }
   .subtask-text.done { text-decoration: line-through; color: var(--text3); }
-  .subtask-del { width: 20px; height: 20px; border: none; background: transparent; cursor: pointer; color: var(--text3); font-size: 14px; display: flex; align-items: center; justify-content: center; border-radius: 3px; opacity: 0; transition: opacity .15s; }
+  .subtask-del { width: 20px; height: 20px; border: none; background: transparent; cursor: pointer; color: var(--text3); font-size: 14px; display: flex; align-items: center; justify-content: center; border-radius: 3px; opacity: 0; transition: opacity .12s; }
   .subtask-item:hover .subtask-del { opacity: 1; }
   .subtask-progress { font-size: 11px; color: var(--text3); font-family: var(--mono); }
 
-  /* Dependency */
+  /* ── Deps ───────────────────────────────────────────────────────────────── */
   .dep-list { max-height: 120px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
   .dep-item { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 1px solid var(--border); font-size: 13px; cursor: pointer; transition: background .1s; }
   .dep-item:last-child { border-bottom: none; }
   .dep-item:hover { background: var(--surface2); }
   .dep-item input[type=checkbox] { accent-color: var(--accent); }
   .dep-blocked-badge { font-size: 10px; padding: 1px 7px; background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); border-radius: 20px; }
-
-  /* Recurring */
   .recurring-badge { font-size: 10px; }
+  .log-count { font-size: 10px; font-family: var(--mono); color: var(--text3); }
 
-  /* Chart cards */
-  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
-  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 22px; box-shadow: var(--shadow); }
+  /* ── Charts ─────────────────────────────────────────────────────────────── */
+  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow); }
   .chart-card.full { grid-column: 1 / -1; }
-  .chart-title { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+  .chart-title { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
   .chart-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
   .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
-  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 
-  /* Project progress bars */
+  /* ── Project progress ───────────────────────────────────────────────────── */
   .proj-progress-list { display: flex; flex-direction: column; gap: 10px; }
   .proj-progress-row { display: flex; flex-direction: column; gap: 4px; }
   .proj-progress-label { display: flex; justify-content: space-between; font-size: 12px; }
   .proj-progress-name { color: var(--text); font-weight: 500; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .proj-progress-pct { color: var(--text3); font-family: var(--mono); }
-  .proj-progress-track { height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+  .proj-progress-track { height: 7px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
   .proj-progress-fill { height: 100%; border-radius: 4px; transition: width .6s cubic-bezier(.34,1.56,.64,1); }
 
-  /* Mini progress in today view */
-  .today-proj-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 22px; margin-bottom: 24px; box-shadow: var(--shadow); }
-  .today-proj-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 14px; }
+  /* ── Today proj section ─────────────────────────────────────────────────── */
+  .today-proj-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 20px; margin-bottom: 20px; box-shadow: var(--shadow); }
+  .today-proj-title { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; }
 
-  /* Gantt */
+  /* ── Gantt ──────────────────────────────────────────────────────────────── */
   .gantt-wrap { overflow-x: auto; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); }
   .gantt-inner { display: flex; }
   .gantt-left { flex-shrink: 0; width: 200px; border-right: 1px solid var(--border); }
   .gantt-right { flex: 1; overflow-x: auto; }
-  .gantt-header-row { height: 40px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; align-items: center; }
-  .gantt-name-header { height: 40px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; }
-  .gantt-row-name { height: 44px; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; font-size: 13px; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
+  .gantt-header-row { height: 38px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; align-items: center; }
+  .gantt-name-header { height: 38px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .07em; }
+  .gantt-row-name { height: 42px; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; font-size: 13px; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; transition: background .1s; }
   .gantt-row-name:hover { background: var(--surface2); }
-  .gantt-row-name.done-row { opacity: .5; text-decoration: line-through; color: var(--text3); }
-  .gantt-group-header { height: 32px; border-bottom: 1px solid var(--border); background: var(--surface2); display: flex; align-items: center; padding: 0 16px; font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; }
-  .gantt-group-header-right { height: 32px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+  .gantt-row-name.done-row { opacity: .45; text-decoration: line-through; color: var(--text3); }
+  .gantt-group-header { height: 30px; border-bottom: 1px solid var(--border); background: var(--surface2); display: flex; align-items: center; padding: 0 16px; font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .07em; }
+  .gantt-group-header-right { height: 30px; border-bottom: 1px solid var(--border); background: var(--surface2); }
 
-  /* Burndown select */
-  .burndown-select { padding: 4px 10px; font-size: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text2); font-family: var(--font); cursor: pointer; outline: none; }
-
-  /* Empty */
+  /* ── Empty ──────────────────────────────────────────────────────────────── */
   .empty-state { text-align: center; padding: 60px 20px; color: var(--text3); font-size: 14px; }
-  .empty-icon { font-size: 32px; margin-bottom: 12px; opacity: .5; }
+  .empty-icon { font-size: 30px; margin-bottom: 12px; opacity: .4; }
   .empty-hint { margin-top: 6px; font-size: 12px; }
 
-  /* Modal */
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.3); display: none; align-items: flex-start; justify-content: center; padding-top: 60px; z-index: 200; backdrop-filter: blur(2px); }
+  /* ── Modal ──────────────────────────────────────────────────────────────── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.28);
+    display: none; align-items: flex-start; justify-content: center;
+    padding-top: 56px; z-index: 200;
+    backdrop-filter: blur(3px);
+  }
   .modal-overlay.open { display: flex; }
-  .modal { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border); width: 100%; max-width: 540px; box-shadow: var(--shadow-modal); max-height: calc(100vh - 100px); overflow-y: auto; animation: modalIn .18s ease-out; }
-  @keyframes modalIn { from { opacity: 0; transform: translateY(-12px) scale(.98); } to { opacity: 1; transform: none; } }
-  .modal-header { padding: 20px 24px 0; display: flex; align-items: center; justify-content: space-between; }
-  .modal-title { font-size: 16px; font-weight: 600; color: var(--text); }
-  .modal-close { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; cursor: pointer; font-size: 16px; color: var(--text3); display: flex; align-items: center; justify-content: center; transition: all .15s; line-height: 1; }
-  .modal-close:hover { background: var(--surface2); color: var(--text); }
-  .modal-body { padding: 20px 24px; }
-  .modal-footer { padding: 16px 24px 20px; display: flex; justify-content: space-between; border-top: 1px solid var(--border); }
-  .modal-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin: 0 24px; }
-  .modal-tab { padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; background: none; border-top: none; border-left: none; border-right: none; font-family: var(--font); }
+  .modal {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    width: 100%; max-width: 540px;
+    box-shadow: var(--shadow-modal);
+    max-height: calc(100vh - 90px);
+    overflow-y: auto;
+    animation: modalIn .16s cubic-bezier(.22,1,.36,1);
+  }
+  @keyframes modalIn { from { opacity:0; transform:translateY(-10px) scale(.98); } to { opacity:1; transform:none; } }
+  .modal-header { padding: 20px 22px 0; display: flex; align-items: center; justify-content: space-between; }
+  .modal-title { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -.1px; }
+  .modal-close { width: 26px; height: 26px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; cursor: pointer; font-size: 15px; color: var(--text3); display: flex; align-items: center; justify-content: center; transition: all .12s; line-height: 1; }
+  .modal-close:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+  .modal-body { padding: 18px 22px; }
+  .modal-footer { padding: 14px 22px 18px; display: flex; justify-content: space-between; border-top: 1px solid var(--border); }
+  .modal-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin: 0 22px; }
+  .modal-tab { padding: 9px 14px; font-size: 12.5px; font-weight: 500; color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent; transition: all .13s; background: none; border-top: none; border-left: none; border-right: none; font-family: var(--font); }
   .modal-tab.active { color: var(--text); border-bottom-color: var(--accent); }
 
-  /* Forms */
-  .form-group { margin-bottom: 16px; }
-  .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
-  .form-input, .form-select, .form-textarea { width: 100%; padding: 9px 12px; font-size: 14px; font-family: var(--font); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); outline: none; transition: border-color .15s; }
-  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--border2); }
+  /* ── Forms ──────────────────────────────────────────────────────────────── */
+  .form-group { margin-bottom: 15px; }
+  .form-label { display: block; font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .form-input, .form-select, .form-textarea {
+    width: 100%; padding: 8px 11px;
+    font-size: 13.5px; font-family: var(--font);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface); color: var(--text);
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    border-color: var(--border2);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+  }
   .form-textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
-  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .form-hint { font-size: 11px; color: var(--text3); margin-top: 4px; }
   .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
   .toggle-label { font-size: 13px; color: var(--text); }
   .toggle-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
-  .toggle { width: 36px; height: 20px; background: var(--border2); border-radius: 10px; cursor: pointer; transition: background .2s; position: relative; border: none; flex-shrink: 0; }
+  .toggle { width: 34px; height: 19px; background: var(--border2); border-radius: 10px; cursor: pointer; transition: background .18s; position: relative; border: none; flex-shrink: 0; }
   .toggle.on { background: var(--green); }
-  .toggle::after { content: ''; position: absolute; left: 3px; top: 3px; width: 14px; height: 14px; background: #fff; border-radius: 50%; transition: transform .2s; }
-  .toggle.on::after { transform: translateX(16px); }
+  .toggle::after { content: ''; position: absolute; left: 3px; top: 3px; width: 13px; height: 13px; background: #fff; border-radius: 50%; transition: transform .18s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .toggle.on::after { transform: translateX(15px); }
 
-  /* Buttons */
-  .btn { padding: 9px 18px; font-size: 13px; font-weight: 500; font-family: var(--font); border-radius: var(--radius-sm); cursor: pointer; transition: all .15s; border: 1px solid transparent; }
-  .btn-sm { padding: 6px 13px; font-size: 12px; }
+  /* ── Buttons ────────────────────────────────────────────────────────────── */
+  .btn { padding: 8px 16px; font-size: 13px; font-weight: 500; font-family: var(--font); border-radius: var(--radius-sm); cursor: pointer; transition: all .13s; border: 1px solid transparent; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
   .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .btn-primary:hover { opacity: .85; }
+  .btn-primary:hover { opacity: .84; }
   .btn-ghost { background: transparent; color: var(--text2); border-color: var(--border); }
-  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
   .btn-danger { background: transparent; color: var(--red); border-color: var(--red-border); }
-  .btn-danger:hover { background: var(--red-bg); }
+  .btn-danger:hover { background: var(--red-bg); border-color: var(--red); }
 
-  /* Logs */
-  .log-item { padding: 10px 12px; background: var(--surface2); border-radius: var(--radius-sm); margin-bottom: 6px; border-left: 3px solid var(--border2); }
+  /* ── Burndown select ────────────────────────────────────────────────────── */
+  .burndown-select { padding: 4px 9px; font-size: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text2); font-family: var(--font); cursor: pointer; outline: none; }
+
+  /* ── Log item ───────────────────────────────────────────────────────────── */
+  .log-item { padding: 9px 12px; background: var(--surface2); border-radius: var(--radius-sm); margin-bottom: 5px; border-left: 2px solid var(--border2); }
   .log-date { font-size: 10px; color: var(--text3); font-family: var(--mono); margin-bottom: 3px; }
   .log-text { font-size: 13px; color: var(--text); }
 
-  .nav-proj-wrap:hover .nav-edit-btn { display: flex !important; }
-
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  /* ── Scrollbar ──────────────────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--border2); }
 
-  /* Toast */
-  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--text); color: #fff; padding: 10px 18px; border-radius: var(--radius-sm); font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,.2); z-index: 300; opacity: 0; transform: translateY(8px); transition: all .2s; pointer-events: none; }
+  /* Sidebar scrollbar */
+  .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); }
+  .sidebar-nav::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.2); }
+
+  /* ── Spinner ────────────────────────────────────────────────────────────── */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.25); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 5px; flex-shrink: 0; }
+  .btn-ghost .spinner { border-color: rgba(0,0,0,.1); border-top-color: var(--text2); }
+  .btn-danger .spinner { border-color: rgba(201,64,64,.2); border-top-color: var(--red); }
+  .btn:disabled { opacity: .6; cursor: not-allowed; pointer-events: none; }
+
+  /* ── Role badge ─────────────────────────────────────────────────────────── */
+  .role-badge { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 10px; letter-spacing: .03em; }
+  .role-admin { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); }
+  .role-user  { background: var(--surface2); color: var(--text3); border: 1px solid var(--border); }
+
+  /* ── Page loader ────────────────────────────────────────────────────────── */
+  #page-loader { position: fixed; inset: 0; background: var(--sb-bg); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; gap: 14px; transition: opacity .35s; }
+  #page-loader.fade-out { opacity: 0; pointer-events: none; }
+  #page-loader .loader-ring { width: 32px; height: 32px; border: 2.5px solid rgba(255,255,255,.1); border-top-color: var(--teal); border-radius: 50%; animation: spin .8s linear infinite; }
+  #page-loader .loader-text { font-size: 12px; color: var(--sb-text2); font-family: var(--mono); letter-spacing: .05em; }
+
+  /* ── Toast ──────────────────────────────────────────────────────────────── */
+  .toast { position: fixed; bottom: 22px; right: 22px; background: var(--sb-bg); color: #f0ede6; padding: 10px 16px; border-radius: var(--radius); font-size: 13px; box-shadow: 0 4px 20px rgba(0,0,0,.25); z-index: 300; opacity: 0; transform: translateY(6px); transition: all .2s; pointer-events: none; border: 1px solid rgba(255,255,255,.08); }
   .toast.show { opacity: 1; transform: none; }
-  .divider { height: 1px; background: var(--border); margin: 16px 0; }
-  .view-pane { animation: fadeIn .2s ease; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  /* ── Misc ───────────────────────────────────────────────────────────────── */
+  .divider { height: 1px; background: var(--border); margin: 14px 0; }
+  .view-pane { animation: fadeIn .18s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
 </style>
 </head>
 <body>
@@ -278,16 +520,22 @@
 
 
 
-<div class="layout">
+<!-- 页面加载遮罩 (安全验证期间显示) -->
+<div id="page-loader">
+  <div class="loader-ring"></div>
+  <div class="loader-text">AUTHENTICATING...</div>
+</div>
+
+<div class="layout" id="main-layout" style="display:none">
   <aside class="sidebar">
     <div class="sidebar-logo">
-      <div class="logo-text">PM 看板 <span style="font-size:10px;font-weight:400;color:var(--text3);font-family:var(--mono)">v3</span></div>
+      <div class="logo-text">PM Board</div>
       <div class="logo-sub" id="sidebar-date-label">加载中...</div>
     </div>
     <div class="sidebar-date">导航</div>
     <nav class="sidebar-nav">
       <button class="nav-item active" data-view="today" onclick="switchView('today')">
-        <span class="nav-icon">◈</span> 今日看板
+        <span class="nav-icon">○</span> 今日看板
         <span class="nav-badge" id="badge-today">0</span>
       </button>
       <button class="nav-item" data-view="tasks" onclick="switchView('tasks')">
@@ -296,14 +544,14 @@
       </button>
       <div class="nav-section-label" style="padding-bottom:4px">分析</div>
       <button class="nav-item" data-view="charts" onclick="switchView('charts')">
-        <span class="nav-icon">◉</span> 图表分析
+        <span class="nav-icon">◉</span> 数据统计
       </button>
       <button class="nav-item" data-view="gantt" onclick="switchView('gantt')">
-        <span class="nav-icon">▤</span> 甘特图
+        <span class="nav-icon">▦</span> 甘特图
       </button>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding-right:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-right:8px">
         <div class="nav-section-label" style="padding-right:0">项目</div>
-        <button onclick="openAddProject()" title="新建项目" style="width:22px;height:22px;border-radius:4px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text3);font-size:16px;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s" onmouseover="this.style.background='var(--surface2)';this.style.color='var(--text)'" onmouseout="this.style.background='transparent';this.style.color='var(--text3)'">+</button>
+        <button onclick="openAddProject()" title="新建项目" style="width:20px;height:20px;border-radius:4px;border:1px solid rgba(255,255,255,.12);background:transparent;cursor:pointer;color:var(--sb-text2);font-size:15px;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s" onmouseover="this.style.background='var(--sb-hover)';this.style.color='var(--sb-text)'" onmouseout="this.style.background='transparent';this.style.color='var(--sb-text2)'">+</button>
       </div>
       <div id="sidebar-projects"></div>
     </nav>
@@ -311,10 +559,16 @@
       <button class="sidebar-add-btn" onclick="openAddTask()">
         <span style="font-size:16px;line-height:1">+</span> 快速添加任务
       </button>
-      <div style="display:flex;gap:6px">
-        <button class="sidebar-util-btn" style="flex:1" onclick="openMembersModal()">👤 成员</button>
-        <button class="sidebar-util-btn" style="flex:1" onclick="openTagsModal()">🏷 标签</button>
+      <div id="admin-util-btns" style="display:flex;flex-direction:column;gap:5px">
+        <div style="display:flex;gap:5px">
+          <button class="sidebar-util-btn" style="flex:1" onclick="openMembersModal()">👤 成员</button>
+          <button class="sidebar-util-btn" style="flex:1" onclick="openTagsModal()">🏷 标签</button>
+        </div>
+        <div style="display:flex;gap:5px">
+          <button class="sidebar-util-btn" style="flex:1" onclick="openRoleManageModal()">🔐 角色</button>
+        </div>
       </div>
+      <button class="sidebar-util-btn" style="width:100%;margin-top:5px" onclick="openLogsModal()">📋 操作日志</button>
     </div>
   </aside>
 
@@ -336,10 +590,14 @@
   <button class="btn btn-primary btn-sm" id="header-add-proj-btn" onclick="openAddProject()" style="display:none">+ 新建项目</button>
   <button class="btn btn-ghost btn-sm" id="header-gantt-today-btn" onclick="ganttScrollToday()" style="display:none">今天</button>
 
-  <div id="user-profile-header" style="display:flex; align-items:center; gap:10px; margin-left:15px; padding-left:15px; border-left:1px solid var(--border);">
-     <div id="user-avatar-top" class="member-avatar" style="width:30px; height:30px; font-size:12px; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; border-radius:50%;">?</div>
-     <span id="user-name-top" style="font-size:14px; font-weight:600; color:var(--text);">加载中...</span>
-     <button class="btn btn-ghost btn-sm" onclick="handleLogout()" style="color:var(--red); border-color:var(--red-border); padding:3px 8px;">退出</button>
+  <div id="user-profile-header" style="display:flex;align-items:center;gap:8px;margin-left:12px;padding-left:12px;border-left:1px solid var(--border)">
+    <div id="user-avatar-top" class="member-avatar" style="width:28px;height:28px;font-size:12px;background:var(--accent);color:#fff">?</div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <span id="user-name-top" style="font-size:13px;font-weight:600;color:var(--text);line-height:1.2">加载中...</span>
+      <span id="user-role-badge" class="role-badge role-user">普通用户</span>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="openChangePasswordModal()" title="修改密码" style="padding:4px 8px">🔑</button>
+    <button class="btn btn-ghost btn-sm" onclick="handleLogout()" style="color:var(--red);border-color:var(--red-border);padding:4px 8px">退出</button>
   </div>
 </div>
 
@@ -348,6 +606,7 @@
     <div class="main-content" id="main-content"></div>
   </main>
 </div>
+</div>
 
 <div class="modal-overlay" id="modal-overlay" onclick="onOverlayClick(event)">
   <div class="modal" id="modal-box" onclick="event.stopPropagation()"></div>
@@ -355,7 +614,36 @@
 <div class="toast" id="toast"></div>
 
 <script>
+;(function patchPostMessage() {
+  const orig = window.postMessage.bind(window);
+  window.postMessage = function(data, targetOrigin, transfer) {
+    try { orig(data, targetOrigin, transfer); }
+    catch(e) { if (e.name !== 'DataCloneError') throw e; }
+  };
+})();
+
+// ═══════════════════════════════════════════════════════════════
+// ⚠ 数据库准备：在 Supabase 中执行以下 SQL 以支持角色功能
+//   ALTER TABLE members ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
+//   -- 然后将某个成员设为管理员：
+//   UPDATE members SET role = 'admin' WHERE name = '你的名字';
+// ═══════════════════════════════════════════════════════════════
+
 const STORAGE_KEY = 'pm_tracker_v4';
+const SESSION_MAX = 8 * 3600 * 1000; // Session 最长 8 小时
+
+// ─── Loading helper ───────────────────────────────────────────
+function setLoading(btn, loading) {
+  if (!btn) return;
+  if (loading) {
+    btn._origHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner"></span>处理中...`;
+  } else {
+    btn.disabled = false;
+    if (btn._origHTML !== undefined) btn.innerHTML = btn._origHTML;
+  }
+}
 
 let currentView = 'today';
 let searchQuery = '';
@@ -373,7 +661,18 @@ const SUPABASE_URL = 'https://rfjrkcclhvuldenpdlye.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_a29IWCUpjugzMqx6VGnNhw_bpU9Grpi'; 
 
 // 2. 初始化 Supabase 客户端
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+    storage: {
+      getItem:    () => null,
+      setItem:    () => {},
+      removeItem: () => {}
+    }
+  }
+});
 
 // 3. state 保持不变，但我们现在不从本地存取了
 let state = { 
@@ -421,16 +720,17 @@ async function loadState() {
     }));
     
     state.projects = (projsRes.data || []).map(p => ({
-        id: p.id, 
-        name: p.name, 
-        colorIdx: p.color_idx,   // 映射颜色索引
+        id: p.id, name: p.name,
+        colorIdx: p.color_idx || 0,
         members: p.members || []
     }));
     
     state.members = (memsRes.data || []).map(m => ({
-        id: m.id, 
-        name: m.name, 
-        colorIdx: m.color_idx    // 映射颜色索引
+        id: m.id,
+        name: m.name,
+        colorIdx: m.color_idx,
+        role: m.role || 'user',
+        password: m.password
     }));
 
     state.globalTags = (tagsRes.data || []).map(tg => ({
@@ -447,6 +747,17 @@ async function loadState() {
         ];
     }
     
+    // 角色过滤：普通用户只看自己相关的任务和项目
+    if (currentUser && currentUser.role !== 'admin') {
+      state.tasks = state.tasks.filter(t => t.assignee === currentUser.id);
+      // 只展示：(a) 自己是成员 (b) 自己是负责人 (c) 有自己的任务
+      const visiblePids = new Set(state.tasks.map(t => t.projectId).filter(Boolean));
+      state.projects = state.projects.filter(p =>
+(p.members || []).includes(currentUser.id) ||
+        visiblePids.has(p.id)
+      );
+    }
+
     updateBadges();
     render();
   } catch (err) {
@@ -500,15 +811,7 @@ async function handleCustomLogin() {
     initBoard(); 
 }
 
-// 检查本地是否有登录缓存
-function checkLogin() {
-    const saved = localStorage.getItem('pm_login_session');
-    if (saved) {
-        currentUser = JSON.parse(saved);
-        document.getElementById('login-screen').classList.add('hidden');
-        initBoard();
-    }
-}
+
 
 // ─── 核心修复：确保项目及成员列表同步到云端 ───
 async function syncProject(proj) {
@@ -517,7 +820,7 @@ async function syncProject(proj) {
     id: proj.id,
     name: proj.name,
     color_idx: proj.colorIdx || 0,
-    members: proj.members || [] // 这里必须是数组格式
+    members: proj.members || [],
   };
 
   const { error } = await sb.from('projects').upsert(dbData);
@@ -616,15 +919,7 @@ async function syncTag(tag) {
   if (error) toast("标签同步失败");
 }
 
-// 【监听】协作的核心！当别人修改时，你的页面会自动刷新
-function initRealtime() {
-  sb.channel('db-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => loadState())
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => loadState())
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'tags' }, () => loadState())
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => loadState())
-    .subscribe();
-}
+
 
 function seedData() {
   state.projects = [
@@ -736,54 +1031,98 @@ function urgencyOf(t) {
   if (diff<0) return 0; if (diff===0) return 0; if (diff<=3) return 1; if (diff<=7) return 2; return 3;
 }
 
-// --- 1. 更新右上角用户信息的函数 ---
-// 更新用户名的核心逻辑
-// --- 1. 更新用户信息的函数 ---
+// --- 1. 更新右上角用户信息（含角色徽章）---
 function updateUserInfoUI() {
-    // 从 login.html 存入的 'pm_session' 中读取数据
-    const saved = localStorage.getItem('pm_session'); 
-    const nameEl = document.getElementById('user-name-top');
-    const avatarEl = document.getElementById('user-avatar-top');
+  if (!currentUser) return;
+  const nameEl    = document.getElementById('user-name-top');
+  const avatarEl  = document.getElementById('user-avatar-top');
+  const roleBadge = document.getElementById('user-role-badge');
+  const adminBtns = document.getElementById('admin-util-btns');
 
-    if (saved) {
-        currentUser = JSON.parse(saved);
-        if (nameEl) nameEl.textContent = currentUser.name; // 这里才会把“加载中”换成名字
-        if (avatarEl) {
-            avatarEl.textContent = currentUser.name.slice(0, 1);
-            // 兼容 colorIdx 和 color_idx 两种写法
-            const cIdx = currentUser.colorIdx !== undefined ? currentUser.colorIdx : currentUser.color_idx;
-            avatarEl.style.background = MEMBER_COLORS[cIdx % MEMBER_COLORS.length] || 'var(--accent)';
-        }
-    } else {
-        // 如果没有登录数据，强制跳转回登录页
-        window.location.href = 'login.html';
-    }
+  if (nameEl) nameEl.textContent = currentUser.name;
+  if (avatarEl) {
+    avatarEl.textContent = currentUser.name.slice(0, 1);
+    const cIdx = currentUser.colorIdx !== undefined ? currentUser.colorIdx : (currentUser.color_idx || 0);
+    avatarEl.style.background = MEMBER_COLORS[cIdx % MEMBER_COLORS.length] || 'var(--accent)';
+  }
+  const isAdmin = currentUser.role === 'admin';
+  if (roleBadge) {
+    roleBadge.textContent = isAdmin ? '管理员' : '普通用户';
+    roleBadge.className = 'role-badge ' + (isAdmin ? 'role-admin' : 'role-user');
+  }
+  if (adminBtns) adminBtns.style.display = isAdmin ? 'flex' : 'none';
 }
 
 // --- 2. 退出登录 ---
 function handleLogout() {
-    if (confirm('确定要退出登录吗？')) {
-        localStorage.removeItem('pm_session');
-        window.location.href = 'login.html';
-    }
+  if (confirm('确定要退出登录吗？')) {
+    localStorage.removeItem('pm_session');
+    window.location.href = 'login.html';
+  }
 }
 
-// --- 3. 修复实时同步报错的函数 ---
+// --- 3. 实时同步 ---
 function initRealtime() {
-  // 仅创建一个频道，避免重复订阅报错
   const channel = sb.channel('db-changes');
   channel
     .on('postgres_changes', { event: '*', schema: 'public' }, () => loadState())
     .subscribe();
 }
 
+// --- 4. 初始化（本地 Session 校验 + 后台静默角色同步）---
 async function init() {
-    updateUserInfoUI(); // 第一步：显示名字
-    await loadState();   // 第二步：加载数据
-    initRealtime();      // 第三步：开启同步
+  const saved = localStorage.getItem('pm_session');
+  if (!saved) { window.location.href = 'login.html'; return; }
+
+  let parsed;
+  try { parsed = JSON.parse(saved); } catch(e) {
+    localStorage.removeItem('pm_session');
+    window.location.href = 'login.html';
+    return;
+  }
+
+  // Session 过期检查（8 小时，loginAt 不存在则跳过）
+  if (parsed.loginAt && (Date.now() - parsed.loginAt) > SESSION_MAX) {
+    localStorage.removeItem('pm_session');
+    window.location.href = 'login.html';
+    return;
+  }
+
+  // Session 有效 → 立即显示主界面，不阻塞
+  currentUser = { ...parsed, role: parsed.role || 'user' };
+
+  const loader = document.getElementById('page-loader');
+  const layout = document.getElementById('main-layout');
+  if (loader) { loader.classList.add('fade-out'); setTimeout(() => loader.style.display = 'none', 350); }
+  if (layout) layout.style.display = 'flex';
+
+  updateUserInfoUI();
+  await loadState();
+  initRealtime();
+
+  // 后台静默同步角色（不影响页面正常使用）
+  silentRoleSync();
 }
 
-// 整个脚本末尾只保留这一行调用
+// 后台静默更新角色信息，失败不影响任何功能
+async function silentRoleSync() {
+  if (!currentUser || !currentUser.id) return;
+  try {
+    const { data, error } = await sb
+      .from('members')
+      .select('id, role, color_idx, password')
+      .eq('id', currentUser.id)
+      .single();
+    if (!error && data) {
+      currentUser.role     = data.role      || 'user';
+      currentUser.colorIdx = data.color_idx || 0;
+      currentUser.password = data.password  || currentUser.password;
+      localStorage.setItem('pm_session', JSON.stringify(currentUser));
+      updateUserInfoUI(); // 刷新角色徽章
+    }
+  } catch(e) { /* 网络问题忽略，不影响使用 */ }
+}
+
 window.onload = init;
 
 
@@ -841,7 +1180,7 @@ function updateBadges() {
         <span style="flex:1;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${p.name}</span>
         ${cnt?`<span class="nav-badge">${cnt}</span>`:''}
       </button>
-      <button class="nav-edit-btn" onclick="openEditProject('${p.id}')" title="编辑" style="position:absolute;right:4px;width:22px;height:22px;border-radius:4px;border:none;background:transparent;cursor:pointer;color:${isActive?'rgba(255,255,255,.7)':'var(--text3)'};font-size:12px;display:none;align-items:center;justify-content:center;flex-shrink:0">✎</button>
+      <button class="nav-edit-btn" onclick="openEditProject('${p.id}')" title="编辑" style="position:absolute;right:4px;width:20px;height:20px;border-radius:4px;border:none;background:transparent;cursor:pointer;color:rgba(255,255,255,.45);font-size:12px;display:none;align-items:center;justify-content:center;flex-shrink:0;transition:color .12s" onmouseover="this.style.color='rgba(255,255,255,.8)'" onmouseout="this.style.color='rgba(255,255,255,.45)'">✎</button>
     </div>`;
   });
   document.getElementById('sidebar-projects').innerHTML = html;
@@ -1431,8 +1770,9 @@ async function toggleDone(id) {
   if (t) {
     t.done = !t.done;
     t.status = t.done ? 'done' : 'todo';
-    await syncTask(t); // 推送到云端
-    render(); // 立即在本地显示效果
+    await syncTask(t);
+    render();
+    if (t.done) logAction('完成任务', `标记「${t.title}」为已完成`);
   }
 }
 
@@ -1440,9 +1780,11 @@ async function toggleDone(id) {
 function toggleSubtask(taskId, subtaskId) {
   const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
   const s=t.subtasks.find(x=>x.id===subtaskId); if(!s) return;
-  s.done=!s.done; saveState();
-  // Re-render subtask list in modal
+  const willDone = !s.done;
+  s.done = willDone;
+  syncTask(t);
   renderModalSubtasks(taskId);
+  if (willDone) logAction('完成子任务', `「${t.title}」→ 子任务「${s.title}」已完成`);
 }
 
 function renderModalSubtasks(taskId) {
@@ -1466,13 +1808,19 @@ function addSubtaskFromInput(taskId) {
   const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
   if(!t.subtasks) t.subtasks=[];
   t.subtasks.push({id:uid(),title,done:false});
-  inp.value=''; saveState(); renderModalSubtasks(taskId);
+  inp.value='';
+  syncTask(t);
+  renderModalSubtasks(taskId);
+  logAction('添加子任务', `为「${t.title}」添加子任务「${title}」`);
 }
 
 function deleteSubtask(taskId, subtaskId) {
-  const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
-  t.subtasks=t.subtasks.filter(s=>s.id!==subtaskId);
-  saveState(); renderModalSubtasks(taskId);
+  const t = state.tasks.find(x=>x.id===taskId); if(!t) return;
+  const s = t.subtasks.find(x=>x.id===subtaskId);
+  t.subtasks = t.subtasks.filter(x=>x.id!==subtaskId);
+  syncTask(t);
+  renderModalSubtasks(taskId);
+  if (s) logAction('删除子任务', `删除「${t.title}」的子任务「${s.title}」`);
 }
 
 // ─── Modal helpers ────────────────────────────────────────────────────────────
@@ -1520,7 +1868,7 @@ function openAddTask() {
       <div></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" onclick="closeModal()">取消</button>
-        <button class="btn btn-primary" onclick="submitAddTask()">添加任务</button>
+        <button class="btn btn-primary" onclick="submitAddTask(this)">添加任务</button>
       </div>
     </div>`);
   window._addTagSel = [];
@@ -1529,10 +1877,11 @@ function openAddTask() {
 
 // toggleAddTag removed: tags now use dropdown in add-task modal
 
-async function submitAddTask() {
+async function submitAddTask(btn) {
   const titleEl = document.getElementById('fi-title');
   const title = titleEl ? titleEl.value.trim() : "";
-  if (!title) return;
+  if (!title) { if(titleEl) titleEl.style.borderColor='var(--red)'; return; }
+  setLoading(btn, true);
   
   // 增加安全检查，如果元素不存在则给默认值，防止报错
   const getVal = (id, def = "") => document.getElementById(id) ? document.getElementById(id).value : def;
@@ -1552,9 +1901,11 @@ async function submitAddTask() {
   };
 
   await syncTask(newTask);
+  setLoading(btn, false);
   closeModal();
-  await loadState(); // 重新加载确保列表更新
+  await loadState();
   toast('任务已同步至云端');
+  logAction('添加任务', `新建任务「${title}」`);
 }
 
 // ─── Edit Task ────────────────────────────────────────────────────────────────
@@ -1636,7 +1987,7 @@ function openEditTask(id) {
       <button class="btn btn-danger" onclick="confirmDeleteTask('${t.id}')">删除任务</button>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" onclick="closeModal()">取消</button>
-        <button class="btn btn-primary" onclick="submitEditTask('${t.id}')">保存</button>
+        <button class="btn btn-primary" onclick="submitEditTask('${t.id}', this)">保存</button>
       </div>
     </div>`);
 }
@@ -1679,18 +2030,26 @@ function toggleEditTag(taskId, tagId) {
 }
 
 function toggleDep(taskId, depId, checked) {
-  const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
+  const t = state.tasks.find(x=>x.id===taskId); if(!t) return;
+  const depTask = state.tasks.find(x=>x.id===depId);
   if(!t.dependencies) t.dependencies=[];
-  if (checked && !t.dependencies.includes(depId)) t.dependencies.push(depId);
-  else if (!checked) t.dependencies=t.dependencies.filter(x=>x!==depId);
-  saveState();
+  if (checked && !t.dependencies.includes(depId)) {
+    t.dependencies.push(depId);
+    syncTask(t);
+    if (depTask) logAction('设置前置条件', `「${t.title}」的前置条件设为「${depTask.title}」`);
+  } else if (!checked) {
+    t.dependencies = t.dependencies.filter(x=>x!==depId);
+    syncTask(t);
+    if (depTask) logAction('移除前置条件', `移除「${t.title}」的前置条件「${depTask.title}」`);
+  }
 }
 
-async function submitEditTask(id) {
+async function submitEditTask(id, btn) {
   const t = state.tasks.find(x => x.id === id);
   if (!t) return;
   const title = document.getElementById('fi-title').value.trim();
   if (!title) return;
+  setLoading(btn, true);
 
   // 更新本地对象数据
   t.title = title;
@@ -1701,26 +2060,25 @@ async function submitEditTask(id) {
   t.status = document.getElementById('fi-status').value;
   t.done = t.status === 'done';
 
-  // 【核心】同步到云端
-  await syncTask(t); 
-  
+  await syncTask(t);
+  setLoading(btn, false);
   closeModal();
-  render(); // 重新渲染界面
+  render();
   toast('更改已同步至云端');
+  logAction('编辑任务', `更新任务「${t.title}」`);
 }
 
 async function confirmDeleteTask(id) {
   if (!confirm('确认删除这个任务？该操作无法撤销')) return;
-
-  // 1. 从云端删除
+  const t = state.tasks.find(x => x.id === id);
+  const title = t ? t.title : id;
   const success = await deleteFromCloud('tasks', id);
-  
   if (success) {
-    // 2. 云端成功后，更新本地状态并刷新
-    state.tasks = state.tasks.filter(t => t.id !== id);
+    state.tasks = state.tasks.filter(x => x.id !== id);
     closeModal();
     render();
     toast('任务已永久删除');
+    logAction('删除任务', `删除任务「${title}」`);
   }
 }
 // ─── Log ──────────────────────────────────────────────────────────────────────
@@ -1764,13 +2122,47 @@ function submitLog(id) {
 
 // ─── Projects CRUD ────────────────────────────────────────────────────────────
 function openAddProject() {
+  // 与编辑项目保持一致：动态维护 _newProjMembers 数组
+  window._newProjMembers = [];
+  window._newProjColor   = 0;
+
+  function buildNewProjMemberListHTML() {
+    if (!window._newProjMembers.length) return '<div style="font-size:12px;color:var(--text3)">暂无成员</div>';
+    return window._newProjMembers.map(mid => {
+      const m = state.members.find(x => x.id === mid);
+      if (!m) return '';
+      return `<div class="subtask-item" style="display:flex;align-items:center;gap:8px;background:var(--surface2);padding:5px 10px;border-radius:6px;margin-bottom:5px">
+        <div class="member-avatar" style="background:${memberColor(m.id)};width:20px;height:20px;font-size:10px">${memberInitial(m.id)}</div>
+        <div style="flex:1">${m.name}</div>
+        <button class="subtask-del" onclick="removeNewProjMember('${m.id}')">×</button>
+      </div>`;
+    }).join('');
+  }
+  window._buildNewProjMemberListHTML = buildNewProjMemberListHTML;
+
+  const availOptions = state.members.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+
   openModal(`${modalHeader('新建项目')}
     <div class="modal-body">
-      <div class="form-group"><label class="form-label">项目名称</label><input class="form-input" id="fi-pname" placeholder="输入项目名称..." autofocus></div>
+      <div class="form-group">
+        <label class="form-label">项目名称</label>
+        <input class="form-input" id="fi-pname" placeholder="输入项目名称...">
+      </div>
       <div class="form-group">
         <label class="form-label">颜色标识</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-          ${PROJ_COLORS.map((c,i)=>`<div onclick="selectProjColor(${i})" id="pcolor-${i}" style="width:24px;height:24px;border-radius:50%;background:${c};cursor:pointer;border:2px solid ${i===0?'var(--text)':'transparent'};transition:border .15s" title="${c}"></div>`).join('')}
+          ${PROJ_COLORS.map((col,i)=>`<div onclick="selectProjColor(${i},'new')" id="pcolor-${i}" style="width:26px;height:26px;border-radius:50%;background:${col};cursor:pointer;border:3px solid ${i===0?'var(--text)':'transparent'};transition:border .15s"></div>`).join('')}
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">项目成员</label>
+        <div id="new-proj-member-list" style="margin-bottom:10px">${buildNewProjMemberListHTML()}</div>
+        <div style="display:flex;gap:8px">
+          <select class="form-select" id="new-proj-member-sel" style="flex:1">
+            <option value="">选择成员...</option>
+            ${availOptions}
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="addNewProjMember()" style="white-space:nowrap">添加</button>
         </div>
       </div>
     </div>
@@ -1778,37 +2170,59 @@ function openAddProject() {
       <div></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" onclick="closeModal()">取消</button>
-        <button class="btn btn-primary" onclick="submitAddProject()">创建</button>
+        <button class="btn btn-primary" onclick="submitAddProject(this)">创建</button>
       </div>
     </div>`);
-  window._newProjColor=0;
-  setTimeout(()=>document.getElementById('fi-pname').focus(),80);
+  setTimeout(() => document.getElementById('fi-pname').focus(), 80);
 }
 
-function selectProjColor(idx) {
-  PROJ_COLORS.forEach((_,i)=>{ const el=document.getElementById('pcolor-'+i); if(el) el.style.border=i===idx?'2px solid var(--text)':'2px solid transparent'; });
-  window._newProjColor=idx;
+function addNewProjMember() {
+  const sel = document.getElementById('new-proj-member-sel');
+  if (!sel || !sel.value) return;
+  if (!window._newProjMembers.includes(sel.value)) {
+    window._newProjMembers.push(sel.value);
+    sel.value = '';
+    const listEl = document.getElementById('new-proj-member-list');
+    if (listEl && window._buildNewProjMemberListHTML) {
+      listEl.innerHTML = window._buildNewProjMemberListHTML();
+    }
+  }
 }
 
-async function submitAddProject() {
-  const name = document.getElementById('fi-pname').value.trim(); 
+function removeNewProjMember(mid) {
+  window._newProjMembers = (window._newProjMembers || []).filter(x => x !== mid);
+  const listEl = document.getElementById('new-proj-member-list');
+  if (listEl && window._buildNewProjMemberListHTML) {
+    listEl.innerHTML = window._buildNewProjMemberListHTML();
+  }
+}
+
+function selectProjColor(idx, mode) {
+  const prefix = mode === 'edit' ? 'epcolor-' : 'pcolor-';
+  PROJ_COLORS.forEach((_,i) => {
+    const el = document.getElementById(prefix + i);
+    if (el) el.style.border = i === idx ? '3px solid var(--text)' : '3px solid transparent';
+  });
+  if (mode === 'edit') window._editProjColor = idx;
+  else window._newProjColor = idx;
+}
+
+async function submitAddProject(btn) {
+  const name = document.getElementById('fi-pname').value.trim();
   if (!name) return;
-  
+  setLoading(btn, true);
   const p = {
-    id: uid(),
-    name: name,
-    members: [],
+    id: uid(), name,
+    members: window._newProjMembers || [],
     colorIdx: window._newProjColor || 0
   };
-  
-  // 1. 发送到云端
   await syncProject(p);
-  
-  // 2. 更新本地状态并刷新
   state.projects.push(p);
-  closeModal(); 
-  switchView('project-' + p.id); 
-  toast('项目已同步至云端');
+  setLoading(btn, false);
+  closeModal();
+  switchView('project-' + p.id);
+  toast('项目已创建并同步');
+  logAction('添加项目', `新建项目「${name}」`);
 }
 
 function openEditProject(id) {
@@ -1831,19 +2245,33 @@ function openEditProject(id) {
   const memberOptions = availableMembers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
 
   // 3. 构建弹窗 HTML
+  const curColorIdx = p.colorIdx || 0;
+  window._editProjColor = curColorIdx;
+  const allMemberOptions = state.members.map(m =>
+    `<option value="${m.id}">${m.name}</option>`
+  ).join('');
+
   openModal(`${modalHeader('编辑项目')}
     <div class="modal-body">
-      <div class="form-group"><label class="form-label">项目名称</label><input class="form-input" id="fi-pname" value="${p.name}"></div>
+      <div class="form-group">
+        <label class="form-label">项目名称</label>
+        <input class="form-input" id="fi-pname" value="${p.name}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">颜色标识</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          ${PROJ_COLORS.map((col,i)=>`<div onclick="selectProjColor(${i},'edit')" id="epcolor-${i}" style="width:26px;height:26px;border-radius:50%;background:${col};cursor:pointer;border:3px solid ${i===curColorIdx?'var(--text)':'transparent'};transition:border .15s" title="${col}"></div>`).join('')}
+        </div>
+      </div>
       <div class="form-group">
         <label class="form-label">项目成员</label>
-        <div id="proj-member-list" style="margin-bottom:12px;">${joinedMembersHTML || '<div style="font-size:12px;color:var(--text3);">暂无成员</div>'}</div>
-        
-        <div style="display:flex; gap:8px;">
-          <select class="form-select" id="proj-add-member-sel" style="flex:1;">
-            <option value="">选择成员...</option>
+        <div id="proj-member-list" style="margin-bottom:10px">${joinedMembersHTML || '<div style="font-size:12px;color:var(--text3)">暂无成员</div>'}</div>
+        <div style="display:flex;gap:8px">
+          <select class="form-select" id="proj-add-member-sel" style="flex:1">
+            <option value="">添加成员...</option>
             ${memberOptions}
           </select>
-          <button class="btn btn-ghost btn-sm" onclick="addMemberToProject('${id}')" style="white-space:nowrap;">添加</button>
+          <button class="btn btn-ghost btn-sm" onclick="addMemberToProject('${id}')" style="white-space:nowrap">添加</button>
         </div>
       </div>
     </div>
@@ -1884,15 +2312,7 @@ async function removeMemberFromProject(projId, memberId) {
   toast('成员已移除');
 }
 
-async function removeMemberFromProject(projId, memberId) {
-  const p = state.projects.find(x => x.id === projId); 
-  if (!p) return;
-  
-  p.members = p.members.filter(x => x !== memberId);
-  await syncProject(p); // 【关键】确保移除后同步到云端
-  openEditProject(projId); 
-  toast('成员已移除');
-}
+
 // 提交项目编辑
 async function submitEditProject(id) {
   const p = state.projects.find(x => x.id === id); 
@@ -1900,15 +2320,13 @@ async function submitEditProject(id) {
   const name = document.getElementById('fi-pname').value.trim(); 
   if (!name) return;
 
-  p.name = name; 
-  p.colorIdx = window._newProjColor || 0;
-  
-  // 【关键】调用云端同步函数
-  await syncProject(p); 
-  
-  closeModal(); 
-  render(); 
+  p.name = name;
+  p.colorIdx = window._editProjColor !== undefined ? window._editProjColor : (p.colorIdx || 0);
+  await syncProject(p);
+  closeModal();
+  render();
   toast('项目更新成功');
+  logAction('编辑项目', `更新项目「${name}」`);
 }
 
 async function confirmDeleteProject(id) {
@@ -1922,9 +2340,11 @@ async function confirmDeleteProject(id) {
     state.tasks.forEach(t => { if (t.project_id === id) t.project_id = ''; });
     state.projects = state.projects.filter(p => p.id !== id);
     
+    const pName = state.projects.find(x => x.id === id)?.name || id;
     closeModal();
     switchView('today');
     toast('项目已删除');
+    logAction('删除项目', `删除项目「${pName}」`);
   }
 }
 // ─── Members management ───────────────────────────────────────────────────────
@@ -1932,19 +2352,21 @@ async function confirmDeleteProject(id) {
 
 // 打开成员管理弹窗
 function openMembersModal() {
+  const isAdmin = currentUser && currentUser.role === 'admin';
   openModal(`${modalHeader('成员管理')}
     <div class="modal-body">
       <div id="members-list" style="max-height: 300px; overflow-y: auto; margin-bottom: 20px;">
         ${buildMembersListHTML()}
       </div>
+      ${isAdmin ? `
       <div class="divider"></div>
       <div class="form-group">
         <label class="form-label">添加新协作成员</label>
         <input class="form-input" id="new-member-name" placeholder="设置账号名（姓名）" style="margin-bottom: 8px;">
         <input class="form-input" id="new-member-pass" type="password" placeholder="设置登录密码">
-        <div class="form-hint" style="margin: 8px 0;">注意：成员将使用此处设置的姓名和密码登录平台。</div>
-        <button class="btn btn-primary" style="width: 100%; margin-top: 5px;" onclick="submitAddMember()">+ 确认添加成员</button>
-      </div>
+        <div class="form-hint" style="margin: 8px 0;">成员将使用此账号名和密码登录，角色默认为普通用户。</div>
+        <button class="btn btn-primary" id="members-modal-add-btn" style="width: 100%; margin-top: 5px;" onclick="submitAddMember()">+ 确认添加成员</button>
+      </div>` : ''}
     </div>
     <div class="modal-footer">
       <div></div>
@@ -2003,25 +2425,28 @@ async function submitAddMember() {
   };
 
   // 1. 同步到 Supabase (对应 SQL 里的 color_idx)
+  const addBtn = document.querySelector('#members-modal-add-btn');
+  setLoading(addBtn, true);
   const { error } = await sb.from('members').upsert({
     id: newMember.id,
     name: newMember.name,
     password: newMember.password,
-    color_idx: newMember.colorIdx
+    color_idx: newMember.colorIdx,
+    role: 'user'
   });
+  setLoading(addBtn, false);
 
   if (error) {
     console.error(error);
     toast("成员同步失败，请检查数据库权限");
   } else {
-    // 2. 本地状态更新
     state.members.push(newMember);
     nameInp.value = '';
     passInp.value = '';
-    // 3. 刷新弹窗内的列表
     const listEl = document.getElementById('members-list');
     if (listEl) listEl.innerHTML = buildMembersListHTML();
     toast('成员已成功加入云端');
+    logAction('添加成员', `新增成员「${newMember.name}」`);
   }
 }
 
@@ -2049,134 +2474,442 @@ async function deleteMember(id) {
     const listEl = document.getElementById('members-list');
     if (listEl) listEl.innerHTML = buildMembersListHTML();
     toast('成员已移除');
+    logAction('删除成员', `移除成员「${m.name}」`);
   }
 }
 
 function buildMembersListHTML() {
   if (!state.members.length) return '<div style="font-size:13px;color:var(--text3);padding:8px 0">暂无成员</div>';
+  const isAdmin = currentUser && currentUser.role === 'admin';
   return state.members.map(m=>{
     const taskCnt = state.tasks.filter(t=>t.assignee===m.id).length;
     const hasTask = taskCnt > 0;
-    const delBtn = hasTask
+    const isMe = currentUser && m.id === currentUser.id;
+    const role = m.role || 'user';
+    const roleHTML = `<span class="role-badge ${role==='admin'?'role-admin':'role-user'}" style="margin-right:4px">${role==='admin'?'管理员':'普通用户'}</span>`;
+    const delBtn = !isAdmin ? '' : (hasTask
       ? `<button title="请先删除或转移该成员的 ${taskCnt} 个任务" style="width:20px;height:20px;border:none;background:transparent;cursor:not-allowed;color:var(--border2);font-size:14px;display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0" disabled>×</button>`
-      : `<button onclick="deleteMember('${m.id}')" title="删除成员" style="width:20px;height:20px;border:none;background:transparent;cursor:pointer;color:var(--text3);font-size:14px;display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0;transition:color .15s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">×</button>`;
+      : `<button onclick="deleteMember('${m.id}')" title="删除成员" style="width:20px;height:20px;border:none;background:transparent;cursor:pointer;color:var(--text3);font-size:14px;display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0;transition:color .15s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">×</button>`);
     return `<div class="subtask-item" style="${hasTask?'border-left:2px solid var(--border2);':''}">
       <div class="member-avatar" style="background:${MEMBER_COLORS[m.colorIdx%MEMBER_COLORS.length]}">${m.name.slice(0,1)}</div>
-      <div style="flex:1;font-size:13px">${m.name}</div>
-      <div style="font-size:11px;margin-right:8px;${hasTask?'color:var(--amber);font-weight:500':'color:var(--text3)'}">${taskCnt} 个任务${hasTask?' · 需先清空':''}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          ${m.name}
+          ${isMe ? '<span style="font-size:10px;color:var(--green)">(你)</span>' : ''}
+        </div>
+        <div style="margin-top:3px;display:flex;align-items:center;gap:4px">
+          ${roleHTML}
+          <span style="font-size:11px;color:var(--text3)">${taskCnt} 个任务</span>
+        </div>
+      </div>
       ${delBtn}
     </div>`;
   }).join('');
 }
 
-async function submitAddMember() {
-    const name = document.getElementById('new-member-name').value.trim();
-    const pass = document.getElementById('new-member-pass').value.trim();
-    if (!name || !pass) return;
-
-    const newMember = {
-        id: uid(),
-        name: name,
-        password: pass, // 保存密码
-        color_idx: state.members.length % MEMBER_COLORS.length
-    };
-
-    const { error } = await sb.from('members').upsert(newMember);
-    if (!error) {
-        state.members.push(newMember);
-        document.getElementById('members-list').innerHTML = buildMembersListHTML();
-        toast('新成员及密码已保存');
-    }
-}
-
-
-async function deleteMember(id) {
-  const taskCnt = state.tasks.filter(t => t.assignee === id).length;
-  if (taskCnt > 0) {
-    toast(`⚠ 请先处理该成员的 ${taskCnt} 个任务`);
-    return;
-  }
-  
-  const m = state.members.find(x => x.id === id);
-  if (!confirm(`确认移除成员「${m ? m.name : ''}」？`)) return;
-
-  // 从云端删除
-  const success = await deleteFromCloud('members', id);
-  
-  if (success) {
-    state.members = state.members.filter(m => m.id !== id);
-    document.getElementById('members-list').innerHTML = buildMembersListHTML();
-    toast('成员已移除');
-  }
+async function submitAddTag(btn) {
+  const inp = document.getElementById('new-tag-name');
+  if (!inp) return;
+  const name = inp.value.trim();
+  if (!name) return;
+  setLoading(btn, true);
+  const newTag = { id: uid(), name, paletteIdx: state.globalTags.length % TAG_PALETTES.length };
+  await syncTag(newTag);
+  state.globalTags.push(newTag);
+  setLoading(btn, false);
+  inp.value = '';
+  document.getElementById('tags-list').innerHTML = buildTagsListHTML();
+  toast('标签已添加');
+  logAction('添加标签', `新建标签「${name}」`);
 }
 
 // ─── Tags management ──────────────────────────────────────────────────────────
+
 function openTagsModal() {
   openModal(`${modalHeader('标签管理')}
     <div class="modal-body">
-      <div id="tags-list">` + buildTagsListHTML() + `</div>
+      <div id="tags-list" style="max-height:320px;overflow-y:auto;margin-bottom:16px">
+        ${buildTagsListHTML()}
+      </div>
       <div class="divider"></div>
-      <div class="form-group"><label class="form-label">添加标签</label>
+      <div class="form-group">
+        <label class="form-label">新建标签</label>
         <div style="display:flex;gap:8px">
-          <input class="form-input" id="new-tag-name" placeholder="标签名称..." onkeydown="if(event.key==='Enter')submitAddTag()">
-          <button class="btn btn-primary btn-sm" onclick="submitAddTag()">+ 添加</button>
+          <input class="form-input" id="new-tag-name" placeholder="输入标签名称" onkeydown="if(event.key==='Enter')submitAddTag()">
+          <button class="btn btn-primary" onclick="submitAddTag(this)" style="white-space:nowrap;flex-shrink:0">+ 添加</button>
         </div>
-        <div class="form-hint">颜色将自动循环分配</div>
       </div>
     </div>
-    <div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>`);
+    <div class="modal-footer">
+      <div></div>
+      <button class="btn btn-ghost" onclick="closeModal()">关闭</button>
+    </div>`);
 }
 
 function buildTagsListHTML() {
-  if (!state.globalTags.length) return '<div style="font-size:13px;color:var(--text3);padding:8px 0">暂无标签</div>';
-  return state.globalTags.map(tg=>{
-    const p=TAG_PALETTES[tg.paletteIdx%TAG_PALETTES.length];
-    const usageCount=state.tasks.filter(t=>(t.tags||[]).includes(tg.id)).length;
-    return `<div class="subtask-item">
-      <span class="tag-chip" style="background:${p.bg};color:${p.color};border-color:${p.border};cursor:default">${tg.name}</span>
-      <div style="flex:1;font-size:12px;color:var(--text3);padding-left:8px">使用 ${usageCount} 次</div>
-      <button class="subtask-del" style="opacity:1" onclick="deleteTag('${tg.id}')">×</button>
+  if (!state.globalTags.length) return '<div style="font-size:13px;color:var(--text3);padding:8px 0">暂无标签，请在下方添加</div>';
+  return state.globalTags.map(tg => {
+    const p = TAG_PALETTES[tg.paletteIdx % TAG_PALETTES.length];
+    const usedCount = state.tasks.filter(t => t.tags && t.tags.includes(tg.id)).length;
+    return `<div id="tag-row-${tg.id}" class="subtask-item" style="gap:10px">
+      <span style="width:10px;height:10px;border-radius:50%;background:${p.dot};flex-shrink:0;margin-top:2px"></span>
+      <div style="flex:1;min-width:0">
+        <div id="tag-label-${tg.id}" style="font-size:13px;font-weight:500">${tg.name}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">使用中：${usedCount} 个任务</div>
+      </div>
+      <button onclick="startEditTag('${tg.id}')" title="重命名" style="border:none;background:transparent;cursor:pointer;color:var(--text3);font-size:13px;padding:4px 6px;border-radius:4px;transition:color .15s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text3)'">✎</button>
+      <button onclick="deleteTag('${tg.id}')" title="删除标签" style="border:none;background:transparent;cursor:pointer;color:var(--text3);font-size:14px;padding:4px 6px;border-radius:4px;transition:color .15s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">×</button>
     </div>`;
   }).join('');
 }
 
-async function submitAddTag() {
-  const inp = document.getElementById('new-tag-name'); 
+function startEditTag(id) {
+  const tg = state.globalTags.find(x => x.id === id);
+  if (!tg) return;
+  const labelEl = document.getElementById('tag-label-' + id);
+  if (!labelEl) return;
+  labelEl.innerHTML = `<input id="tag-edit-inp-${id}" value="${tg.name}" style="width:100%;padding:3px 6px;border:1px solid var(--border-glow);border-radius:4px;font-size:13px;outline:none;background:var(--surface2)" onkeydown="if(event.key==='Enter')confirmEditTag('${id}');if(event.key==='Escape')cancelEditTag('${id}','${tg.name}')">
+  <div style="display:flex;gap:6px;margin-top:5px">
+    <button onclick="confirmEditTag('${id}')" class="btn btn-primary" style="font-size:11px;padding:3px 10px">确认</button>
+    <button onclick="cancelEditTag('${id}','${tg.name}')" class="btn btn-ghost" style="font-size:11px;padding:3px 8px">取消</button>
+  </div>`;
+  setTimeout(() => {
+    const inp = document.getElementById('tag-edit-inp-' + id);
+    if (inp) { inp.focus(); inp.select(); }
+  }, 50);
+}
+
+function cancelEditTag(id, origName) {
+  const labelEl = document.getElementById('tag-label-' + id);
+  if (labelEl) labelEl.innerHTML = origName;
+}
+
+async function confirmEditTag(id) {
+  const inp = document.getElementById('tag-edit-inp-' + id);
   if (!inp) return;
-  const name = inp.value.trim(); 
-  if (!name) return;
-  
-  const newTag = {
-    id: uid(),
-    name: name,
-    paletteIdx: state.globalTags.length % TAG_PALETTES.length
-  };
-  
-  await syncTag(newTag); // 推送到云端
-  state.globalTags.push(newTag);
-  inp.value = ''; 
+  const newName = inp.value.trim();
+  if (!newName) return;
+  const tg = state.globalTags.find(x => x.id === id);
+  if (!tg) return;
+  tg.name = newName;
+  await syncTag(tg);
   document.getElementById('tags-list').innerHTML = buildTagsListHTML();
-  toast('标签已同步');
+  toast('标签已更新');
+  logAction('编辑标签', `标签重命名为「${newName}」`);
 }
 
 async function deleteTag(id) {
-  if(!confirm('确认删除标签？相关任务的标签将被移除。')) return;
-  
-  const success = await deleteFromCloud('tags', id);
-  if (success) {
-      state.globalTags = state.globalTags.filter(t => t.id !== id);
-      state.tasks.forEach(t => { if(t.tags) t.tags = t.tags.filter(x => x !== id); });
-      document.getElementById('tags-list').innerHTML = buildTagsListHTML();
-      toast('标签已移除');
-  }
+  const tg = state.globalTags.find(x => x.id === id);
+  if (!tg) return;
+  const usedCount = state.tasks.filter(t => t.tags && t.tags.includes(id)).length;
+  const msg = usedCount > 0
+    ? `标签「${tg.name}」被 ${usedCount} 个任务使用，删除后这些任务将失去该标签。确认删除？`
+    : `确认删除标签「${tg.name}」？`;
+  if (!confirm(msg)) return;
+  const { error } = await sb.from('tags').delete().eq('id', id);
+  if (error) { toast('删除失败'); return; }
+  state.globalTags = state.globalTags.filter(t => t.id !== id);
+  state.tasks.forEach(t => { if (t.tags) t.tags = t.tags.filter(x => x !== id); });
+  document.getElementById('tags-list').innerHTML = buildTagsListHTML();
+  toast('标签已删除');
+  logAction('删除标签', `删除标签「${tg.name}」`);
 }
 
-function deleteTag(id) {
-  if(!confirm('删除标签后，相关任务的标签将被移除，确认？')) return;
-  state.globalTags=state.globalTags.filter(t=>t.id!==id);
-  state.tasks.forEach(t=>{ if(t.tags) t.tags=t.tags.filter(x=>x!==id); });
-  saveState();
-  document.getElementById('tags-list').innerHTML=buildTagsListHTML();
+// ─── Role Management (Admin only) ────────────────────────────────────────────
+
+function openRoleManageModal() {
+  if (!currentUser || currentUser.role !== 'admin') { toast('无权限'); return; }
+  openModal(`${modalHeader('角色管理')}
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px;padding:8px 10px;background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:6px">
+        ⚠ 管理员权限：可以查看所有数据、管理成员、标签和项目。普通用户仅能查看自己负责的任务。
+      </div>
+      <div id="role-manage-list">
+        ${buildRoleManageListHTML()}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div></div>
+      <button class="btn btn-ghost" onclick="closeModal()">关闭</button>
+    </div>`);
+}
+
+function buildRoleManageListHTML() {
+  return state.members.map(m => {
+    const isMe = currentUser && m.id === currentUser.id;
+    const role = m.role || 'user';
+    const isAdmin = role === 'admin';
+    return `<div class="subtask-item" style="align-items:center">
+      <div class="member-avatar" style="background:${MEMBER_COLORS[m.colorIdx % MEMBER_COLORS.length]}">${m.name.slice(0,1)}</div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500">${m.name}${isMe ? ' <span style="font-size:10px;color:var(--green)">(你)</span>' : ''}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">ID: ${m.id.slice(0,8)}...</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="role-badge ${isAdmin ? 'role-admin' : 'role-user'}" id="role-badge-${m.id}">${isAdmin ? '管理员' : '普通用户'}</span>
+        ${isMe ? '' : `<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+          <button onclick="toggleMemberRole('${m.id}')" id="role-btn-${m.id}" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 10px">
+            ${isAdmin ? '降为普通用户' : '升为管理员'}
+          </button>
+          <button onclick="adminResetPassword('${m.id}','${m.name}')" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 10px;color:var(--amber);border-color:var(--amber-border)">
+            🔑 重置密码
+          </button>
+        </div>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function toggleMemberRole(memberId) {
+  const m = state.members.find(x => x.id === memberId);
+  if (!m) return;
+  const newRole = (m.role || 'user') === 'admin' ? 'user' : 'admin';
+  const btn = document.getElementById('role-btn-' + memberId);
+  setLoading(btn, true);
+  const { error } = await sb.from('members').update({ role: newRole }).eq('id', memberId);
+  setLoading(btn, false);
+  if (error) { toast('更新失败：' + error.message); return; }
+  m.role = newRole;
+  document.getElementById('role-manage-list').innerHTML = buildRoleManageListHTML();
+  toast(`已将「${m.name}」设为${newRole === 'admin' ? '管理员' : '普通用户'}`);
+  logAction('修改角色', `将「${m.name}」设为${newRole === 'admin' ? '管理员' : '普通用户'}`);
+}
+
+async function adminResetPassword(memberId, memberName) {
+  const DEFAULT_PWD = '123456';
+  // 弹窗确认
+  const confirmed = confirm(
+    `⚠️ 重置密码确认
+
+即将把「${memberName}」的登录密码重置为：${DEFAULT_PWD}
+
+请提醒该用户登录后及时修改密码。
+
+确认重置？`
+  );
+  if (!confirmed) return;
+  const { error } = await sb.from('members').update({ password: DEFAULT_PWD }).eq('id', memberId);
+  if (error) { toast('重置失败：' + error.message); return; }
+  // 如果重置的是自己，同步更新本地 session
+  if (currentUser && currentUser.id === memberId) {
+    currentUser.password = DEFAULT_PWD;
+    localStorage.setItem('pm_session', JSON.stringify(currentUser));
+  }
+  toast(`✓ 「${memberName}」的密码已重置为 ${DEFAULT_PWD}`);
+  logAction('重置密码', `管理员重置了「${memberName}」的密码`);
+}
+
+// ─── Operation Logs ────────────────────────────────────────────────────────────
+// ⚠ 需要在 Supabase 执行以下 SQL 创建日志表：
+// CREATE TABLE IF NOT EXISTS logs (
+//   id TEXT PRIMARY KEY,
+//   user_id TEXT,
+//   user_name TEXT,
+//   action TEXT,
+//   detail TEXT,
+//   created_at TIMESTAMPTZ DEFAULT NOW()
+// );
+
+function getLogBadgeColor(action) {
+  if (['添加任务','添加子任务','添加项目','添加成员','添加标签'].includes(action))
+    return { bg: 'var(--green-bg)', text: 'var(--green)', border: 'var(--green-border)' };
+  if (['完成任务','完成子任务'].includes(action))
+    return { bg: 'var(--blue-bg)', text: 'var(--blue)', border: 'var(--blue-border)' };
+  if (['删除任务','删除子任务','删除项目','删除成员','删除标签'].includes(action))
+    return { bg: 'var(--red-bg)', text: 'var(--red)', border: 'var(--red-border)' };
+  if (['修改角色','重置密码','修改密码','用户登录'].includes(action))
+    return { bg: 'var(--purple-bg)', text: 'var(--purple)', border: 'var(--purple-border)' };
+  if (['设置前置条件','移除前置条件'].includes(action))
+    return { bg: 'var(--amber-bg)', text: 'var(--amber)', border: 'var(--amber-border)' };
+  return { bg: 'var(--surface2)', text: 'var(--text2)', border: 'var(--border)' };
+}
+
+async function logAction(action, detail) {
+  if (!currentUser) return;
+  try {
+    await sb.from('logs').insert({
+      id: uid(),
+      user_id: currentUser.id,
+      user_name: currentUser.name,
+      action,
+      detail: detail || '',
+      created_at: new Date().toISOString()
+    });
+  } catch(e) { /* 日志写入失败不影响主功能 */ }
+}
+
+async function openLogsModal() {
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  openModal(`${modalHeader('操作日志')}
+    <div class="modal-body" style="padding-bottom:0">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        ${isAdmin ? `<select class="form-select" id="log-filter-user" onchange="refreshLogsList()" style="flex:1">
+          <option value="">全部成员</option>
+          ${state.members.map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('')}
+        </select>` : '<div style="flex:1;font-size:12px;color:var(--text3);display:flex;align-items:center;padding:0 4px">📋 我的操作记录</div>'}
+        <select class="form-select" id="log-filter-days" onchange="refreshLogsList()" style="width:110px">
+          <option value="1">今天</option>
+          <option value="7" selected>最近 7 天</option>
+          <option value="30">最近 30 天</option>
+          <option value="0">全部</option>
+        </select>
+      </div>
+      <div id="logs-list" style="max-height:400px;overflow-y:auto">
+        <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">加载中...</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div style="font-size:11px;color:var(--text3)" id="log-count">-</div>
+      <button class="btn btn-ghost" onclick="closeModal()">关闭</button>
+    </div>`);
+  refreshLogsList();
+}
+
+async function refreshLogsList() {
+  const listEl = document.getElementById('logs-list');
+  const countEl = document.getElementById('log-count');
+  if (!listEl) return;
+
+  listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">加载中...</div>';
+
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  // 普通用户强制只看自己；管理员可以用下拉筛选
+  const filterUserId = isAdmin
+    ? (document.getElementById('log-filter-user')?.value || '')
+    : (currentUser?.id || '');
+  const days = parseInt(document.getElementById('log-filter-days')?.value || '7');
+
+  let query = sb.from('logs').select('*').order('created_at', { ascending: false }).limit(500);
+  // 强制按用户过滤
+  if (filterUserId) query = query.eq('user_id', filterUserId);
+  if (days > 0) {
+    const since = new Date(Date.now() - days * 86400000).toISOString();
+    query = query.gte('created_at', since);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    // 提供具体的错误信息，方便排查 RLS 问题
+    const isRLS = error.message?.includes('row-level') || error.code === '42501';
+    listEl.innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px;background:var(--red-bg);border-radius:6px;border:1px solid var(--red-border)">
+      <strong>加载失败</strong><br>${error.message}<br>
+      ${isRLS ? '<br>⚠ 提示：请在 Supabase 执行文件顶部注释里的 SQL，开放 logs 表的读写权限。' : ''}
+    </div>`;
+    return;
+  }
+
+  if (!data || !data.length) {
+    listEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">暂无日志记录</div>';
+    if (countEl) countEl.textContent = '共 0 条';
+    return;
+  }
+
+  if (countEl) countEl.textContent = `共 ${data.length} 条`;
+
+  const ACTION_ICONS = {
+    '用户登录':'🔑',
+    '添加任务':'📋', '编辑任务':'✏️', '完成任务':'✅', '删除任务':'🗑',
+    '添加子任务':'📌', '完成子任务':'✅', '删除子任务':'🗑',
+    '设置前置条件':'🔗', '移除前置条件':'🔗',
+    '添加项目':'📁', '编辑项目':'📝', '删除项目':'🗑',
+    '添加标签':'🏷', '编辑标签':'🏷', '删除标签':'🏷',
+    '添加成员':'👤', '删除成员':'👤',
+    '修改角色':'🔐', '重置密码':'🔑', '修改密码':'🔑',
+  };
+
+  // 按日期分组
+  const groups = {};
+  data.forEach(log => {
+    const date = log.created_at.slice(0, 10);
+    if (!groups[date]) groups[date] = [];
+    groups[date].push(log);
+  });
+
+  const memberColors = {};
+  state.members.forEach(m => { memberColors[m.id] = MEMBER_COLORS[m.colorIdx % MEMBER_COLORS.length]; });
+
+  listEl.innerHTML = Object.entries(groups).map(([date, logs]) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const dateLabel = date === today ? '今天' : date === yesterday ? '昨天' : date;
+    const logsHTML = logs.map(log => {
+      const time = new Date(log.created_at).toLocaleTimeString('zh', { hour: '2-digit', minute: '2-digit' });
+      const icon = ACTION_ICONS[log.action] || '▸';
+      const color = memberColors[log.user_id] || 'var(--text3)';
+      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="width:28px;height:28px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;flex-shrink:0;margin-top:1px">${(log.user_name||'?').slice(0,1)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:500">${log.user_name || '未知'}</span>
+            <span style="font-size:11px;padding:1px 7px;background:${getLogBadgeColor(log.action).bg};border-radius:10px;color:${getLogBadgeColor(log.action).text};border:1px solid ${getLogBadgeColor(log.action).border}">${icon} ${log.action}</span>
+            <span style="font-size:11px;color:var(--text3);margin-left:auto">${time}</span>
+          </div>
+          ${log.detail ? `<div style="font-size:12px;color:var(--text2);margin-top:3px">${log.detail}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:4px">
+      <div style="font-size:11px;font-weight:600;color:var(--text3);padding:8px 0 4px;position:sticky;top:0;background:var(--surface)">${dateLabel}</div>
+      ${logsHTML}
+    </div>`;
+  }).join('');
+}
+
+// ─── Password Change ─────────────────────────────────────────────────────────
+function openChangePasswordModal() {
+  openModal(`${modalHeader('修改密码')}
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">当前密码</label>
+        <input type="password" class="form-input" id="pwd-old" placeholder="输入当前密码" autocomplete="current-password">
+      </div>
+      <div class="form-group">
+        <label class="form-label">新密码</label>
+        <input type="password" class="form-input" id="pwd-new" placeholder="至少 6 位字符" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label class="form-label">确认新密码</label>
+        <input type="password" class="form-input" id="pwd-confirm" placeholder="再次输入新密码" autocomplete="new-password" onkeydown="if(event.key==='Enter')submitChangePassword(document.getElementById('pwd-submit-btn'))">
+      </div>
+      <div id="pwd-err" style="display:none;color:var(--red);font-size:12px;padding:8px 12px;background:var(--red-bg);border:1px solid var(--red-border);border-radius:var(--radius-sm);margin-top:-4px"></div>
+    </div>
+    <div class="modal-footer">
+      <div></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+        <button class="btn btn-primary" id="pwd-submit-btn" onclick="submitChangePassword(this)">确认修改</button>
+      </div>
+    </div>`);
+  setTimeout(() => document.getElementById('pwd-old').focus(), 80);
+}
+
+async function submitChangePassword(btn) {
+  const oldPwd     = document.getElementById('pwd-old').value;
+  const newPwd     = document.getElementById('pwd-new').value;
+  const confirmPwd = document.getElementById('pwd-confirm').value;
+  const errEl      = document.getElementById('pwd-err');
+
+  const showErr = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
+  errEl.style.display = 'none';
+
+  if (!oldPwd || !newPwd || !confirmPwd) return showErr('所有字段不能为空');
+  if (oldPwd !== currentUser.password)  return showErr('当前密码不正确');
+  if (newPwd.length < 6)               return showErr('新密码至少需要 6 位字符');
+  if (newPwd !== confirmPwd)            return showErr('两次输入的新密码不一致');
+  if (newPwd === oldPwd)               return showErr('新密码不能与当前密码相同');
+
+  setLoading(btn, true);
+  const { error } = await sb.from('members').update({ password: newPwd }).eq('id', currentUser.id);
+  setLoading(btn, false);
+
+  if (error) { showErr('更新失败，请重试'); return; }
+
+  currentUser.password = newPwd;
+  localStorage.setItem('pm_session', JSON.stringify(currentUser));
+  closeModal();
+  toast('✓ 密码已成功修改');
+  logAction('修改密码', '修改了登录密码');
 }
 
 // ─── Keyboard ─────────────────────────────────────────────────────────────────
@@ -2185,8 +2918,6 @@ document.addEventListener('keydown', e => {
   if ((e.metaKey||e.ctrlKey)&&e.key==='k') { e.preventDefault(); openAddTask(); }
 });
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
-loadState();
 
 
 
