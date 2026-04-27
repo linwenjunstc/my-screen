@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PM 日常看板 v3</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --surface2: #f0efe9;
+    --border: #e2e0d8;
+    --border2: #cccac0;
+    --text: #1a1916;
+    --text2: #6b6860;
+    --text3: #a09e98;
+    --accent: #1a1916;
+    --red: #d94f3d; --red-bg: #fdf0ee; --red-border: #f5c4bc;
+    --amber: #b87333; --amber-bg: #fdf6ee; --amber-border: #f0d9b8;
+    --green: #2e7d52; --green-bg: #eef6f2; --green-border: #b8ddc9;
+    --blue: #2563a8; --blue-bg: #eef4fc; --blue-border: #b8d0ef;
+    --purple: #7c3aed; --purple-bg: #f5eefa; --purple-border: #d4b5f5;
+    --radius: 10px; --radius-sm: 6px; --radius-lg: 14px;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+    --shadow-modal: 0 8px 40px rgba(0,0,0,.14);
+    --font: 'DM Sans', -apple-system, sans-serif;
+    --mono: 'DM Mono', monospace;
+    --sidebar-w: 226px;
+    --header-h: 60px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+
+  /* Layout */
+  .layout { display: flex; height: 100vh; }
+  .sidebar { width: var(--sidebar-w); flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .sidebar-logo { padding: 20px 20px 16px; border-bottom: 1px solid var(--border); }
+  .logo-text { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -.3px; }
+  .logo-sub { font-size: 11px; color: var(--text3); margin-top: 1px; font-family: var(--mono); }
+  .sidebar-date { padding: 14px 20px 10px; font-size: 11px; color: var(--text3); font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+  .sidebar-nav { flex: 1; padding: 4px 10px; overflow-y: auto; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13.5px; color: var(--text2); transition: all .15s; margin-bottom: 2px; user-select: none; border: none; background: transparent; width: 100%; text-align: left; }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: var(--accent); color: #fff; }
+  .nav-icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+  .nav-badge { margin-left: auto; font-size: 11px; font-weight: 500; background: rgba(0,0,0,.08); color: inherit; padding: 1px 7px; border-radius: 20px; }
+  .nav-item.active .nav-badge { background: rgba(255,255,255,.2); color: #fff; }
+  .nav-section-label { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text3); padding: 14px 12px 6px; }
+  .sidebar-bottom { padding: 12px 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+  .sidebar-add-btn { width: 100%; padding: 9px 12px; border-radius: var(--radius-sm); background: var(--accent); color: #fff; border: none; font-family: var(--font); font-size: 13px; font-weight: 500; cursor: pointer; transition: opacity .15s; display: flex; align-items: center; gap: 8px; }
+  .sidebar-add-btn:hover { opacity: .85; }
+  .sidebar-util-btn { width: 100%; padding: 7px 12px; border-radius: var(--radius-sm); background: transparent; color: var(--text3); border: 1px solid var(--border); font-family: var(--font); font-size: 12px; cursor: pointer; transition: all .15s; display: flex; align-items: center; gap: 8px; }
+  .sidebar-util-btn:hover { background: var(--surface2); color: var(--text); }
+
+  /* Main */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .main-header { height: var(--header-h); flex-shrink: 0; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 28px; gap: 16px; }
+  .main-title { font-size: 16px; font-weight: 600; color: var(--text); letter-spacing: -.2px; }
+  .main-subtitle { font-size: 12px; color: var(--text3); margin-top: 1px; }
+  .header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .header-search { display: flex; align-items: center; gap: 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 12px; }
+  .header-search input { border: none; background: transparent; font-family: var(--font); font-size: 13px; color: var(--text); outline: none; width: 180px; }
+  .header-search input::placeholder { color: var(--text3); }
+  .search-icon { color: var(--text3); font-size: 13px; }
+  .main-content { flex: 1; overflow-y: auto; padding: 28px; }
+
+  /* Stats */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; box-shadow: var(--shadow); }
+  .stat-label { font-size: 11px; color: var(--text3); font-weight: 500; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+  .stat-val { font-size: 28px; font-weight: 600; color: var(--text); line-height: 1; font-family: var(--mono); }
+  .stat-val.red { color: var(--red); } .stat-val.amber { color: var(--amber); } .stat-val.green { color: var(--green); }
+
+  /* Task groups */
+  .task-group { margin-bottom: 24px; }
+  .group-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .group-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .group-title { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .06em; }
+  .group-count { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+  /* Task card */
+  .task-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: flex-start; gap: 13px; margin-bottom: 6px; cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .1s; box-shadow: var(--shadow); }
+  .task-card:hover { border-color: var(--border2); box-shadow: 0 2px 12px rgba(0,0,0,.08); transform: translateY(-1px); }
+  .task-card.done { opacity: .5; }
+  .task-card.done .task-title { text-decoration: line-through; }
+  .task-card.dep-blocked { border-left: 3px solid var(--amber); }
+  .check-wrap { padding-top: 1px; flex-shrink: 0; }
+  .check-btn { width: 19px; height: 19px; border-radius: 50%; border: 1.5px solid var(--border2); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0; }
+  .check-btn:hover { border-color: var(--green); }
+  .check-btn.checked { background: var(--green); border-color: var(--green); }
+  .check-btn.checked::after { content: ''; width: 5px; height: 8px; border: 1.5px solid #fff; border-top: none; border-left: none; transform: rotate(43deg) translate(-1px,-1px); }
+  .task-body { flex: 1; min-width: 0; }
+  .task-title { font-size: 14px; color: var(--text); font-weight: 400; line-height: 1.45; margin-bottom: 5px; }
+  .task-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .task-end { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+  /* Pills */
+  .pill { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 20px; border: 1px solid transparent; white-space: nowrap; }
+  .pill-project { background: var(--surface2); color: var(--text2); border-color: var(--border); }
+  .pill-red { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
+  .pill-amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .pill-green { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .pill-blue { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .pill-gray { background: var(--surface2); color: var(--text3); border-color: var(--border); }
+  .pill-purple { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
+
+  /* Icon buttons */
+  .icon-btn { width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text3); font-size: 13px; transition: all .15s; }
+  .icon-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+  .log-count { font-size: 10px; font-family: var(--mono); color: var(--text3); }
+
+  /* Filters */
+  .filter-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+  .filter-chip { padding: 5px 14px; font-size: 12px; font-weight: 500; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); color: var(--text2); cursor: pointer; transition: all .15s; font-family: var(--font); }
+  .filter-chip:hover { border-color: var(--border2); color: var(--text); }
+  .filter-chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* Project cards */
+  .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .project-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 22px; box-shadow: var(--shadow); transition: box-shadow .15s, transform .15s; cursor: pointer; }
+  .project-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.09); transform: translateY(-2px); }
+  .proj-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+  .proj-name { font-size: 15px; font-weight: 600; color: var(--text); }
+  .proj-actions { display: flex; gap: 4px; }
+  .progress-track { height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-bottom: 12px; }
+  .progress-fill { height: 100%; background: var(--green); border-radius: 3px; transition: width .5s cubic-bezier(.34,1.56,.64,1); }
+  .proj-stats { display: flex; gap: 12px; }
+  .proj-stat { font-size: 12px; color: var(--text2); }
+  .proj-stat strong { font-weight: 600; color: var(--text); }
+  .proj-badges { display: flex; gap: 5px; margin-top: 12px; flex-wrap: wrap; }
+
+  /* Member avatars */
+  .member-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .member-chip { display: flex; align-items: center; gap: 5px; padding: 3px 10px 3px 5px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; font-size: 12px; color: var(--text2); }
+  .member-avatar { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #fff; flex-shrink: 0; }
+  .member-tag { display: flex; align-items: center; gap: 5px; padding: 2px 8px 2px 5px; border-radius: 20px; font-size: 11px; font-weight: 500; border: 1px solid var(--border); background: var(--surface2); color: var(--text2); }
+
+  /* Tags */
+  .tag-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+  .tag-chip { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 20px; border: 1px solid; white-space: nowrap; cursor: pointer; transition: opacity .15s; }
+  .tag-chip:hover { opacity: .75; }
+  .tag-chip.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* Subtasks */
+  .subtask-list { margin-top: 4px; }
+  .subtask-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--surface2); border-radius: var(--radius-sm); margin-bottom: 4px; }
+  .subtask-check { width: 16px; height: 16px; border-radius: 3px; border: 1.5px solid var(--border2); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s; }
+  .subtask-check:hover { border-color: var(--green); }
+  .subtask-check.done { background: var(--green); border-color: var(--green); }
+  .subtask-check.done::after { content: ''; width: 4px; height: 6px; border: 1.5px solid #fff; border-top: none; border-left: none; transform: rotate(43deg); }
+  .subtask-text { flex: 1; font-size: 13px; color: var(--text); }
+  .subtask-text.done { text-decoration: line-through; color: var(--text3); }
+  .subtask-del { width: 20px; height: 20px; border: none; background: transparent; cursor: pointer; color: var(--text3); font-size: 14px; display: flex; align-items: center; justify-content: center; border-radius: 3px; opacity: 0; transition: opacity .15s; }
+  .subtask-item:hover .subtask-del { opacity: 1; }
+  .subtask-progress { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+  /* Dependency */
+  .dep-list { max-height: 120px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .dep-item { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 1px solid var(--border); font-size: 13px; cursor: pointer; transition: background .1s; }
+  .dep-item:last-child { border-bottom: none; }
+  .dep-item:hover { background: var(--surface2); }
+  .dep-item input[type=checkbox] { accent-color: var(--accent); }
+  .dep-blocked-badge { font-size: 10px; padding: 1px 7px; background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); border-radius: 20px; }
+
+  /* Recurring */
+  .recurring-badge { font-size: 10px; }
+
+  /* Chart cards */
+  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 22px; box-shadow: var(--shadow); }
+  .chart-card.full { grid-column: 1 / -1; }
+  .chart-title { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Project progress bars */
+  .proj-progress-list { display: flex; flex-direction: column; gap: 10px; }
+  .proj-progress-row { display: flex; flex-direction: column; gap: 4px; }
+  .proj-progress-label { display: flex; justify-content: space-between; font-size: 12px; }
+  .proj-progress-name { color: var(--text); font-weight: 500; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .proj-progress-pct { color: var(--text3); font-family: var(--mono); }
+  .proj-progress-track { height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+  .proj-progress-fill { height: 100%; border-radius: 4px; transition: width .6s cubic-bezier(.34,1.56,.64,1); }
+
+  /* Mini progress in today view */
+  .today-proj-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 22px; margin-bottom: 24px; box-shadow: var(--shadow); }
+  .today-proj-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 14px; }
+
+  /* Gantt */
+  .gantt-wrap { overflow-x: auto; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); }
+  .gantt-inner { display: flex; }
+  .gantt-left { flex-shrink: 0; width: 200px; border-right: 1px solid var(--border); }
+  .gantt-right { flex: 1; overflow-x: auto; }
+  .gantt-header-row { height: 40px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; align-items: center; }
+  .gantt-name-header { height: 40px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; }
+  .gantt-row-name { height: 44px; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; font-size: 13px; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
+  .gantt-row-name:hover { background: var(--surface2); }
+  .gantt-row-name.done-row { opacity: .5; text-decoration: line-through; color: var(--text3); }
+  .gantt-group-header { height: 32px; border-bottom: 1px solid var(--border); background: var(--surface2); display: flex; align-items: center; padding: 0 16px; font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; }
+  .gantt-group-header-right { height: 32px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+
+  /* Burndown select */
+  .burndown-select { padding: 4px 10px; font-size: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text2); font-family: var(--font); cursor: pointer; outline: none; }
+
+  /* Empty */
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text3); font-size: 14px; }
+  .empty-icon { font-size: 32px; margin-bottom: 12px; opacity: .5; }
+  .empty-hint { margin-top: 6px; font-size: 12px; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.3); display: none; align-items: flex-start; justify-content: center; padding-top: 60px; z-index: 200; backdrop-filter: blur(2px); }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border); width: 100%; max-width: 540px; box-shadow: var(--shadow-modal); max-height: calc(100vh - 100px); overflow-y: auto; animation: modalIn .18s ease-out; }
+  @keyframes modalIn { from { opacity: 0; transform: translateY(-12px) scale(.98); } to { opacity: 1; transform: none; } }
+  .modal-header { padding: 20px 24px 0; display: flex; align-items: center; justify-content: space-between; }
+  .modal-title { font-size: 16px; font-weight: 600; color: var(--text); }
+  .modal-close { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; cursor: pointer; font-size: 16px; color: var(--text3); display: flex; align-items: center; justify-content: center; transition: all .15s; line-height: 1; }
+  .modal-close:hover { background: var(--surface2); color: var(--text); }
+  .modal-body { padding: 20px 24px; }
+  .modal-footer { padding: 16px 24px 20px; display: flex; justify-content: space-between; border-top: 1px solid var(--border); }
+  .modal-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin: 0 24px; }
+  .modal-tab { padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; background: none; border-top: none; border-left: none; border-right: none; font-family: var(--font); }
+  .modal-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+  /* Forms */
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+  .form-input, .form-select, .form-textarea { width: 100%; padding: 9px 12px; font-size: 14px; font-family: var(--font); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); outline: none; transition: border-color .15s; }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--border2); }
+  .form-textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-hint { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
+  .toggle-label { font-size: 13px; color: var(--text); }
+  .toggle-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .toggle { width: 36px; height: 20px; background: var(--border2); border-radius: 10px; cursor: pointer; transition: background .2s; position: relative; border: none; flex-shrink: 0; }
+  .toggle.on { background: var(--green); }
+  .toggle::after { content: ''; position: absolute; left: 3px; top: 3px; width: 14px; height: 14px; background: #fff; border-radius: 50%; transition: transform .2s; }
+  .toggle.on::after { transform: translateX(16px); }
+
+  /* Buttons */
+  .btn { padding: 9px 18px; font-size: 13px; font-weight: 500; font-family: var(--font); border-radius: var(--radius-sm); cursor: pointer; transition: all .15s; border: 1px solid transparent; }
+  .btn-sm { padding: 6px 13px; font-size: 12px; }
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-primary:hover { opacity: .85; }
+  .btn-ghost { background: transparent; color: var(--text2); border-color: var(--border); }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+  .btn-danger { background: transparent; color: var(--red); border-color: var(--red-border); }
+  .btn-danger:hover { background: var(--red-bg); }
+
+  /* Logs */
+  .log-item { padding: 10px 12px; background: var(--surface2); border-radius: var(--radius-sm); margin-bottom: 6px; border-left: 3px solid var(--border2); }
+  .log-date { font-size: 10px; color: var(--text3); font-family: var(--mono); margin-bottom: 3px; }
+  .log-text { font-size: 13px; color: var(--text); }
+
+  .nav-proj-wrap:hover .nav-edit-btn { display: flex !important; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--text); color: #fff; padding: 10px 18px; border-radius: var(--radius-sm); font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,.2); z-index: 300; opacity: 0; transform: translateY(8px); transition: all .2s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: none; }
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+  .view-pane { animation: fadeIn .2s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-text">PM 看板 <span style="font-size:10px;font-weight:400;color:var(--text3);font-family:var(--mono)">v3</span></div>
+      <div class="logo-sub" id="sidebar-date-label">加载中...</div>
+    </div>
+    <div class="sidebar-date">导航</div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-view="today" onclick="switchView('today')">
+        <span class="nav-icon">◈</span> 今日看板
+        <span class="nav-badge" id="badge-today">0</span>
+      </button>
+      <button class="nav-item" data-view="tasks" onclick="switchView('tasks')">
+        <span class="nav-icon">≡</span> 全部任务
+        <span class="nav-badge" id="badge-tasks">0</span>
+      </button>
+      <div class="nav-section-label" style="padding-bottom:4px">分析</div>
+      <button class="nav-item" data-view="charts" onclick="switchView('charts')">
+        <span class="nav-icon">◉</span> 图表分析
+      </button>
+      <button class="nav-item" data-view="gantt" onclick="switchView('gantt')">
+        <span class="nav-icon">▤</span> 甘特图
+      </button>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-right:10px">
+        <div class="nav-section-label" style="padding-right:0">项目</div>
+        <button onclick="openAddProject()" title="新建项目" style="width:22px;height:22px;border-radius:4px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text3);font-size:16px;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s" onmouseover="this.style.background='var(--surface2)';this.style.color='var(--text)'" onmouseout="this.style.background='transparent';this.style.color='var(--text3)'">+</button>
+      </div>
+      <div id="sidebar-projects"></div>
+    </nav>
+    <div class="sidebar-bottom">
+      <button class="sidebar-add-btn" onclick="openAddTask()">
+        <span style="font-size:16px;line-height:1">+</span> 快速添加任务
+      </button>
+      <div style="display:flex;gap:6px">
+        <button class="sidebar-util-btn" style="flex:1" onclick="openMembersModal()">👤 成员</button>
+        <button class="sidebar-util-btn" style="flex:1" onclick="openTagsModal()">🏷 标签</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="main-header">
+      <div>
+        <div class="main-title" id="header-title">今日看板</div>
+        <div class="main-subtitle" id="header-sub"></div>
+      </div>
+      <div class="header-actions">
+        <div class="header-search" id="task-search-wrap" style="display:none">
+          <span class="search-icon">⌕</span>
+          <input type="text" placeholder="搜索任务..." id="task-search-input" oninput="onSearch(this.value)">
+        </div>
+        <button class="btn btn-ghost btn-sm" id="header-export-btn" onclick="exportCSV()" style="display:none">↓ 导出 CSV</button>
+        <button class="btn btn-primary btn-sm" id="header-add-btn" onclick="openAddTask()" style="display:none">+ 新建任务</button>
+        <button class="btn btn-primary btn-sm" id="header-add-proj-btn" onclick="openAddProject()" style="display:none">+ 新建项目</button>
+        <button class="btn btn-ghost btn-sm" id="header-gantt-today-btn" onclick="ganttScrollToday()" style="display:none">今天</button>
+      </div>
+    </header>
+    <div class="main-content" id="main-content"></div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="modal-overlay" onclick="onOverlayClick(event)">
+  <div class="modal" id="modal-box" onclick="event.stopPropagation()"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'pm_tracker_v4';
+let state = { projects: [], tasks: [], members: [], globalTags: [], burndownLog: {}, recurringLastGenerated: '' };
+let currentView = 'today';
+let searchQuery = '';
+let filterProject = 'all';
+let filterStatus = 'all';
+let filterAssignee = 'all';
+let activeTaskTab = 'basic'; // for edit modal tabs
+let editSubtasks = []; // temp store for edit modal
+let editTags = []; // temp selected tags in edit modal
+let editDeps = []; // temp deps in edit modal
+
+const MEMBER_COLORS = ['#2563a8','#2e7d52','#b87333','#d94f3d','#7c3aed','#be185d','#0e7490','#854d0e'];
+const TAG_PALETTES = [
+  {bg:'#eef4fc',color:'#2563a8',border:'#b8d0ef'},
+  {bg:'#eef6f2',color:'#2e7d52',border:'#b8ddc9'},
+  {bg:'#fdf6ee',color:'#b87333',border:'#f0d9b8'},
+  {bg:'#fdf0ee',color:'#d94f3d',border:'#f5c4bc'},
+  {bg:'#f5eefa',color:'#7c3aed',border:'#d4b5f5'},
+  {bg:'#fef0f5',color:'#be185d',border:'#f5b8d4'},
+  {bg:'#ecfdf5',color:'#065f46',border:'#6ee7b7'},
+  {bg:'#fff7ed',color:'#9a3412',border:'#fdba74'},
+];
+const PROJ_COLORS = ['#2563a8','#2e7d52','#b87333','#d94f3d','#7c3aed','#0e7490','#be185d','#854d0e','#a09e98'];
+
+// ─── Storage ──────────────────────────────────────────────────────────────────
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) { state = JSON.parse(raw); }
+    else {
+      const old = localStorage.getItem('pm_tracker_v3');
+      if (old) { const o = JSON.parse(old); state.projects = o.projects||[]; state.tasks = o.tasks||[]; }
+    }
+  } catch(e) { state = { projects:[], tasks:[], members:[], globalTags:[], burndownLog:{}, recurringLastGenerated:'' }; }
+  if (!state.projects) state.projects = [];
+  if (!state.tasks) state.tasks = [];
+  if (!state.members) state.members = [];
+  if (!state.globalTags) state.globalTags = [
+    {id:'tag1',name:'设计',paletteIdx:0},{id:'tag2',name:'开发',paletteIdx:1},
+    {id:'tag3',name:'运营',paletteIdx:2},{id:'tag4',name:'测试',paletteIdx:3},
+  ];
+  if (!state.burndownLog) state.burndownLog = {};
+  if (!state.recurringLastGenerated) state.recurringLastGenerated = '';
+  state.projects.forEach(p => { if (!p.members) p.members = []; if (!p.colorIdx) p.colorIdx = 0; });
+  state.tasks.forEach(t => {
+    if (!t.tags) t.tags = [];
+    if (!t.subtasks) t.subtasks = [];
+    if (!t.dependencies) t.dependencies = [];
+    if (!t.assignee) t.assignee = '';
+    if (!t.createdAt) t.createdAt = '';
+    if (!t.recurring) t.recurring = {enabled:false,freq:'weekly',dayOfWeek:1};
+    if (!t.logs) t.logs = [];
+    // migrate priority
+    if (t.priority==='P1') t.priority='紧急';
+    else if (t.priority==='P2') t.priority='重要';
+    else if (t.priority==='P3') t.priority='普通';
+  });
+  if (state.projects.length === 0) seedData();
+  checkRecurringTasks();
+  recordBurndownSnapshot();
+  updateBadges();
+  render();
+}
+
+function saveState() {
+  recordBurndownSnapshot();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  updateBadges();
+}
+
+function seedData() {
+  state.projects = [
+    {id:'p1',name:'品牌官网改版',members:[],colorIdx:0},
+    {id:'p2',name:'Q2营销活动',members:[],colorIdx:1},
+    {id:'p3',name:'新功能上线',members:[],colorIdx:2},
+  ];
+  state.members = [
+    {id:'m1',name:'张三',colorIdx:0},
+    {id:'m2',name:'李四',colorIdx:1},
+    {id:'m3',name:'王五',colorIdx:2},
+  ];
+  const d = n => { const dd = new Date(); dd.setDate(dd.getDate()+n); return dd.toISOString().slice(0,10); };
+  const ct = n => { const dd = new Date(); dd.setDate(dd.getDate()+n); return dd.toISOString().slice(0,10); };
+  state.tasks = [
+    {id:'t1',title:'确认设计稿终稿，发给开发',projectId:'p1',due:d(-1),priority:'紧急',status:'doing',logs:[],done:false,tags:['tag1'],subtasks:[{id:'s1',title:'整理设计资产',done:true},{id:'s2',title:'导出切图',done:false}],dependencies:[],assignee:'m1',createdAt:ct(-7),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
+    {id:'t2',title:'和市场对齐活动预算',projectId:'p2',due:d(0),priority:'重要',status:'todo',logs:[],done:false,tags:['tag3'],subtasks:[],dependencies:[],assignee:'m2',createdAt:ct(-3),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
+    {id:'t3',title:'跟进前端开发进度',projectId:'p3',due:d(1),priority:'紧急',status:'doing',logs:[{date:d(-2),text:'前端说本周五可以提测'}],done:false,tags:['tag2'],subtasks:[],dependencies:['t1'],assignee:'m1',createdAt:ct(-5),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
+    {id:'t4',title:'撰写活动策划方案',projectId:'p2',due:d(2),priority:'重要',status:'todo',logs:[],done:false,tags:['tag3'],subtasks:[{id:'s3',title:'竞品分析',done:false},{id:'s4',title:'预算规划',done:false},{id:'s5',title:'执行时间表',done:false}],dependencies:[],assignee:'m3',createdAt:ct(-2),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
+    {id:'t5',title:'用户访谈结果整理',projectId:'p1',due:d(5),priority:'普通',status:'todo',logs:[],done:false,tags:[],subtasks:[],dependencies:[],assignee:'m2',createdAt:ct(-1),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
+    {id:'t6',title:'提交上线申请单',projectId:'p3',due:d(7),priority:'重要',status:'waiting',logs:[],done:false,tags:[],subtasks:[],dependencies:['t3'],assignee:'m3',createdAt:ct(-1),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
+    {id:'t7',title:'评审UI交互方案',projectId:'p1',due:d(-3),priority:'紧急',status:'done',logs:[],done:true,tags:['tag1'],subtasks:[],dependencies:[],assignee:'m1',createdAt:ct(-10),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
+    {id:'t8',title:'每周进度汇报',projectId:'p3',due:d(7),priority:'普通',status:'todo',logs:[],done:false,tags:[],subtasks:[],dependencies:[],assignee:'m2',createdAt:ct(-1),recurring:{enabled:true,freq:'weekly',dayOfWeek:1}},
+  ];
+}
+
+// ─── Recurring tasks ──────────────────────────────────────────────────────────
+function checkRecurringTasks() {
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+  if (state.recurringLastGenerated === todayStr) return;
+  const dow = today.getDay(); // 0=Sun,1=Mon,...
+  const recurringTasks = state.tasks.filter(t => t.recurring && t.recurring.enabled && t.recurring.freq === 'weekly');
+  if (recurringTasks.length === 0) { state.recurringLastGenerated = todayStr; return; }
+  let generated = 0;
+  recurringTasks.forEach(t => {
+    const targetDow = t.recurring.dayOfWeek || 1;
+    if (dow !== targetDow) return;
+    // Check if we already have an instance created today
+    const alreadyExists = state.tasks.some(x => x.recurringFrom === t.id && x.createdAt === todayStr);
+    if (alreadyExists) return;
+    // Calculate next due (same day of week, 7 days from today)
+    const due = new Date(today); due.setDate(due.getDate() + 7);
+    state.tasks.push({
+      id: uid(), title: t.title,
+      projectId: t.projectId, due: due.toISOString().slice(0,10),
+      priority: t.priority, status: 'todo', logs: [], done: false,
+      tags: [...(t.tags||[])], subtasks: [], dependencies: [],
+      assignee: t.assignee, createdAt: todayStr,
+      recurring: {enabled:false, freq:'weekly', dayOfWeek:1},
+      recurringFrom: t.id,
+    });
+    generated++;
+  });
+  state.recurringLastGenerated = todayStr;
+  if (generated > 0) toast(`已自动生成 ${generated} 个周期性任务`);
+}
+
+// ─── Burndown snapshot ────────────────────────────────────────────────────────
+function recordBurndownSnapshot() {
+  const today = new Date().toISOString().slice(0,10);
+  const record = (key, remaining) => {
+    if (!state.burndownLog[key]) state.burndownLog[key] = [];
+    const log = state.burndownLog[key];
+    if (!log.length || log[log.length-1].date !== today) {
+      log.push({date: today, remaining});
+      if (log.length > 60) log.splice(0, log.length - 60);
+    }
+  };
+  record('all', state.tasks.filter(t=>!t.done).length);
+  state.projects.forEach(p => record(p.id, state.tasks.filter(t=>t.projectId===p.id&&!t.done).length));
+}
+
+// ─── Export CSV ──────────────────────────────────────────────────────────────
+function exportCSV() {
+  const headers = ['任务名称','所属项目','负责人','截止日期','优先级','状态','标签','子任务数','子任务完成','前置依赖数','是否完成','周期性'];
+  const rows = [headers];
+  state.tasks.forEach(t => {
+    const tagNames = (t.tags||[]).map(tid => { const tg = state.globalTags.find(x=>x.id===tid); return tg?tg.name:''; }).filter(Boolean).join('|');
+    const assigneeName = t.assignee ? (state.members.find(m=>m.id===t.assignee)||{name:t.assignee}).name : '';
+    const subtotalDone = (t.subtasks||[]).filter(s=>s.done).length;
+    rows.push([
+      t.title, projName(t.projectId), assigneeName, t.due, t.priority,
+      statusInfo(t.status).lbl, tagNames,
+      (t.subtasks||[]).length, subtotalDone,
+      (t.dependencies||[]).length,
+      t.done?'是':'否',
+      (t.recurring&&t.recurring.enabled)?'是':'否'
+    ]);
+  });
+  const csv = rows.map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `pm_tasks_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  toast('CSV 已导出');
+}
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+function uid() { return 'i' + Date.now() + Math.random().toString(36).slice(2,6); }
+function priorityOrder(p) { return {'紧急':0,'重要':1,'普通':2}[p]??3; }
+
+function urgencyOf(t) {
+  if (t.done) return 99;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due = new Date(t.due); due.setHours(0,0,0,0);
+  const diff = Math.round((due-today)/86400000);
+  if (diff<0) return 0; if (diff===0) return 0; if (diff<=3) return 1; if (diff<=7) return 2; return 3;
+}
+
+function dueInfo(t) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due = new Date(t.due); due.setHours(0,0,0,0);
+  const diff = Math.round((due-today)/86400000);
+  if (diff<0) return {text:`逾期 ${-diff} 天`,cls:'pill-red'};
+  if (diff===0) return {text:'今天到期',cls:'pill-red'};
+  if (diff<=3) return {text:`${diff} 天后`,cls:'pill-amber'};
+  if (diff<=7) return {text:`${diff} 天后`,cls:'pill-green'};
+  return {text:t.due,cls:'pill-gray'};
+}
+
+function statusInfo(s) {
+  return {todo:{lbl:'待启动',cls:'pill-gray'},doing:{lbl:'进行中',cls:'pill-blue'},waiting:{lbl:'待反馈',cls:'pill-amber'},done:{lbl:'已完成',cls:'pill-green'}}[s] || {lbl:s,cls:'pill-gray'};
+}
+
+function projName(id) { const p=state.projects.find(x=>x.id===id); return p?p.name:'未分类'; }
+function projColor(id) { const p=state.projects.find(x=>x.id===id); return PROJ_COLORS[(p?p.colorIdx||0:0)%PROJ_COLORS.length]; }
+function memberName(id) { const m=state.members.find(x=>x.id===id); return m?m.name:id; }
+function memberColor(id) { const m=state.members.find(x=>x.id===id); return m?MEMBER_COLORS[m.colorIdx%MEMBER_COLORS.length]:'#a09e98'; }
+function memberInitial(id) { const n=memberName(id); return n?n.slice(0,1):'?'; }
+
+function isBlocked(t) {
+  if (!t.dependencies||!t.dependencies.length) return false;
+  return t.dependencies.some(depId => { const dep=state.tasks.find(x=>x.id===depId); return dep&&!dep.done; });
+}
+
+function tagHTML(tagId) {
+  const tg = state.globalTags.find(x=>x.id===tagId); if (!tg) return '';
+  const p = TAG_PALETTES[tg.paletteIdx%TAG_PALETTES.length];
+  return `<span class="pill" style="background:${p.bg};color:${p.color};border-color:${p.border}">${tg.name}</span>`;
+}
+
+function subtaskProgress(t) {
+  if (!t.subtasks||!t.subtasks.length) return '';
+  const done = t.subtasks.filter(s=>s.done).length;
+  return `<span class="subtask-progress">${done}/${t.subtasks.length}</span>`;
+}
+
+function updateBadges() {
+  const active = state.tasks.filter(t=>!t.done);
+  document.getElementById('badge-today').textContent = active.length;
+  document.getElementById('badge-tasks').textContent = state.tasks.length;
+  const now = new Date();
+  document.getElementById('sidebar-date-label').textContent = now.toLocaleDateString('zh-CN',{month:'long',day:'numeric',weekday:'short'});
+  let html = '';
+  state.projects.forEach(p => {
+    const cnt = state.tasks.filter(t=>t.projectId===p.id&&!t.done).length;
+    const isActive = currentView==='project-'+p.id;
+    html += `<div class="nav-proj-wrap" style="position:relative;display:flex;align-items:center">
+      <button class="nav-item${isActive?' active':''}" style="flex:1;padding-right:28px" onclick="switchView('project-${p.id}')">
+        <span class="nav-icon" style="font-size:10px;color:${PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length]}">●</span>
+        <span style="flex:1;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${p.name}</span>
+        ${cnt?`<span class="nav-badge">${cnt}</span>`:''}
+      </button>
+      <button class="nav-edit-btn" onclick="openEditProject('${p.id}')" title="编辑" style="position:absolute;right:4px;width:22px;height:22px;border-radius:4px;border:none;background:transparent;cursor:pointer;color:${isActive?'rgba(255,255,255,.7)':'var(--text3)'};font-size:12px;display:none;align-items:center;justify-content:center;flex-shrink:0">✎</button>
+    </div>`;
+  });
+  document.getElementById('sidebar-projects').innerHTML = html;
+}
+
+function toast(msg) {
+  const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+// ─── Routing ──────────────────────────────────────────────────────────────────
+function switchView(v) {
+  currentView = v;
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  const btn = document.querySelector(`[data-view="${v}"]`);
+  if (btn) btn.classList.add('active');
+  document.getElementById('task-search-wrap').style.display = v==='tasks'?'flex':'none';
+  document.getElementById('header-add-btn').style.display = (v==='tasks'||v.startsWith('project-'))?'block':'none';
+  document.getElementById('header-add-proj-btn').style.display = v==='projects'?'block':'none';
+  document.getElementById('header-export-btn').style.display = v==='tasks'?'block':'none';
+  document.getElementById('header-gantt-today-btn').style.display = v==='gantt'?'block':'none';
+  searchQuery='';
+  const inp=document.getElementById('task-search-input'); if(inp) inp.value='';
+  updateBadges(); render();
+}
+
+function onSearch(val) { searchQuery=val; render(); }
+
+function render() {
+  if (currentView==='today') renderToday();
+  else if (currentView==='tasks') renderTaskList();
+  else if (currentView==='projects') renderProjects();
+  else if (currentView==='charts') renderCharts();
+  else if (currentView==='gantt') renderGantt();
+  else if (currentView.startsWith('project-')) renderProjectView(currentView.slice(8));
+  else renderToday();
+}
+
+// ─── Today ────────────────────────────────────────────────────────────────────
+function renderToday() {
+  document.getElementById('header-title').textContent = '今日看板';
+  const now = new Date();
+  document.getElementById('header-sub').textContent = now.toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
+
+  const active = state.tasks.filter(t=>!t.done);
+  const done = state.tasks.filter(t=>t.done);
+  const g0 = active.filter(t=>urgencyOf(t)===0).sort((a,b)=>priorityOrder(a.priority)-priorityOrder(b.priority));
+  const g1 = active.filter(t=>urgencyOf(t)===1).sort((a,b)=>priorityOrder(a.priority)-priorityOrder(b.priority));
+  const g2 = active.filter(t=>urgencyOf(t)===2).sort((a,b)=>priorityOrder(a.priority)-priorityOrder(b.priority));
+  const g3 = active.filter(t=>urgencyOf(t)===3).sort((a,b)=>priorityOrder(a.priority)-priorityOrder(b.priority));
+
+  let html = `<div class="view-pane">
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">紧急 / 逾期</div><div class="stat-val${g0.length?' red':''}">${g0.length}</div></div>
+      <div class="stat-card"><div class="stat-label">3 天内到期</div><div class="stat-val${g1.length?' amber':''}">${g1.length}</div></div>
+      <div class="stat-card"><div class="stat-label">本周内</div><div class="stat-val">${g2.length}</div></div>
+      <div class="stat-card"><div class="stat-label">今日已完成</div><div class="stat-val${done.length?' green':''}">${done.length}</div></div>
+    </div>`;
+
+  // Project progress mini chart
+  if (state.projects.length) {
+    html += `<div class="today-proj-section">
+      <div class="today-proj-title">项目完成进度</div>
+      <div class="proj-progress-list">`;
+    state.projects.forEach(p => {
+      const tasks = state.tasks.filter(t=>t.projectId===p.id);
+      const doneCnt = tasks.filter(t=>t.done).length;
+      const pct = tasks.length ? Math.round(doneCnt/tasks.length*100) : 0;
+      const color = PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length];
+      html += `<div class="proj-progress-row">
+        <div class="proj-progress-label">
+          <span class="proj-progress-name" style="cursor:pointer" onclick="switchView('project-${p.id}')">${p.name}</span>
+          <span class="proj-progress-pct">${doneCnt}/${tasks.length} · ${pct}%</span>
+        </div>
+        <div class="proj-progress-track">
+          <div class="proj-progress-fill" style="width:${pct}%;background:${color}"></div>
+        </div>
+      </div>`;
+    });
+    html += '</div></div>';
+  }
+
+  // ── Assignee section ──────────────────────────────────────────────────
+  if (state.members.length) {
+    html += `<div class="today-proj-section" style="margin-bottom:24px">
+      <div class="today-proj-title">负责人任务概览</div>
+      <div style="display:flex;flex-direction:column;gap:14px">`;
+    state.members.forEach(m => {
+      const myTasks = active.filter(t=>t.assignee===m.id);
+      if (!myTasks.length) return;
+      const urgentCnt = myTasks.filter(t=>urgencyOf(t)<=1).length;
+      const color = memberColor(m.id);
+      html += `<div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div class="member-avatar" style="background:${color};width:24px;height:24px;font-size:11px">${memberInitial(m.id)}</div>
+          <span style="font-size:13px;font-weight:600;color:var(--text)">${m.name}</span>
+          <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${myTasks.length} 个任务${urgentCnt?` · <span style="color:var(--red)">${urgentCnt} 紧急</span>`:''}   </span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          ${myTasks.slice(0,4).map(t=>{
+            const di=dueInfo(t), si=statusInfo(t.status);
+            const priCls=t.priority==='紧急'?'pill-red':t.priority==='重要'?'pill-amber':'pill-gray';
+            return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:background .12s" onclick="openEditTask('${t.id}')" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">
+              <div style="flex:1;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.title}</div>
+              <span class="pill ${di.cls}" style="font-size:10px">${di.text}</span>
+              <span class="pill ${priCls}" style="font-size:10px">${t.priority}</span>
+              <span class="pill ${si.cls}" style="font-size:10px">${si.lbl}</span>
+            </div>`;
+          }).join('')}
+          ${myTasks.length>4?`<div style="font-size:12px;color:var(--text3);padding:4px 12px">还有 ${myTasks.length-4} 个任务...</div>`:''}
+        </div>
+      </div>`;
+    });
+    html += '</div></div>';
+  }
+
+  const groups = [
+    {tasks:g0,dot:'#d94f3d',label:'紧急 / 逾期'},
+    {tasks:g1,dot:'#b87333',label:'3 天内'},
+    {tasks:g2,dot:'#2e7d52',label:'本周内'},
+    {tasks:g3,dot:'#a09e98',label:'较远'},
+    {tasks:done,dot:'#c0c0b8',label:'已完成'},
+  ];
+  let anyTask = false;
+  groups.forEach(g => {
+    if (!g.tasks.length) return; anyTask = true;
+    html += `<div class="task-group"><div class="group-header"><div class="group-dot" style="background:${g.dot}"></div><span class="group-title">${g.label}</span><span class="group-count">${g.tasks.length}</span></div>${g.tasks.map(t=>taskCardHTML(t)).join('')}</div>`;
+  });
+  if (!anyTask) html += `<div class="empty-state"><div class="empty-icon">✓</div>今天没有待推进的任务<div class="empty-hint">点击左下角快速添加</div></div>`;
+  html += '</div>';
+  document.getElementById('main-content').innerHTML = html;
+}
+
+// ─── Task List ────────────────────────────────────────────────────────────────
+function renderTaskList() {
+  document.getElementById('header-title').textContent = '全部任务';
+  document.getElementById('header-sub').textContent = `共 ${state.tasks.length} 个任务`;
+
+  let tasks = state.tasks.filter(t => {
+    if (filterProject!=='all' && t.projectId!==filterProject) return false;
+    if (filterStatus!=='all' && t.status!==filterStatus) return false;
+    if (filterAssignee!=='all' && t.assignee!==filterAssignee) return false;
+    if (searchQuery && !t.title.includes(searchQuery)) return false;
+    return true;
+  }).sort((a,b) => urgencyOf(a)-urgencyOf(b) || priorityOrder(a.priority)-priorityOrder(b.priority));
+
+  const projChips = state.projects.map(p=>
+    `<span class="filter-chip${filterProject===p.id?' on':''}" onclick="filterProject='${p.id}';filterStatus='all';renderTaskList()">${p.name}</span>`
+  ).join('');
+  const statusChips = [['all','全部'],['todo','待启动'],['doing','进行中'],['waiting','待反馈'],['done','已完成']].map(([v,l])=>
+    `<span class="filter-chip${filterStatus===v?' on':''}" onclick="filterStatus='${v}';renderTaskList()">${l}</span>`
+  ).join('');
+  const assigneeChips = state.members.map(m=>`<span class="filter-chip${filterAssignee===m.id?' on':''}" onclick="filterAssignee='${m.id}';renderTaskList()" style="${filterAssignee===m.id?'':''}">
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:14px;border-radius:50%;background:${memberColor(m.id)};display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#fff;flex-shrink:0">${memberInitial(m.id)}</span>${m.name}</span>
+  </span>`).join('');
+
+  let html = `<div class="view-pane">
+    <div class="filter-bar"><span class="filter-chip${filterProject==='all'?' on':''}" onclick="filterProject='all';renderTaskList()">全部项目</span>${projChips}</div>
+    <div class="filter-bar" style="margin-top:-12px">${statusChips}</div>
+    <div class="filter-bar" style="margin-top:-12px"><span class="filter-chip${filterAssignee==='all'?' on':''}" onclick="filterAssignee='all';renderTaskList()">全部成员</span>${assigneeChips}</div>
+    ${tasks.length ? tasks.map(t=>taskCardHTML(t)).join('') : '<div class="empty-state"><div class="empty-icon">○</div>没有匹配的任务</div>'}
+  </div>`;
+  document.getElementById('main-content').innerHTML = html;
+}
+
+// ─── Projects ────────────────────────────────────────────────────────────────
+function renderProjects() {
+  document.getElementById('header-title').textContent = '项目';
+  document.getElementById('header-sub').textContent = `${state.projects.length} 个项目`;
+  let html = '<div class="view-pane"><div class="projects-grid">';
+  state.projects.forEach(p => {
+    const tasks=state.tasks.filter(t=>t.projectId===p.id);
+    const doneCnt=tasks.filter(t=>t.done).length;
+    const pct=tasks.length?Math.round(doneCnt/tasks.length*100):0;
+    const sc={todo:0,doing:0,waiting:0,done:0};
+    tasks.forEach(t=>sc[t.status]=(sc[t.status]||0)+1);
+    const color = PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length];
+    const memberAvatars = (p.members||[]).slice(0,4).map(mid=>`<div class="member-avatar" style="background:${memberColor(mid)}" title="${memberName(mid)}">${memberInitial(mid)}</div>`).join('');
+    html += `<div class="project-card" onclick="switchView('project-${p.id}')">
+      <div class="proj-header">
+        <div><div class="proj-name" style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;background:${color};border-radius:50%;display:inline-block;flex-shrink:0"></span>${p.name}</div></div>
+        <div class="proj-actions" onclick="event.stopPropagation()">
+          <button class="icon-btn" onclick="openEditProject('${p.id}')" title="编辑">✎</button>
+          <button class="icon-btn" onclick="confirmDeleteProject('${p.id}')" title="删除">✕</button>
+        </div>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="proj-stats">
+        <div class="proj-stat"><strong>${tasks.length}</strong> 任务</div>
+        <div class="proj-stat"><strong>${doneCnt}</strong> 完成</div>
+        <div class="proj-stat"><strong>${pct}%</strong></div>
+      </div>
+      <div class="proj-badges">
+        ${sc.doing?`<span class="pill pill-blue">${sc.doing} 进行中</span>`:''}
+        ${sc.waiting?`<span class="pill pill-amber">${sc.waiting} 待反馈</span>`:''}
+        ${sc.todo?`<span class="pill pill-gray">${sc.todo} 待启动</span>`:''}
+      </div>
+      ${memberAvatars?`<div style="display:flex;gap:4px;margin-top:12px">${memberAvatars}</div>`:''}
+    </div>`;
+  });
+  if (!state.projects.length) html += '<div class="empty-state"><div class="empty-icon">◻</div>还没有项目</div>';
+  html += '</div></div>';
+  document.getElementById('main-content').innerHTML = html;
+}
+
+// ─── Single Project ───────────────────────────────────────────────────────────
+function renderProjectView(pid) {
+  const proj = state.projects.find(p=>p.id===pid);
+  if (!proj) { switchView('today'); return; }
+  document.getElementById('header-title').textContent = proj.name;
+  const tasks = state.tasks.filter(t=>t.projectId===pid);
+  const done = tasks.filter(t=>t.done).length;
+  const pct = tasks.length?Math.round(done/tasks.length*100):0;
+  document.getElementById('header-sub').textContent = `${tasks.length} 个任务 · 完成 ${pct}%`;
+  document.getElementById('header-add-btn').style.display = 'block';
+
+  const color = PROJ_COLORS[(proj.colorIdx||0)%PROJ_COLORS.length];
+  const memberAvatars = (proj.members||[]).map(mid=>`<div class="member-avatar" style="background:${memberColor(mid)}" title="${memberName(mid)}">${memberInitial(mid)}</div>`).join('');
+
+  let html = `<div class="view-pane">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 22px;margin-bottom:22px;box-shadow:var(--shadow)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="font-size:13px;color:var(--text2)">完成进度 · ${done} / ${tasks.length}</div>
+          ${memberAvatars?`<div style="display:flex;gap:4px;margin-left:8px">${memberAvatars}</div>`:''}
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="openEditProject('${pid}')">✎ 编辑项目</button>
+          <button class="btn btn-danger btn-sm" onclick="confirmDeleteProject('${pid}')">✕ 删除</button>
+        </div>
+      </div>
+      <div class="progress-track" style="height:7px"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
+    </div>`;
+
+  const active = tasks.filter(t=>!t.done).sort((a,b)=>urgencyOf(a)-urgencyOf(b)||priorityOrder(a.priority)-priorityOrder(b.priority));
+  const doneT = tasks.filter(t=>t.done);
+  if (active.length) html += active.map(t=>taskCardHTML(t)).join('');
+  if (doneT.length) html += `<div class="task-group" style="margin-top:20px"><div class="group-header"><div class="group-dot" style="background:#c0c0b8"></div><span class="group-title">已完成</span><span class="group-count">${doneT.length}</span></div>${doneT.map(t=>taskCardHTML(t)).join('')}</div>`;
+  if (!tasks.length) html += '<div class="empty-state"><div class="empty-icon">○</div>这个项目还没有任务<div class="empty-hint">点击右上角新建任务</div></div>';
+  html += '</div>';
+  document.getElementById('main-content').innerHTML = html;
+}
+
+// ─── Charts ───────────────────────────────────────────────────────────────────
+function renderCharts() {
+  document.getElementById('header-title').textContent = '图表分析';
+  document.getElementById('header-sub').textContent = '任务状态分布 · 项目进度 · 燃尽图';
+
+  const total = state.tasks.length;
+  const statusCount = {todo:0,doing:0,waiting:0,done:0};
+  state.tasks.forEach(t => statusCount[t.status]=(statusCount[t.status]||0)+1);
+
+  const donutData = [
+    {label:'待启动',count:statusCount.todo,color:'#d0cfc8'},
+    {label:'进行中',count:statusCount.doing,color:'#2563a8'},
+    {label:'待反馈',count:statusCount.waiting,color:'#b87333'},
+    {label:'已完成',count:statusCount.done,color:'#2e7d52'},
+  ];
+
+  const donutSVG = buildDonutSVG(donutData, total);
+
+  // Project completion bars
+  let projBarsHTML = '<div class="proj-progress-list">';
+  if (!state.projects.length) {
+    projBarsHTML += '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px">暂无项目</div>';
+  } else {
+    state.projects.forEach(p => {
+      const tasks = state.tasks.filter(t=>t.projectId===p.id);
+      const doneCnt = tasks.filter(t=>t.done).length;
+      const pct = tasks.length?Math.round(doneCnt/tasks.length*100):0;
+      const color = PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length];
+      projBarsHTML += `<div class="proj-progress-row">
+        <div class="proj-progress-label">
+          <span class="proj-progress-name">${p.name}</span>
+          <span class="proj-progress-pct">${doneCnt}/${tasks.length} · ${pct}%</span>
+        </div>
+        <div class="proj-progress-track" style="height:10px">
+          <div class="proj-progress-fill" style="width:${pct}%;background:${color}"></div>
+        </div>
+      </div>`;
+    });
+  }
+  projBarsHTML += '</div>';
+
+  // Burndown selector
+  const burndownOpts = `<option value="all">全部项目</option>` +
+    state.projects.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+
+  let html = `<div class="view-pane">
+    <div class="chart-grid">
+      <div class="chart-card">
+        <div class="chart-title">任务状态分布
+          <span style="font-size:11px;font-weight:400;color:var(--text3)">共 ${total} 个</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:24px">
+          <div style="flex-shrink:0">${donutSVG}</div>
+          <div class="chart-legend" style="flex-direction:column;gap:8px">
+            ${donutData.map(d=>`<div class="legend-item"><div class="legend-dot" style="background:${d.color}"></div><span style="font-size:13px">${d.label}</span><span style="font-family:var(--mono);font-size:13px;color:var(--text);font-weight:600;margin-left:auto">${d.count}</span></div>`).join('')}
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-title">项目完成进度</div>
+        ${projBarsHTML}
+      </div>
+
+      <div class="chart-card full">
+        <div class="chart-title">
+          项目燃尽图
+          <select class="burndown-select" id="burndown-proj-select" onchange="updateBurndownChart(this.value)">${burndownOpts}</select>
+        </div>
+        <div id="burndown-chart-area">${buildBurndownSVG('all')}</div>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('main-content').innerHTML = html;
+}
+
+function updateBurndownChart(projId) {
+  document.getElementById('burndown-chart-area').innerHTML = buildBurndownSVG(projId);
+}
+
+function buildDonutSVG(data, total) {
+  const cx=90,cy=90,r=72,ir=46;
+  let svg = `<svg width="180" height="180" viewBox="0 0 180 180">`;
+  if (total===0) {
+    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#f0efe9"/><circle cx="${cx}" cy="${cy}" r="${ir}" fill="white"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="#a09e98" font-size="13">暂无数据</text>`;
+  } else {
+    let sa = -Math.PI/2;
+    data.forEach(d => {
+      if (!d.count) return;
+      const angle=(d.count/total)*2*Math.PI, ea=sa+angle;
+      const x1=cx+r*Math.cos(sa),y1=cy+r*Math.sin(sa);
+      const x2=cx+r*Math.cos(ea),y2=cy+r*Math.sin(ea);
+      const xi1=cx+ir*Math.cos(ea),yi1=cy+ir*Math.sin(ea);
+      const xi2=cx+ir*Math.cos(sa),yi2=cy+ir*Math.sin(sa);
+      const large=angle>Math.PI?1:0;
+      svg += `<path d="M${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} L${xi1},${yi1} A${ir},${ir} 0 ${large},0 ${xi2},${yi2} Z" fill="${d.color}"/>`;
+      sa=ea;
+    });
+    const activeCnt = total - (data.find(d=>d.label==='已完成')||{count:0}).count;
+    svg += `<text x="${cx}" y="${cy-9}" text-anchor="middle" fill="#1a1916" font-size="22" font-weight="600" font-family="DM Mono, monospace">${activeCnt}</text>
+            <text x="${cx}" y="${cy+10}" text-anchor="middle" fill="#a09e98" font-size="11">进行中</text>`;
+  }
+  return svg+'</svg>';
+}
+
+function buildBurndownSVG(projId) {
+  const log = state.burndownLog[projId] || [];
+  const W=680, H=200, padL=44, padR=20, padT=16, padB=36;
+  const chartW=W-padL-padR, chartH=H-padT-padB;
+
+  if (log.length < 2) {
+    // Not enough data - show placeholder
+    let totalTasks = projId==='all' ? state.tasks.filter(t=>!t.done).length : state.tasks.filter(t=>t.projectId===projId&&!t.done).length;
+    return `<div style="display:flex;align-items:center;justify-content:center;height:120px;color:var(--text3);font-size:13px;flex-direction:column;gap:6px">
+      <div>当前剩余任务：<strong style="color:var(--text);font-family:var(--mono)">${totalTasks}</strong> 个</div>
+      <div style="font-size:11px">数据将在多日使用后逐渐积累并展示趋势图</div>
+    </div>`;
+  }
+
+  const maxVal = Math.max(...log.map(l=>l.remaining), 1);
+  const minVal = 0;
+  const range = maxVal - minVal || 1;
+
+  const toX = (i) => padL + (i/(log.length-1))*chartW;
+  const toY = (v) => padT + (1 - (v-minVal)/range)*chartH;
+
+  let pointsStr = log.map((l,i) => `${toX(i)},${toY(l.remaining)}`).join(' ');
+  // Fill area
+  const areaPath = `M${toX(0)},${toY(log[0].remaining)} ` +
+    log.map((l,i)=>`L${toX(i)},${toY(l.remaining)}`).join(' ') +
+    ` L${toX(log.length-1)},${padT+chartH} L${toX(0)},${padT+chartH} Z`;
+
+  // Y grid lines
+  const yTicks = 4;
+  let gridLines = '', yLabels = '';
+  for (let i=0; i<=yTicks; i++) {
+    const v = Math.round(minVal + (range*i/yTicks));
+    const y = toY(v);
+    gridLines += `<line x1="${padL}" y1="${y}" x2="${padL+chartW}" y2="${y}" stroke="#e2e0d8" stroke-width="1"/>`;
+    yLabels += `<text x="${padL-6}" y="${y}" text-anchor="end" dominant-baseline="middle" fill="#a09e98" font-size="11">${v}</text>`;
+  }
+
+  // X date labels (show first, middle, last)
+  let xLabels = '';
+  const xLabelIdxs = [0, Math.floor((log.length-1)/2), log.length-1];
+  xLabelIdxs.forEach(i => {
+    if (i < log.length) xLabels += `<text x="${toX(i)}" y="${padT+chartH+18}" text-anchor="middle" fill="#a09e98" font-size="11">${log[i].date.slice(5)}</text>`;
+  });
+
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block">
+    ${gridLines}
+    <path d="${areaPath}" fill="#2563a8" opacity="0.08"/>
+    <polyline points="${pointsStr}" fill="none" stroke="#2563a8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+    ${log.map((l,i)=>`<circle cx="${toX(i)}" cy="${toY(l.remaining)}" r="3.5" fill="#2563a8"/>`).join('')}
+    ${yLabels}${xLabels}
+    <text x="${padL}" y="${padT-4}" fill="#a09e98" font-size="10">剩余任务数</text>
+  </svg>`;
+}
+
+// ─── Gantt ────────────────────────────────────────────────────────────────────
+let ganttDayW = 30;
+
+function renderGantt() {
+  document.getElementById('header-title').textContent = '甘特图';
+  document.getElementById('header-sub').textContent = '任务时间线视图';
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = today.toISOString().slice(0,10);
+
+  // Compute date range: from earliest task start (or -14 days) to latest due (+14 days)
+  let minDate = new Date(today); minDate.setDate(minDate.getDate()-14);
+  let maxDate = new Date(today); maxDate.setDate(maxDate.getDate()+30);
+  state.tasks.forEach(t => {
+    if (t.due) { const d=new Date(t.due); if(d>maxDate) maxDate=new Date(d); }
+    if (t.createdAt) { const d=new Date(t.createdAt); if(d<minDate) minDate=new Date(d); }
+  });
+  maxDate.setDate(maxDate.getDate()+7);
+  minDate.setDate(minDate.getDate()-3);
+
+  const totalDays = Math.round((maxDate-minDate)/86400000)+1;
+  const chartWidth = totalDays * ganttDayW;
+  const todayOffset = Math.round((today-minDate)/86400000);
+
+  // Build date header
+  let dateHeaderHTML = '';
+  // Month markers
+  let prev = '';
+  for (let i=0; i<totalDays; i++) {
+    const d = new Date(minDate); d.setDate(d.getDate()+i);
+    const m = d.toLocaleDateString('zh-CN',{month:'short'});
+    if (m !== prev) {
+      dateHeaderHTML += `<div style="position:absolute;left:${i*ganttDayW}px;top:0;bottom:0;display:flex;align-items:center;padding-left:6px;font-size:10px;color:var(--text3);font-weight:600;white-space:nowrap;pointer-events:none">${m}</div>`;
+      prev=m;
+    }
+    // Day number every 7 days
+    if (i%7===0) {
+      dateHeaderHTML += `<div style="position:absolute;left:${i*ganttDayW+2}px;top:20px;font-size:9px;color:var(--text3);white-space:nowrap">${d.getDate()}</div>`;
+    }
+  }
+  // Today marker
+  dateHeaderHTML += `<div style="position:absolute;left:${todayOffset*ganttDayW}px;top:0;width:${ganttDayW}px;bottom:-9999px;background:rgba(37,99,168,.07);pointer-events:none"></div>`;
+  dateHeaderHTML += `<div style="position:absolute;left:${todayOffset*ganttDayW+ganttDayW/2}px;top:0;bottom:-9999px;border-left:2px dashed #2563a8;pointer-events:none"></div>`;
+  dateHeaderHTML += `<div style="position:absolute;left:${todayOffset*ganttDayW+1}px;top:2px;background:#2563a8;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;white-space:nowrap">今</div>`;
+
+  // Grid lines every 7 days
+  for (let i=0; i<totalDays; i+=7) {
+    dateHeaderHTML += `<div style="position:absolute;left:${i*ganttDayW}px;top:0;bottom:-9999px;border-left:1px solid var(--border);pointer-events:none"></div>`;
+  }
+
+  // Build rows grouped by project
+  let leftHTML = '<div class="gantt-name-header">任务名称</div>';
+  let rightHTML = `<div class="gantt-header-row" style="position:relative;width:${chartWidth}px">${dateHeaderHTML}</div>`;
+
+  const groups = state.projects.map(p=>({proj:p, tasks:state.tasks.filter(t=>t.projectId===p.id)}));
+  const uncat = state.tasks.filter(t=>!t.projectId);
+  if (uncat.length) groups.push({proj:{id:'',name:'未分类',colorIdx:8}, tasks:uncat});
+
+  groups.forEach(g => {
+    if (!g.tasks.length) return;
+    const color = PROJ_COLORS[(g.proj.colorIdx||0)%PROJ_COLORS.length];
+    leftHTML += `<div class="gantt-group-header" style="border-left:3px solid ${color}">${g.proj.name}</div>`;
+    rightHTML += `<div class="gantt-group-header-right" style="width:${chartWidth}px"></div>`;
+
+    g.tasks.forEach(t => {
+      const startD = t.createdAt ? new Date(t.createdAt) : (() => { const d=new Date(t.due); d.setDate(d.getDate()-5); return d; })();
+      const endD = new Date(t.due);
+      startD.setHours(0,0,0,0); endD.setHours(0,0,0,0);
+      const startOffset = Math.round((startD-minDate)/86400000);
+      const durDays = Math.max(1, Math.round((endD-startD)/86400000)+1);
+      const left = Math.max(0, startOffset)*ganttDayW;
+      const width = Math.max(ganttDayW-4, durDays*ganttDayW-4);
+      const barColor = t.done ? '#c0c0b8' : color;
+      const isOverdue = !t.done && new Date(t.due)<today;
+      const blocked = isBlocked(t);
+
+      leftHTML += `<div class="gantt-row-name${t.done?' done-row':''}" onclick="openEditTask('${t.id}')" title="${t.title}">${blocked?'⚠ ':''}${t.title}</div>`;
+      rightHTML += `<div style="position:relative;height:44px;border-bottom:1px solid var(--border);width:${chartWidth}px;background:${t.done?'transparent':'var(--surface)'}">
+        <div title="${t.title}" onclick="openEditTask('${t.id}')" style="position:absolute;top:10px;left:${left}px;width:${width}px;height:24px;background:${barColor};opacity:${t.done?.5:1};border-radius:5px;cursor:pointer;display:flex;align-items:center;padding:0 8px;overflow:hidden;transition:opacity .15s;${isOverdue?'outline:1.5px solid var(--red);':''}" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='${t.done?.5:1}'">
+          <span style="font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500">${t.title}</span>
+        </div>
+        ${t.due===todayStr?`<div style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--red);font-weight:600">今</div>`:''}
+      </div>`;
+    });
+  });
+
+  if (!state.tasks.length) {
+    leftHTML += '<div class="empty-state" style="padding:40px 16px">暂无任务</div>';
+  }
+
+  const html = `<div class="view-pane">
+    <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:12px;color:var(--text3)">缩放：</span>
+      <button class="btn btn-ghost btn-sm" onclick="setGanttZoom(20)">小</button>
+      <button class="btn btn-ghost btn-sm" onclick="setGanttZoom(30)">中</button>
+      <button class="btn btn-ghost btn-sm" onclick="setGanttZoom(44)">大</button>
+    </div>
+    <div class="gantt-wrap" id="gantt-wrap">
+      <div class="gantt-inner">
+        <div class="gantt-left" id="gantt-left-col">${leftHTML}</div>
+        <div style="flex:1;overflow-x:auto" id="gantt-right-scroll">
+          <div style="min-width:${chartWidth}px" id="gantt-right-col">${rightHTML}</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('main-content').innerHTML = html;
+  ganttScrollToday();
+}
+
+function setGanttZoom(w) {
+  ganttDayW = w;
+  renderGantt();
+}
+
+function ganttScrollToday() {
+  const sc = document.getElementById('gantt-right-scroll');
+  if (!sc) return;
+  const today = new Date(); today.setHours(0,0,0,0);
+  // Scroll to show today minus some padding
+  const wrap = document.getElementById('gantt-wrap');
+  if (!wrap) return;
+  // Calculate approximate scroll position
+  sc.scrollLeft = Math.max(0, sc.scrollLeft + (sc.querySelector('[style*="border-left:2px dashed"]') ? 0 : 300));
+  // Better: find the today line element
+  setTimeout(()=>{
+    const todayLine = document.querySelector('[style*="border-left:2px dashed #2563a8"]');
+    if (todayLine && sc) {
+      const parent = sc.getBoundingClientRect();
+      sc.scrollLeft = Math.max(0, (parseInt(todayLine.style.left)||0) - parent.width/3);
+    }
+  }, 50);
+}
+
+// ─── Task Card ────────────────────────────────────────────────────────────────
+function taskCardHTML(t) {
+  const di=dueInfo(t), si=statusInfo(t.status), pn=projName(t.projectId);
+  const priCls=t.priority==='紧急'?'pill-red':t.priority==='重要'?'pill-amber':'pill-gray';
+  const showProj = currentView!=='project-'+t.projectId;
+  const blocked = isBlocked(t);
+  const assigneeHTML = t.assignee ? `<div class="member-avatar" style="width:20px;height:20px;font-size:10px;background:${memberColor(t.assignee)}" title="${memberName(t.assignee)}">${memberInitial(t.assignee)}</div>` : '';
+  const tagPills = (t.tags||[]).map(tid=>tagHTML(tid)).join('');
+  const subProg = subtaskProgress(t);
+  const recurringBadge = t.recurring&&t.recurring.enabled ? '<span class="pill pill-purple" style="font-size:10px">↻ 周期</span>' : '';
+  const blockedBadge = blocked ? '<span class="dep-blocked-badge">⚠ 等待前置</span>' : '';
+
+  return `<div class="task-card${t.done?' done':''}${blocked?' dep-blocked':''}" onclick="openEditTask('${t.id}')">
+    <div class="check-wrap" onclick="event.stopPropagation();toggleDone('${t.id}')">
+      <div class="check-btn${t.done?' checked':''}"></div>
+    </div>
+    <div class="task-body">
+      <div class="task-title">${t.title}</div>
+      <div class="task-meta">
+        ${showProj?`<span class="pill pill-project">${pn}</span>`:''}
+        <span class="pill ${di.cls}">${di.text}</span>
+        <span class="pill ${priCls}">${t.priority}</span>
+        <span class="pill ${si.cls}">${si.lbl}</span>
+        ${tagPills}${recurringBadge}${blockedBadge}
+        ${subProg}
+      </div>
+    </div>
+    <div class="task-end" onclick="event.stopPropagation()">
+      ${assigneeHTML}
+      ${t.logs&&t.logs.length?`<span class="log-count">${t.logs.length}条</span>`:''}
+      <button class="icon-btn" onclick="openLog('${t.id}')" title="记录跟进">+</button>
+    </div>
+  </div>`;
+}
+
+// ─── Toggle done ──────────────────────────────────────────────────────────────
+function toggleDone(id) {
+  const t=state.tasks.find(x=>x.id===id); if(!t) return;
+  t.done=!t.done; t.status=t.done?'done':(t.status==='done'?'todo':t.status);
+  saveState(); render(); toast(t.done?'已完成 ✓':'已恢复待办');
+}
+
+// ─── Subtask toggle ───────────────────────────────────────────────────────────
+function toggleSubtask(taskId, subtaskId) {
+  const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
+  const s=t.subtasks.find(x=>x.id===subtaskId); if(!s) return;
+  s.done=!s.done; saveState();
+  // Re-render subtask list in modal
+  renderModalSubtasks(taskId);
+}
+
+function renderModalSubtasks(taskId) {
+  const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
+  const el=document.getElementById('subtask-list-modal'); if(!el) return;
+  el.innerHTML = buildSubtaskListHTML(t.subtasks||[], taskId);
+}
+
+function buildSubtaskListHTML(subtasks, taskId) {
+  if (!subtasks.length) return '<div style="font-size:12px;color:var(--text3);padding:8px 0">暂无子任务，在下方输入框添加</div>';
+  return subtasks.map(s=>`<div class="subtask-item">
+    <div class="subtask-check${s.done?' done':''}" onclick="toggleSubtask('${taskId}','${s.id}')"></div>
+    <div class="subtask-text${s.done?' done':''}">${s.title}</div>
+    <button class="subtask-del" onclick="deleteSubtask('${taskId}','${s.id}')">×</button>
+  </div>`).join('');
+}
+
+function addSubtaskFromInput(taskId) {
+  const inp=document.getElementById('new-subtask-input'); if(!inp) return;
+  const title=inp.value.trim(); if(!title) return;
+  const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
+  if(!t.subtasks) t.subtasks=[];
+  t.subtasks.push({id:uid(),title,done:false});
+  inp.value=''; saveState(); renderModalSubtasks(taskId);
+}
+
+function deleteSubtask(taskId, subtaskId) {
+  const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
+  t.subtasks=t.subtasks.filter(s=>s.id!==subtaskId);
+  saveState(); renderModalSubtasks(taskId);
+}
+
+// ─── Modal helpers ────────────────────────────────────────────────────────────
+function openModal(html) {
+  document.getElementById('modal-box').innerHTML=html;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+function onOverlayClick(e) { if(e.target===document.getElementById('modal-overlay')) closeModal(); }
+function modalHeader(title) {
+  return `<div class="modal-header"><span class="modal-title">${title}</span><button class="modal-close" onclick="closeModal()">×</button></div>`;
+}
+
+// ─── Add Task ─────────────────────────────────────────────────────────────────
+function openAddTask() {
+  const today=new Date().toISOString().slice(0,10);
+  const preProj=currentView.startsWith('project-')?currentView.slice(8):'';
+  const projOpts=state.projects.map(p=>`<option value="${p.id}"${p.id===preProj?' selected':''}>${p.name}</option>`).join('');
+  const memberOpts=state.members.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+
+  // Tag dropdown
+  const tagSelectOpts = state.globalTags.map(tg=>`<option value="${tg.id}">${tg.name}</option>`).join('');
+
+  openModal(`${modalHeader('新建任务')}
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">任务名称</label><input class="form-input" id="fi-title" placeholder="输入任务名称..." autofocus></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">所属项目</label><select class="form-select" id="fi-proj"><option value="">未分类</option>${projOpts}</select></div>
+        <div class="form-group"><label class="form-label">负责人</label><select class="form-select" id="fi-assignee"><option value="">未分配</option>${memberOpts}</select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">截止日期</label><input class="form-input" type="date" id="fi-due" value="${today}"></div>
+        <div class="form-group"><label class="form-label">优先级</label><select class="form-select" id="fi-pri"><option>紧急</option><option selected>重要</option><option>普通</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">状态</label><select class="form-select" id="fi-status"><option value="todo">待启动</option><option value="doing">进行中</option><option value="waiting">待反馈</option><option value="done">已完成</option></select></div>
+      </div>
+      ${state.globalTags.length?`<div class="form-group"><label class="form-label">标签</label><select class="form-select" id="fi-tag"><option value="">无</option>${tagSelectOpts}</select></div>`:''}
+      <div class="toggle-row">
+        <div><div class="toggle-label">周期性任务</div><div class="toggle-sub">每周一自动生成新实例</div></div>
+        <button class="toggle" id="fi-recurring" onclick="this.classList.toggle('on')"></button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+        <button class="btn btn-primary" onclick="submitAddTask()">添加任务</button>
+      </div>
+    </div>`);
+  window._addTagSel = [];
+  setTimeout(()=>document.getElementById('fi-title').focus(),80);
+}
+
+// toggleAddTag removed: tags now use dropdown in add-task modal
+
+function submitAddTask() {
+  const title=document.getElementById('fi-title').value.trim();
+  if (!title) { document.getElementById('fi-title').style.borderColor='var(--red)'; return; }
+  const recurring = document.getElementById('fi-recurring').classList.contains('on');
+  state.tasks.push({
+    id:uid(), title,
+    projectId:document.getElementById('fi-proj').value,
+    assignee:document.getElementById('fi-assignee').value,
+    due:document.getElementById('fi-due').value,
+    priority:document.getElementById('fi-pri').value,
+    status:document.getElementById('fi-status').value,
+    logs:[], done:false,
+    tags:(()=>{ const v=document.getElementById('fi-tag'); return v&&v.value?[v.value]:[]; })(),
+    subtasks:[], dependencies:[],
+    createdAt:new Date().toISOString().slice(0,10),
+    recurring:{enabled:recurring,freq:'weekly',dayOfWeek:1},
+  });
+  saveState(); closeModal(); render(); toast('任务已添加');
+}
+
+// ─── Edit Task ────────────────────────────────────────────────────────────────
+function openEditTask(id) {
+  const t=state.tasks.find(x=>x.id===id); if(!t) return;
+  activeTaskTab='basic';
+  const projOpts=state.projects.map(p=>`<option value="${p.id}"${p.id===t.projectId?' selected':''}>${p.name}</option>`).join('');
+  const memberOpts=state.members.map(m=>`<option value="${m.id}"${m.id===t.assignee?' selected':''}>${m.name}</option>`).join('');
+  const logsHTML = t.logs&&t.logs.length
+    ? t.logs.map(l=>`<div class="log-item"><div class="log-date">${l.date}</div><div class="log-text">${l.text}</div></div>`).join('')
+    : '<div style="font-size:12px;color:var(--text3);padding:8px 0">暂无跟进记录</div>';
+
+  // Tags
+  const tagChipsHTML = state.globalTags.map(tg=>{
+    const p=TAG_PALETTES[tg.paletteIdx%TAG_PALETTES.length];
+    const sel=(t.tags||[]).includes(tg.id);
+    return `<span class="tag-chip${sel?' selected':''}" id="edittag-${tg.id}" data-tagid="${tg.id}" onclick="toggleEditTag('${id}','${tg.id}')" style="background:${p.bg};color:${p.color};border-color:${p.border}">${tg.name}</span>`;
+  }).join('');
+
+  // Subtasks
+  const subtaskHTML = buildSubtaskListHTML(t.subtasks||[], id);
+
+  // Dependencies (other tasks, excluding self and done ones)
+  const otherTasks = state.tasks.filter(x=>x.id!==id&&!x.done);
+  const depListHTML = otherTasks.length ? otherTasks.map(x=>`<div class="dep-item">
+    <input type="checkbox" ${(t.dependencies||[]).includes(x.id)?'checked':''} onchange="toggleDep('${id}','${x.id}',this.checked)">
+    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${x.title}">${x.title}</span>
+    <span class="pill pill-gray" style="font-size:10px;flex-shrink:0">${projName(x.projectId)}</span>
+  </div>`).join('') : '<div style="font-size:12px;color:var(--text3);padding:10px 12px">没有其他进行中的任务</div>';
+
+  const recurringOn = t.recurring&&t.recurring.enabled;
+
+  openModal(`${modalHeader('编辑任务')}
+    <div class="modal-tabs">
+      <button class="modal-tab active" id="tab-basic" onclick="switchTaskTab('basic','${id}')">基本信息</button>
+      <button class="modal-tab" id="tab-sub" onclick="switchTaskTab('sub','${id}')">子任务 ${t.subtasks&&t.subtasks.length?`(${t.subtasks.filter(s=>s.done).length}/${t.subtasks.length})`:''}</button>
+      <button class="modal-tab" id="tab-dep" onclick="switchTaskTab('dep','${id}')">依赖 ${t.dependencies&&t.dependencies.length?`(${t.dependencies.length})`:''}</button>
+      <button class="modal-tab" id="tab-log" onclick="switchTaskTab('log','${id}')">记录 ${t.logs&&t.logs.length?`(${t.logs.length})`:''}</button>
+    </div>
+
+    <div class="modal-body" id="task-tab-content">
+      <div id="tab-pane-basic">
+        <div class="form-group"><label class="form-label">任务名称</label><input class="form-input" id="fi-title" value="${t.title.replace(/"/g,'&quot;')}"></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">所属项目</label><select class="form-select" id="fi-proj"><option value="">未分类</option>${projOpts}</select></div>
+          <div class="form-group"><label class="form-label">负责人</label><select class="form-select" id="fi-assignee"><option value="">未分配</option>${memberOpts}</select></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">截止日期</label><input class="form-input" type="date" id="fi-due" value="${t.due}"></div>
+          <div class="form-group"><label class="form-label">优先级</label><select class="form-select" id="fi-pri"><option${t.priority==='紧急'?' selected':''}>紧急</option><option${t.priority==='重要'?' selected':''}>重要</option><option${t.priority==='普通'?' selected':''}>普通</option></select></div>
+        </div>
+        <div class="form-group"><label class="form-label">状态</label><select class="form-select" id="fi-status"><option value="todo"${t.status==='todo'?' selected':''}>待启动</option><option value="doing"${t.status==='doing'?' selected':''}>进行中</option><option value="waiting"${t.status==='waiting'?' selected':''}>待反馈</option><option value="done"${t.status==='done'?' selected':''}>已完成</option></select></div>
+        ${state.globalTags.length?`<div class="form-group"><label class="form-label">标签</label><div class="tag-list">${tagChipsHTML}</div></div>`:''}
+        <div class="toggle-row">
+          <div><div class="toggle-label">周期性任务</div><div class="toggle-sub">每周一自动生成新实例</div></div>
+          <button class="toggle${recurringOn?' on':''}" id="fi-recurring" onclick="this.classList.toggle('on')"></button>
+        </div>
+      </div>
+      <div id="tab-pane-sub" style="display:none">
+        <div class="form-label" style="margin-bottom:10px">子任务清单</div>
+        <div class="subtask-list" id="subtask-list-modal">${subtaskHTML}</div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <input class="form-input" id="new-subtask-input" placeholder="输入子任务..." onkeydown="if(event.key==='Enter')addSubtaskFromInput('${id}')">
+          <button class="btn btn-ghost btn-sm" onclick="addSubtaskFromInput('${id}')">+</button>
+        </div>
+      </div>
+      <div id="tab-pane-dep" style="display:none">
+        <div class="form-label" style="margin-bottom:8px">前置依赖任务</div>
+        <div class="form-hint" style="margin-bottom:10px">勾选的任务完成后，本任务才会解除"等待前置"状态</div>
+        <div class="dep-list">${depListHTML}</div>
+      </div>
+      <div id="tab-pane-log" style="display:none">
+        ${logsHTML}
+        <button class="btn btn-ghost" style="width:100%;margin-top:6px;font-size:12px" onclick="closeModal();openLog('${t.id}')">+ 记录新跟进</button>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-danger" onclick="confirmDeleteTask('${t.id}')">删除任务</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+        <button class="btn btn-primary" onclick="submitEditTask('${t.id}')">保存</button>
+      </div>
+    </div>`);
+}
+
+function switchTaskTab(tab, taskId) {
+  ['basic','sub','dep','log'].forEach(t => {
+    const btn=document.getElementById('tab-'+t);
+    const pane=document.getElementById('tab-pane-'+t);
+    if (btn) btn.classList.toggle('active', t===tab);
+    if (pane) pane.style.display = t===tab?'block':'none';
+  });
+  activeTaskTab = tab;
+}
+
+function toggleEditTag(taskId, tagId) {
+  const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
+  if(!t.tags) t.tags=[];
+  const idx=t.tags.indexOf(tagId);
+  if (idx>=0) t.tags.splice(idx,1); else t.tags.push(tagId);
+  saveState();
+  const el=document.getElementById('edittag-'+tagId);
+  if (el) el.classList.toggle('selected', t.tags.includes(tagId));
+}
+
+function toggleDep(taskId, depId, checked) {
+  const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
+  if(!t.dependencies) t.dependencies=[];
+  if (checked && !t.dependencies.includes(depId)) t.dependencies.push(depId);
+  else if (!checked) t.dependencies=t.dependencies.filter(x=>x!==depId);
+  saveState();
+}
+
+function submitEditTask(id) {
+  const t=state.tasks.find(x=>x.id===id); if(!t) return;
+  const title=document.getElementById('fi-title').value.trim(); if(!title) return;
+  t.title=title;
+  t.projectId=document.getElementById('fi-proj').value;
+  t.assignee=document.getElementById('fi-assignee').value;
+  t.due=document.getElementById('fi-due').value;
+  t.priority=document.getElementById('fi-pri').value;
+  t.status=document.getElementById('fi-status').value;
+  t.done=t.status==='done';
+  const recurring=document.getElementById('fi-recurring');
+  if(recurring) t.recurring={enabled:recurring.classList.contains('on'),freq:'weekly',dayOfWeek:1};
+  saveState(); closeModal(); render(); toast('已保存');
+}
+
+function confirmDeleteTask(id) {
+  if (!confirm('确认删除这个任务？')) return;
+  state.tasks=state.tasks.filter(t=>t.id!==id);
+  // Remove from other tasks' dependencies
+  state.tasks.forEach(t=>{ if(t.dependencies) t.dependencies=t.dependencies.filter(x=>x!==id); });
+  saveState(); closeModal(); render(); toast('已删除');
+}
+
+// ─── Log ──────────────────────────────────────────────────────────────────────
+function openLog(id) {
+  const t=state.tasks.find(x=>x.id===id); if(!t) return;
+  openModal(`${modalHeader('记录跟进')}
+    <div class="modal-body">
+      <div style="font-size:13px;color:var(--text2);padding:8px 12px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:16px">${t.title}</div>
+      <div class="form-group"><label class="form-label">跟进内容</label><textarea class="form-textarea" id="fi-log" placeholder="记录这次跟进的内容、结论、下一步行动..." autofocus></textarea></div>
+      <div class="form-group">
+        <label class="form-label">更新状态（可选）</label>
+        <select class="form-select" id="fi-status">
+          <option value="">状态不变</option>
+          <option value="todo"${t.status==='todo'?' selected':''}>待启动</option>
+          <option value="doing"${t.status==='doing'?' selected':''}>进行中</option>
+          <option value="waiting"${t.status==='waiting'?' selected':''}>待反馈</option>
+          <option value="done">已完成</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+        <button class="btn btn-primary" onclick="submitLog('${id}')">记录</button>
+      </div>
+    </div>`);
+  setTimeout(()=>document.getElementById('fi-log').focus(),80);
+}
+
+function submitLog(id) {
+  const t=state.tasks.find(x=>x.id===id); if(!t) return;
+  const text=document.getElementById('fi-log').value.trim();
+  if (!text) { document.getElementById('fi-log').style.borderColor='var(--red)'; return; }
+  const status=document.getElementById('fi-status').value;
+  if(!t.logs) t.logs=[];
+  t.logs.unshift({date:new Date().toISOString().slice(0,10),text});
+  if(status) { t.status=status; t.done=status==='done'; }
+  saveState(); closeModal(); render(); toast('跟进已记录');
+}
+
+// ─── Projects CRUD ────────────────────────────────────────────────────────────
+function openAddProject() {
+  openModal(`${modalHeader('新建项目')}
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">项目名称</label><input class="form-input" id="fi-pname" placeholder="输入项目名称..." autofocus></div>
+      <div class="form-group">
+        <label class="form-label">颜色标识</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          ${PROJ_COLORS.map((c,i)=>`<div onclick="selectProjColor(${i})" id="pcolor-${i}" style="width:24px;height:24px;border-radius:50%;background:${c};cursor:pointer;border:2px solid ${i===0?'var(--text)':'transparent'};transition:border .15s" title="${c}"></div>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+        <button class="btn btn-primary" onclick="submitAddProject()">创建</button>
+      </div>
+    </div>`);
+  window._newProjColor=0;
+  setTimeout(()=>document.getElementById('fi-pname').focus(),80);
+}
+
+function selectProjColor(idx) {
+  PROJ_COLORS.forEach((_,i)=>{ const el=document.getElementById('pcolor-'+i); if(el) el.style.border=i===idx?'2px solid var(--text)':'2px solid transparent'; });
+  window._newProjColor=idx;
+}
+
+function submitAddProject() {
+  const name=document.getElementById('fi-pname').value.trim(); if(!name) return;
+  const p={id:uid(),name,members:[],colorIdx:window._newProjColor||0};
+  state.projects.push(p);
+  saveState(); closeModal(); switchView('project-'+p.id); toast('项目已创建');
+}
+
+function openEditProject(id) {
+  const p=state.projects.find(x=>x.id===id); if(!p) return;
+  const memberListHTML = (p.members||[]).map(mid=>`<div class="subtask-item">
+    <div class="member-avatar" style="background:${memberColor(mid)}">${memberInitial(mid)}</div>
+    <div style="flex:1;font-size:13px">${memberName(mid)}</div>
+    <button class="subtask-del" style="opacity:1" onclick="removeMemberFromProject('${id}','${mid}')">×</button>
+  </div>`).join('');
+  const availableMembers = state.members.filter(m=>!(p.members||[]).includes(m.id));
+  const addMemberOpts = availableMembers.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+
+  openModal(`${modalHeader('编辑项目')}
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">项目名称</label><input class="form-input" id="fi-pname" value="${p.name}"></div>
+      <div class="form-group">
+        <label class="form-label">颜色标识</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          ${PROJ_COLORS.map((c,i)=>`<div onclick="selectProjColor(${i})" id="pcolor-${i}" style="width:24px;height:24px;border-radius:50%;background:${c};cursor:pointer;border:2px solid ${i===(p.colorIdx||0)?'var(--text)':'transparent'};transition:border .15s"></div>`).join('')}
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">项目成员</label>
+        <div id="proj-member-list" style="margin-bottom:10px">${memberListHTML||'<div style="font-size:12px;color:var(--text3);padding:6px 0">暂无成员</div>'}</div>
+        ${availableMembers.length?`<div style="display:flex;gap:8px">
+          <select class="form-select" id="proj-add-member-sel"><option value="">选择成员...</option>${addMemberOpts}</select>
+          <button class="btn btn-ghost btn-sm" onclick="addMemberToProject('${id}')">添加</button>
+        </div>`:'<div style="font-size:12px;color:var(--text3)">所有成员已加入 · 可在"成员管理"添加新成员</div>'}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger" onclick="confirmDeleteProject('${p.id}')">删除项目</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+        <button class="btn btn-primary" onclick="submitEditProject('${p.id}')">保存</button>
+      </div>
+    </div>`);
+  window._newProjColor=p.colorIdx||0;
+}
+
+function addMemberToProject(projId) {
+  const sel=document.getElementById('proj-add-member-sel'); if(!sel||!sel.value) return;
+  const p=state.projects.find(x=>x.id===projId); if(!p) return;
+  if(!p.members) p.members=[];
+  if(!p.members.includes(sel.value)) p.members.push(sel.value);
+  saveState(); openEditProject(projId);
+}
+
+function removeMemberFromProject(projId, memberId) {
+  const p=state.projects.find(x=>x.id===projId); if(!p) return;
+  p.members=p.members.filter(x=>x!==memberId);
+  saveState(); openEditProject(projId);
+}
+
+function submitEditProject(id) {
+  const p=state.projects.find(x=>x.id===id); if(!p) return;
+  const name=document.getElementById('fi-pname').value.trim(); if(!name) return;
+  p.name=name; p.colorIdx=window._newProjColor||0;
+  saveState(); closeModal(); render(); toast('已保存');
+}
+
+function confirmDeleteProject(id) {
+  if(!confirm('删除项目后，其下任务将变为未分类，确认删除？')) return;
+  state.projects=state.projects.filter(p=>p.id!==id);
+  state.tasks.forEach(t=>{ if(t.projectId===id) t.projectId=''; });
+  saveState(); closeModal(); switchView('today'); toast('项目已删除');
+}
+
+// ─── Members management ───────────────────────────────────────────────────────
+function openMembersModal() {
+  openModal(`${modalHeader('成员管理')}
+    <div class="modal-body">
+      <div id="members-list">` + buildMembersListHTML() + `</div>
+      <div class="divider"></div>
+      <div class="form-group"><label class="form-label">添加成员</label>
+        <div style="display:flex;gap:8px">
+          <input class="form-input" id="new-member-name" placeholder="输入成员姓名..." onkeydown="if(event.key==='Enter')submitAddMember()">
+          <button class="btn btn-primary btn-sm" onclick="submitAddMember()">+ 添加</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>`);
+}
+
+function buildMembersListHTML() {
+  if (!state.members.length) return '<div style="font-size:13px;color:var(--text3);padding:8px 0">暂无成员</div>';
+  return state.members.map(m=>{
+    const taskCnt = state.tasks.filter(t=>t.assignee===m.id).length;
+    const hasTask = taskCnt > 0;
+    const delBtn = hasTask
+      ? `<button title="请先删除或转移该成员的 ${taskCnt} 个任务" style="width:20px;height:20px;border:none;background:transparent;cursor:not-allowed;color:var(--border2);font-size:14px;display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0" disabled>×</button>`
+      : `<button onclick="deleteMember('${m.id}')" title="删除成员" style="width:20px;height:20px;border:none;background:transparent;cursor:pointer;color:var(--text3);font-size:14px;display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0;transition:color .15s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">×</button>`;
+    return `<div class="subtask-item" style="${hasTask?'border-left:2px solid var(--border2);':''}">
+      <div class="member-avatar" style="background:${MEMBER_COLORS[m.colorIdx%MEMBER_COLORS.length]}">${m.name.slice(0,1)}</div>
+      <div style="flex:1;font-size:13px">${m.name}</div>
+      <div style="font-size:11px;margin-right:8px;${hasTask?'color:var(--amber);font-weight:500':'color:var(--text3)'}">${taskCnt} 个任务${hasTask?' · 需先清空':''}</div>
+      ${delBtn}
+    </div>`;
+  }).join('');
+}
+
+function submitAddMember() {
+  const inp=document.getElementById('new-member-name'); if(!inp) return;
+  const name=inp.value.trim(); if(!name) return;
+  state.members.push({id:uid(),name,colorIdx:state.members.length%MEMBER_COLORS.length});
+  inp.value=''; saveState();
+  document.getElementById('members-list').innerHTML=buildMembersListHTML();
+}
+
+function deleteMember(id) {
+  const taskCnt = state.tasks.filter(t=>t.assignee===id).length;
+  if (taskCnt > 0) {
+    toast(`⚠ 请先删除或转移该成员的 ${taskCnt} 个任务`);
+    return;
+  }
+  const m = state.members.find(x=>x.id===id);
+  if (!confirm(`确认删除成员「${m?m.name:''}」？`)) return;
+  state.members = state.members.filter(m=>m.id!==id);
+  saveState();
+  document.getElementById('members-list').innerHTML = buildMembersListHTML();
+}
+
+// ─── Tags management ──────────────────────────────────────────────────────────
+function openTagsModal() {
+  openModal(`${modalHeader('标签管理')}
+    <div class="modal-body">
+      <div id="tags-list">` + buildTagsListHTML() + `</div>
+      <div class="divider"></div>
+      <div class="form-group"><label class="form-label">添加标签</label>
+        <div style="display:flex;gap:8px">
+          <input class="form-input" id="new-tag-name" placeholder="标签名称..." onkeydown="if(event.key==='Enter')submitAddTag()">
+          <button class="btn btn-primary btn-sm" onclick="submitAddTag()">+ 添加</button>
+        </div>
+        <div class="form-hint">颜色将自动循环分配</div>
+      </div>
+    </div>
+    <div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>`);
+}
+
+function buildTagsListHTML() {
+  if (!state.globalTags.length) return '<div style="font-size:13px;color:var(--text3);padding:8px 0">暂无标签</div>';
+  return state.globalTags.map(tg=>{
+    const p=TAG_PALETTES[tg.paletteIdx%TAG_PALETTES.length];
+    const usageCount=state.tasks.filter(t=>(t.tags||[]).includes(tg.id)).length;
+    return `<div class="subtask-item">
+      <span class="tag-chip" style="background:${p.bg};color:${p.color};border-color:${p.border};cursor:default">${tg.name}</span>
+      <div style="flex:1;font-size:12px;color:var(--text3);padding-left:8px">使用 ${usageCount} 次</div>
+      <button class="subtask-del" style="opacity:1" onclick="deleteTag('${tg.id}')">×</button>
+    </div>`;
+  }).join('');
+}
+
+function submitAddTag() {
+  const inp=document.getElementById('new-tag-name'); if(!inp) return;
+  const name=inp.value.trim(); if(!name) return;
+  state.globalTags.push({id:uid(),name,paletteIdx:state.globalTags.length%TAG_PALETTES.length});
+  inp.value=''; saveState();
+  document.getElementById('tags-list').innerHTML=buildTagsListHTML();
+}
+
+function deleteTag(id) {
+  if(!confirm('删除标签后，相关任务的标签将被移除，确认？')) return;
+  state.globalTags=state.globalTags.filter(t=>t.id!==id);
+  state.tasks.forEach(t=>{ if(t.tags) t.tags=t.tags.filter(x=>x!==id); });
+  saveState();
+  document.getElementById('tags-list').innerHTML=buildTagsListHTML();
+}
+
+// ─── Keyboard ─────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape') closeModal();
+  if ((e.metaKey||e.ctrlKey)&&e.key==='k') { e.preventDefault(); openAddTask(); }
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+loadState();
+</script>
+</body>
+</html>
