@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PM 协作看板 - 登录</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* --- 基础样式变量 (保留原版) --- */
+  :root {
+    --bg: #f5f4f0; --surface: #ffffff; --surface2: #f0efe9; --border: #e2e0d8; --border2: #cccac0;
+    --text: #1a1916; --text2: #6b6860; --text3: #a09e98; --accent: #1a1916;
+    --red: #d94f3d; --red-bg: #fdf0ee; --red-border: #f5c4bc;
+    --amber: #b87333; --amber-bg: #fdf6ee; --amber-border: #f0d9b8;
+    --green: #2e7d52; --green-bg: #eef6f2; --green-border: #b8ddc9;
+    --blue: #2563a8; --blue-bg: #eef4fc; --blue-border: #b8d0ef;
+    --purple: #7c3aed; --purple-bg: #f5eefa; --purple-border: #d4b5f5;
+    --radius: 10px; --radius-sm: 6px; --radius-lg: 14px;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+    --shadow-modal: 0 8px 40px rgba(0,0,0,.14);
+    --font: 'DM Sans', -apple-system, sans-serif;
+    --mono: 'DM Mono', monospace;
+    --sidebar-w: 226px; --header-h: 60px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); }
+
+  /* --- 视图控制 --- */
+  .view-container { display: none; height: 100vh; }
+  .view-container.active { display: flex; }
+
+  /* --- 登录页样式 --- */
+  #login-view { align-items: center; justify-content: center; background: #fff; }
+  .auth-box { width: 100%; max-width: 360px; padding: 40px; border-radius: var(--radius-lg); border: 1px solid var(--border); box-shadow: var(--shadow); background: #fff; }
+  .auth-title { font-size: 20px; font-weight: 600; margin-bottom: 24px; text-align: center; }
+
+  /* --- 侧边栏和主界面 (保留并适配) --- */
+  .layout { display: flex; width: 100%; }
+  .sidebar { width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  /* ... 此处省略部分原版样式，建议直接使用我之前发给你的样式表内容 ... */
+  /* (为了篇幅，样式保持与 v3/v4 一致) */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.3); display: none; align-items: flex-start; justify-content: center; padding-top: 60px; z-index: 200; backdrop-filter: blur(2px); }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--radius-lg); width: 540px; box-shadow: var(--shadow-modal); max-height: 90vh; overflow: auto; }
+  .form-input, .form-select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid var(--border); border-radius: 6px; }
+  .btn { padding: 10px 20px; border-radius: 6px; cursor: pointer; border: none; font-weight: 500; }
+  .btn-primary { background: var(--accent); color: #fff; }
+</style>
+</head>
+<body>
+
+<div id="login-view" class="view-container active">
+  <div class="auth-box">
+    <div class="auth-title">PM 看板管理系统</div>
+    <div style="margin-bottom: 16px;">
+      <label style="font-size: 12px; font-weight: 600; color: var(--text3);">账号名</label>
+      <input type="text" id="login-user" class="form-input" placeholder="输入姓名">
+    </div>
+    <div style="margin-bottom: 24px;">
+      <label style="font-size: 12px; font-weight: 600; color: var(--text3);">登录密码</label>
+      <input type="password" id="login-pass" class="form-input" placeholder="••••••">
+    </div>
+    <button class="btn btn-primary" style="width:100%" onclick="handleJumpLogin()">立即登录</button>
+    <div id="login-err" style="color:var(--red); font-size:12px; margin-top:12px; text-align:center"></div>
+  </div>
+</div>
+
+<div id="app-view" class="view-container">
+  <div class="layout" style="width:100%">
+    <aside class="sidebar">
+      <div class="sidebar-logo" style="padding:20px; border-bottom: 1px solid var(--border);">
+        <div class="logo-text" id="user-display">加载中...</div>
+        <div class="logo-sub">PM 协作平台</div>
+      </div>
+      <nav class="sidebar-nav" style="flex:1; padding:10px">
+        <button class="nav-item active" onclick="switchView('today')">◈ 今日看板</button>
+        <button class="nav-item" onclick="switchView('tasks')">≡ 全部任务</button>
+        <div style="font-size:10px; color:var(--text3); padding:10px 0">项目</div>
+        <div id="sidebar-projects"></div>
+      </nav>
+      <div class="sidebar-bottom" style="padding:10px; border-top:1px solid var(--border)">
+        <button class="btn btn-primary" style="width:100%" onclick="openAddTask()">+ 快速添加任务</button>
+        <div style="display:flex; gap:5px; margin-top:5px">
+            <button class="btn btn-ghost" style="flex:1; font-size:11px" onclick="openMembersModal()">👤 成员</button>
+            <button class="btn btn-ghost" style="flex:1; font-size:11px" onclick="handleLogout()">登出</button>
+        </div>
+      </div>
+    </aside>
+    <main class="main">
+      <header class="main-header" style="height:60px; padding:0 20px; display:flex; align-items:center; border-bottom:1px solid var(--border); background:#fff">
+        <h3 id="header-title">今日看板</h3>
+      </header>
+      <div class="main-content" id="main-content" style="padding:20px; overflow-y:auto"></div>
+    </main>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay" onclick="onOverlayClick(event)">
+  <div class="modal" id="modal-box" onclick="event.stopPropagation()"></div>
+</div>
+
+<script>
+// --- 填入你的 Supabase 配置 ---
+const SUPABASE_URL = 'https://rfjrkcclhvuldenpdlye.supabase.co'; 
+const SUPABASE_KEY = 'sb_publishable_a29IWCUpjugzMqx6VGnNhw_bpU9Grpi'; 
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let state = { projects: [], tasks: [], members: [], globalTags: [] };
+let currentUser = null;
+let currentView = 'today';
+
+
+// --- 1. 登录跳转逻辑 ---
+async function handleJumpLogin() {
+    const name = document.getElementById('login-user').value.trim();
+    const pass = document.getElementById('login-pass').value;
+    const errEl = document.getElementById('login-err');
+
+    if(!name || !pass) return;
+
+    // 从数据库匹配成员
+    const { data, error } = await sb.from('members').select('*').eq('name', name).eq('password', pass).single();
+
+    if (error || !data) {
+        errEl.textContent = "账号或密码错误";
+        return;
+    }
+
+    // 1. 登录成功：在本地存储中记录用户信息，以便主页面校验
+    currentUser = data;
+    localStorage.setItem('pm_session', JSON.stringify(data));
+
+    // 2. 执行页面跳转
+    window.location.href = 'projectManage.html'; 
+}
+function showApp() {
+    document.getElementById('login-view').classList.remove('active');
+    document.getElementById('app-view').classList.add('active');
+    document.getElementById('user-display').textContent = `你好，${currentUser.name}`;
+    initBoard();
+}
+
+function handleLogout() {
+    localStorage.removeItem('pm_session');
+    location.reload(); // 简单粗暴的登出跳转
+}
+
+// --- 2. 数据加载逻辑 (已修复映射) ---
+async function loadState() {
+  try {
+    const [tRes, pRes, mRes] = await Promise.all([
+      sb.from('tasks').select('*'),
+      sb.from('projects').select('*'),
+      sb.from('members').select('*')
+    ]);
+
+    state.tasks = (tRes.data || []).map(t => ({ ...t, projectId: t.project_id }));
+    state.projects = (pRes.data || []).map(p => ({ 
+        id: p.id, name: p.name, colorIdx: p.color_idx, members: p.members || [] 
+    }));
+    state.members = (mRes.data || []).map(m => ({ ...m, colorIdx: m.color_idx }));
+
+    renderSideProjects();
+    render();
+  } catch(e) { toast("同步数据失败"); }
+}
+
+// --- 3. 核心修复：项目成员保存 ---
+async function syncProject(proj) {
+    // 显式映射字段，确保数组被正确存入 jsonb
+    const dbData = {
+        id: proj.id,
+        name: proj.name,
+        color_idx: proj.colorIdx || 0,
+        members: proj.members // 这里是 ID 数组
+    };
+    const { error } = await sb.from('projects').upsert(dbData);
+    if (error) console.error("项目保存报错:", error);
+}
+
+// 修改项目成员逻辑
+async function addMemberToProject(projId) {
+    const sel = document.getElementById('proj-add-member-sel');
+    if (!sel || !sel.value) return;
+    const p = state.projects.find(x => x.id === projId);
+    if (!p) return;
+
+    if (!p.members.includes(sel.value)) {
+        p.members.push(sel.value);
+        await syncProject(p); // 同步到云端
+        openEditProject(projId); // 刷新 UI
+        toast("已加入成员");
+    }
+}
+
+async function removeMemberFromProject(projId, mid) {
+    const p = state.projects.find(x => x.id === projId);
+    if (!p) return;
+    p.members = p.members.filter(x => x !== mid);
+    await syncProject(p);
+    openEditProject(projId);
+    toast("已移除成员");
+}
+
+// --- 4. 协作实时监听 ---
+function initRealtime() {
+  sb.channel('global').on('postgres_changes', { event: '*', schema: 'public' }, () => loadState()).subscribe();
+}
+
+// --- UI 渲染部分 ---
+function renderSideProjects() {
+    let html = '';
+    state.projects.forEach(p => {
+        html += `<button class="nav-item" onclick="switchView('project-${p.id}')">● ${p.name}</button>`;
+    });
+    document.getElementById('sidebar-projects').innerHTML = html;
+}
+
+function render() {
+    const content = document.getElementById('main-content');
+    if (currentView === 'today') {
+        const active = state.tasks.filter(t => !t.done);
+        content.innerHTML = active.map(t => `<div class="task-card" style="background:#fff; padding:15px; margin-bottom:10px; border-radius:8px; border:1px solid var(--border);">${t.title}</div>`).join('');
+    }
+}
+
+// 基础函数 (uid, closeModal 等保持原样)
+function uid() { return 'i' + Date.now(); }
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+function onOverlayClick(e) { if(e.target.id==='modal-overlay') closeModal(); }
+function toast(m) { const el=document.getElementById('toast'); el.textContent=m; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2000); }
+
+async function initBoard() {
+    await loadState();
+    initRealtime();
+}
+
+// 页面加载检查
+const saved = localStorage.getItem('pm_session');
+if(saved) {
+    currentUser = JSON.parse(saved);
+    showApp();
+}
+</script>
+</body>
+</html>
