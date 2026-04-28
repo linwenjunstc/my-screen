@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资金计划 — PM Board</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f0ede6; --surface:#fff; --surface2:#f5f3ee; --surface3:#ebe9e3;
+    --border:#e4e1d8; --border2:#ccc9bf;
+    --text:#1a1916; --text2:#5c5a54; --text3:#9c9a94;
+    --accent:#1a1916; --accent-dim:rgba(26,25,22,.06);
+    --red:#c94040; --red-bg:#fdf2f2; --red-border:#f0c8c8;
+    --amber:#a06020; --amber-bg:#fdf6ed; --amber-border:#edd8b0;
+    --green:#1e6e44; --green-bg:#edf7f2; --green-border:#a8d8bc;
+    --blue:#1a52a0; --blue-bg:#edf3fc; --blue-border:#a8c4ee;
+    --teal:#0e7268;
+    --sb-bg:#1a1916; --sb-border:rgba(255,255,255,.07);
+    --sb-text:#c8c5be; --sb-text2:#7a7870;
+    --sb-active:rgba(255,255,255,.1); --sb-hover:rgba(255,255,255,.055);
+    --radius:10px; --radius-sm:6px; --radius-lg:14px;
+    --shadow:0 1px 2px rgba(0,0,0,.04),0 3px 12px rgba(0,0,0,.05);
+    --shadow-md:0 2px 8px rgba(0,0,0,.07),0 8px 24px rgba(0,0,0,.06);
+    --shadow-modal:0 12px 48px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.08);
+    --font:'DM Sans',-apple-system,sans-serif;
+    --mono:'DM Mono',monospace;
+    --sidebar-w:192px; --header-h:56px;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased}
+
+  /* Layout */
+  .layout{display:flex;height:100vh}
+  .sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--sb-bg);display:flex;flex-direction:column;overflow:hidden}
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+  /* Sidebar */
+  .sb-logo{padding:16px 16px 12px;border-bottom:1px solid var(--sb-border)}
+  .sb-logo-text{font-size:13px;font-weight:600;color:#f0ede6;display:flex;align-items:center;gap:7px}
+  .sb-logo-text::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 6px var(--teal);flex-shrink:0}
+  .sb-sub{font-size:10px;color:var(--sb-text2);margin-top:2px;font-family:var(--mono)}
+  .sb-section{font-size:9.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--sb-text2);padding:12px 14px 5px}
+  .sb-nav{flex:1;padding:4px 8px;overflow-y:auto}
+  .sb-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;font-size:12.5px;color:var(--sb-text);transition:background .12s,color .12s;margin-bottom:1px;border:none;background:transparent;width:100%;text-align:left}
+  .sb-item:hover{background:var(--sb-hover);color:#f0ede6}
+  .sb-item.active{background:var(--sb-active);color:#f0ede6;font-weight:500}
+  .sb-item svg{width:14px;height:14px;opacity:.65;flex-shrink:0}
+  .sb-item.active svg{opacity:1}
+  .sb-bottom{padding:10px 8px;border-top:1px solid var(--sb-border)}
+  .sb-back{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--radius-sm);font-size:12px;color:var(--sb-text2);cursor:pointer;background:transparent;border:1px solid var(--sb-border);width:100%;transition:all .12s}
+  .sb-back:hover{background:var(--sb-hover);color:var(--sb-text)}
+
+  /* Month picker */
+  .month-picker{display:flex;align-items:center;gap:6px;padding:8px 14px}
+  .month-picker label{font-size:10px;color:var(--sb-text2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em}
+  .month-select{background:rgba(255,255,255,.07);border:1px solid var(--sb-border);border-radius:var(--radius-sm);color:var(--sb-text);font-family:var(--mono);font-size:11px;padding:4px 8px;outline:none;cursor:pointer;width:100%}
+  .month-select option{background:#2a2926;color:var(--sb-text)}
+
+  /* Header */
+  .main-header{height:var(--header-h);flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px}
+  .main-title{font-size:15px;font-weight:600;color:var(--text);letter-spacing:-.2px}
+  .main-sub{font-size:11px;color:var(--text3);margin-top:1px}
+  .header-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+
+  /* Content */
+  .main-content{flex:1;overflow-y:auto;padding:20px 24px}
+
+  /* Tabs */
+  .view-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px}
+  .view-tab{padding:9px 18px;font-size:13px;font-weight:500;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .13s;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--font)}
+  .view-tab.active{color:var(--text);border-bottom-color:var(--accent)}
+
+  /* Table */
+  .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow);overflow:hidden}
+  .table-toolbar{padding:14px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+  .table-title{font-size:13px;font-weight:600;color:var(--text)}
+  .table-scroll{overflow-x:auto;max-height:calc(100vh - 260px)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  thead th{position:sticky;top:0;background:var(--surface2);padding:9px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;border-bottom:1px solid var(--border);z-index:2}
+  thead th.num{text-align:right}
+  tbody td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap;vertical-align:middle}
+  tbody td.num{text-align:right;font-family:var(--mono);font-size:12px}
+  tbody td.editable{cursor:pointer;transition:background .1s}
+  tbody td.editable:hover{background:var(--surface2)}
+  tbody td.editable:hover::after{content:'✎';font-size:10px;color:var(--text3);margin-left:5px}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover td{background:rgba(0,0,0,.015)}
+  .tfoot-row td{background:var(--surface2);font-weight:600;font-family:var(--mono);font-size:12px;border-top:2px solid var(--border);text-align:right;padding:10px 12px;white-space:nowrap;position:sticky;bottom:0}
+  .tfoot-row td:first-child{text-align:left;font-weight:600;color:var(--text2)}
+
+  /* Progress cell */
+  .ratio-cell{display:flex;align-items:center;gap:8px}
+  .ratio-bar-wrap{flex:1;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden;min-width:50px}
+  .ratio-bar{height:100%;border-radius:3px;transition:width .4s}
+  .ratio-text{font-family:var(--mono);font-size:11px;min-width:38px;text-align:right;font-weight:500}
+  .ratio-green .ratio-text{color:var(--green)} .ratio-green .ratio-bar{background:var(--green)}
+  .ratio-amber .ratio-text{color:var(--amber)} .ratio-amber .ratio-bar{background:var(--amber)}
+  .ratio-red   .ratio-text{color:var(--red)}   .ratio-red   .ratio-bar{background:var(--red)}
+
+  /* Tags */
+  .tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:500;border:1px solid transparent;white-space:nowrap}
+  .tag-cash{background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)}
+  .tag-supply{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border)}
+  .tag-auto{background:var(--surface2);color:var(--text3);font-style:italic}
+
+  /* Dashboard */
+  .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow)}
+  .stat-card.warning{border-color:var(--red-border);background:var(--red-bg)}
+  .stat-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:8px}
+  .stat-val{font-size:26px;font-weight:600;font-family:var(--mono);color:var(--text);line-height:1}
+  .stat-card.warning .stat-val{color:var(--red)}
+  .stat-sub{font-size:11px;color:var(--text3);margin-top:5px}
+
+  .prog-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow);margin-bottom:16px}
+  .prog-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:14px}
+  .prog-row{display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid var(--border)}
+  .prog-row:last-child{border-bottom:none}
+  .prog-name{font-size:13px;font-weight:500;color:var(--text);flex:0 0 180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .prog-meta{font-size:11px;color:var(--text3);flex:0 0 120px;text-align:right}
+  .prog-bar-wrap{flex:1;height:8px;background:var(--surface3);border-radius:4px;overflow:hidden}
+  .prog-bar{height:100%;border-radius:4px;transition:width .5s}
+  .prog-pct{font-family:var(--mono);font-size:11px;font-weight:500;min-width:40px;text-align:right}
+
+  .plan-tags{display:flex;gap:10px;margin-top:6px}
+  .plan-tag-item{display:flex;align-items:center;gap:6px;font-size:12px}
+  .plan-tag-dot{width:8px;height:8px;border-radius:50%}
+
+  /* Buttons */
+  .btn{padding:7px 14px;font-size:12.5px;font-weight:500;font-family:var(--font);border-radius:var(--radius-sm);cursor:pointer;transition:all .13s;border:1px solid transparent}
+  .btn-sm{padding:5px 11px;font-size:12px}
+  .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn-primary:hover{opacity:.84}
+  .btn-ghost{background:transparent;color:var(--text2);border-color:var(--border)}
+  .btn-ghost:hover{background:var(--surface2);color:var(--text);border-color:var(--border2)}
+  .btn-danger{background:transparent;color:var(--red);border-color:var(--red-border)}
+  .btn-danger:hover{background:var(--red-bg)}
+  .btn:disabled{opacity:.6;cursor:not-allowed;pointer-events:none}
+
+  /* Modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);display:none;align-items:flex-start;justify-content:center;padding-top:56px;z-index:200;backdrop-filter:blur(3px)}
+  .modal-overlay.open{display:flex}
+  .modal{background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);width:100%;max-width:520px;box-shadow:var(--shadow-modal);max-height:calc(100vh-90px);overflow-y:auto;animation:modalIn .16s cubic-bezier(.22,1,.36,1)}
+  @keyframes modalIn{from{opacity:0;transform:translateY(-10px) scale(.98)}to{opacity:1;transform:none}}
+  .modal-header{padding:18px 22px 0;display:flex;align-items:center;justify-content:space-between}
+  .modal-title{font-size:15px;font-weight:600;color:var(--text)}
+  .modal-close{width:26px;height:26px;border-radius:var(--radius-sm);border:1px solid var(--border);background:transparent;cursor:pointer;font-size:15px;color:var(--text3);display:flex;align-items:center;justify-content:center;transition:all .12s;line-height:1}
+  .modal-close:hover{background:var(--surface2);color:var(--text)}
+  .modal-body{padding:18px 22px}
+  .modal-footer{padding:14px 22px 18px;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--border)}
+  .form-group{margin-bottom:14px}
+  .form-label{display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+  .form-input,.form-select{width:100%;padding:8px 11px;font-size:13px;font-family:var(--font);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);outline:none;transition:border-color .15s,box-shadow .15s}
+  .form-input:focus,.form-select:focus{border-color:var(--border2);box-shadow:0 0 0 3px var(--accent-dim)}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+  /* Cell edit input */
+  .cell-input{width:100%;border:none;background:transparent;outline:2px solid var(--accent);border-radius:3px;padding:2px 5px;font-size:12px;font-family:var(--font);color:var(--text);text-align:inherit;min-width:80px}
+  .cell-input.num{text-align:right;font-family:var(--mono)}
+
+  /* Spinners */
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:5px;flex-shrink:0}
+
+  /* Toast */
+  .toast{position:fixed;bottom:20px;right:20px;background:var(--sb-bg);color:#f0ede6;padding:10px 16px;border-radius:var(--radius);font-size:13px;box-shadow:0 4px 20px rgba(0,0,0,.25);z-index:300;opacity:0;transform:translateY(6px);transition:all .2s;pointer-events:none;border:1px solid rgba(255,255,255,.08)}
+  .toast.show{opacity:1;transform:none}
+
+  /* Page loader */
+  #page-loader{position:fixed;inset:0;background:var(--sb-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:14px;transition:opacity .35s}
+  #page-loader.fade-out{opacity:0;pointer-events:none}
+  #page-loader .loader-ring{width:32px;height:32px;border:2.5px solid rgba(255,255,255,.1);border-top-color:var(--teal);border-radius:50%;animation:spin .8s linear infinite}
+  #page-loader .loader-text{font-size:12px;color:var(--sb-text2);font-family:var(--mono);letter-spacing:.05em}
+
+  /* Empty */
+  .empty{text-align:center;padding:48px 20px;color:var(--text3)}
+  .empty-icon{font-size:28px;opacity:.4;margin-bottom:10px}
+
+  /* Scrollbar */
+  ::-webkit-scrollbar{width:5px;height:5px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  .sb-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12)}
+</style>
+</head>
+<body>
+
+<div id="page-loader">
+  <div class="loader-ring"></div>
+  <div class="loader-text">LOADING...</div>
+</div>
+
+<div class="layout" id="main-layout" style="display:none">
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logo-text">PM Board</div>
+      <div class="sb-sub">资金计划模块</div>
+    </div>
+    <div class="month-picker">
+      <label>月份</label>
+    </div>
+    <div style="padding:0 8px 8px">
+      <select class="month-select" id="month-select" onchange="onMonthChange(this.value)"></select>
+    </div>
+    <div class="sb-section">模块</div>
+    <nav class="sb-nav">
+      <button class="sb-item active" id="tab-payment" onclick="switchTab('payment')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="10" rx="2"/><line x1="1" y1="6.5" x2="15" y2="6.5"/></svg>
+        对下付款计划
+      </button>
+      <button class="sb-item" id="tab-receipt" onclick="switchTab('receipt')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="1,12 5,7 8,10 11,6 15,3"/></svg>
+        对上收款台账
+      </button>
+      <button class="sb-item" id="tab-dashboard" onclick="switchTab('dashboard')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="9" width="4" height="6" rx="1"/><rect x="6" y="5" width="4" height="10" rx="1"/><rect x="11" y="1" width="4" height="14" rx="1"/></svg>
+        资金看板
+      </button>
+    </nav>
+    <div class="sb-bottom">
+      <button class="sb-back" onclick="window.location.href='projectManage.html'">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="8,2 4,6 8,10"/></svg>
+        返回主系统
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="main-header">
+      <div>
+        <div class="main-title" id="header-title">对下付款计划</div>
+        <div class="main-sub" id="header-sub">加载中...</div>
+      </div>
+      <div class="header-right">
+        <span id="user-label" style="font-size:12px;color:var(--text3)"></span>
+        <button class="btn btn-ghost btn-sm" id="export-btn" onclick="doExport()">↓ 导出 CSV</button>
+        <button class="btn btn-primary btn-sm" id="add-btn" onclick="openAddModal()">+ 新增</button>
+      </div>
+    </header>
+    <div class="main-content" id="main-content"></div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal-box" onclick="event.stopPropagation()"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+;(function(){
+  const orig = window.postMessage.bind(window);
+  window.postMessage = function(d,t,x){try{orig(d,t,x)}catch(e){if(e.name!=='DataCloneError')throw e}};
+})();
+
+const SUPABASE_URL = 'https://rfjrkcclhvuldenpdlye.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_a29IWCUpjugzMqx6VGnNhw_bpU9Grpi';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false,
+    storage:{getItem:()=>null,setItem:()=>{},removeItem:()=>{}}}
+});
+
+const SESSION_MAX = 8*3600*1000;
+let currentUser = null;
+let currentTab = 'payment';
+let currentMonth = '';
+let state = { payments:[], receipts:[], extras:[] };
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function init() {
+  const saved = localStorage.getItem('pm_session');
+  if (!saved) { location.href='login.html'; return; }
+  let s;
+  try { s = JSON.parse(saved); } catch(e){ location.href='login.html'; return; }
+  if (!s.id || (s.loginAt && Date.now()-s.loginAt > SESSION_MAX)) {
+    localStorage.removeItem('pm_session'); location.href='login.html'; return;
+  }
+  currentUser = s;
+  document.getElementById('user-label').textContent = s.name;
+  initMonthPicker();
+  document.getElementById('page-loader').classList.add('fade-out');
+  setTimeout(()=>document.getElementById('page-loader').style.display='none', 350);
+  document.getElementById('main-layout').style.display='flex';
+  await loadAll();
+  initRealtime();
+}
+
+function isAdmin() { return currentUser && (currentUser.role==='admin'||currentUser.role==='super_admin'); }
+function canEdit(row) { return isAdmin() || (row && row.creator_id===currentUser.id); }
+
+// ── Month picker ──────────────────────────────────────────────────────────────
+function initMonthPicker() {
+  const now = new Date();
+  const sel = document.getElementById('month-select');
+  sel.innerHTML = '';
+  for (let i = -6; i <= 2; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth()+i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const label = `${d.getFullYear()}年${d.getMonth()+1}月`;
+    const opt = document.createElement('option');
+    opt.value=val; opt.textContent=label;
+    if (i===0) opt.selected=true;
+    sel.appendChild(opt);
+  }
+  currentMonth = sel.value;
+}
+function onMonthChange(v) { currentMonth=v; loadAll(); }
+
+// ── Data ─────────────────────────────────────────────────────────────────────
+async function loadAll() {
+  const [p,r,e] = await Promise.all([
+    sb.from('payment_plans').select('*').eq('year_month',currentMonth).order('created_at'),
+    sb.from('receipt_records').select('*').eq('year_month',currentMonth).order('created_at'),
+    sb.from('extra_expenses').select('*').eq('year_month',currentMonth).order('expense_date')
+  ]);
+  state.payments = p.data||[];
+  state.receipts = r.data||[];
+  state.extras   = e.data||[];
+  render();
+  updateHeaderSub();
+}
+function updateHeaderSub() {
+  const d = currentMonth.split('-');
+  document.getElementById('header-sub').textContent = `${d[0]}年${parseInt(d[1])}月`;
+}
+function initRealtime() {
+  sb.channel('finance-changes')
+    .on('postgres_changes',{event:'*',schema:'public',table:'payment_plans'},()=>loadAll())
+    .on('postgres_changes',{event:'*',schema:'public',table:'receipt_records'},()=>loadAll())
+    .on('postgres_changes',{event:'*',schema:'public',table:'extra_expenses'},()=>loadAll())
+    .subscribe();
+}
+
+// ── Tabs ─────────────────────────────────────────────────────────────────────
+const TAB_TITLES = {payment:'对下付款计划', receipt:'对上收款台账', dashboard:'资金看板'};
+function switchTab(tab) {
+  currentTab=tab;
+  ['payment','receipt','dashboard'].forEach(t=>{
+    document.getElementById('tab-'+t).classList.toggle('active',t===tab);
+  });
+  document.getElementById('header-title').textContent = TAB_TITLES[tab];
+  document.getElementById('add-btn').style.display = tab==='dashboard' ? 'none' : '';
+  document.getElementById('add-btn').textContent = tab==='payment' ? '+ 新增付款计划' : tab==='receipt' ? '+ 新增收款记录' : '';
+  document.getElementById('export-btn').style.display = '';
+  render();
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  if (currentTab==='payment')   renderPayments();
+  else if (currentTab==='receipt') renderReceipts();
+  else renderDashboard();
+}
+
+// ── Format helpers ────────────────────────────────────────────────────────────
+function fmt(n) {
+  if (!n && n!==0) return '—';
+  return Number(n).toLocaleString('zh-CN',{minimumFractionDigits:0,maximumFractionDigits:2});
+}
+function pctClass(ratio) {
+  if (ratio>=1) return 'ratio-red';
+  if (ratio>=0.8) return 'ratio-amber';
+  return 'ratio-green';
+}
+function ratioCell(paid, total) {
+  const ratio = total ? paid/total : 0;
+  const cls = pctClass(ratio);
+  const pctStr = total ? (ratio*100).toFixed(1)+'%' : '0%';
+  const w = Math.min(ratio*100,100).toFixed(1);
+  return `<div class="ratio-cell ${cls}">
+    <div class="ratio-bar-wrap"><div class="ratio-bar" style="width:${w}%"></div></div>
+    <div class="ratio-text">${pctStr}</div>
+  </div>`;
+}
+
+// ── 对下付款计划 ──────────────────────────────────────────────────────────────
+function renderPayments() {
+  const rows = state.payments;
+  const totals = {
+    contract:0, prev_r:0, prev_p:0, prev_b:0,
+    cash:0, supply:0, plan:0, cum:0
+  };
+  rows.forEach(r=>{
+    totals.contract  += +r.contract_amount||0;
+    totals.prev_r    += +r.prev_received||0;
+    totals.prev_p    += +r.prev_paid||0;
+    totals.prev_b    += (+r.prev_received||0)-(+r.prev_paid||0);
+    totals.cash      += +r.plan_cash||0;
+    totals.supply    += +r.plan_supply_chain||0;
+    totals.plan      += (+r.plan_cash||0)+(+r.plan_supply_chain||0);
+    totals.cum       += +r.cumulative_paid||0;
+  });
+
+  const tbody = rows.length ? rows.map((r,i)=>{
+    const prevBal = (+r.prev_received||0)-(+r.prev_paid||0);
+    const planTotal = (+r.plan_cash||0)+(+r.plan_supply_chain||0);
+    const canE = canEdit(r);
+    const ce = (field,type='text',val) =>
+      canE ? `class="num editable" onclick="editCell(this,'${r.id}','${field}','${type}','payment')"` : 'class="num"';
+    const ct = (field,val) =>
+      canE ? `class="editable" onclick="editCell(this,'${r.id}','${field}','text','payment')"` : '';
+    return `<tr>
+      <td style="color:var(--text3);padding-left:16px">${i+1}</td>
+      <td ${ct('contract_name')}>${r.contract_name||'—'}</td>
+      <td ${ct('supplier')}>${r.supplier||'—'}</td>
+      <td style="color:var(--text3)">${r.creator_name||'—'}</td>
+      <td ${ct('purpose')}>${r.purpose||'—'}</td>
+      <td ${ce('contract_amount','number')}>${fmt(r.contract_amount)}</td>
+      <td ${ce('prev_received','number')}>${fmt(r.prev_received)}</td>
+      <td ${ce('prev_paid','number')}>${fmt(r.prev_paid)}</td>
+      <td class="num" style="color:${prevBal<0?'var(--red)':'var(--text)'}"><span class="tag tag-auto">${fmt(prevBal)}</span></td>
+      <td ${ce('plan_cash','number')}><span class="tag tag-cash">${fmt(r.plan_cash)}</span></td>
+      <td ${ce('plan_supply_chain','number')}><span class="tag tag-supply">${fmt(r.plan_supply_chain)}</span></td>
+      <td class="num"><span class="tag tag-auto">${fmt(planTotal)}</span></td>
+      <td ${ce('cumulative_paid','number')}>${fmt(r.cumulative_paid)}</td>
+      <td>${ratioCell(+r.cumulative_paid||0, +r.contract_amount||0)}</td>
+      <td>${canE?`<button class="btn btn-danger btn-sm" onclick="deleteRow('payment','${r.id}')">删除</button>`:''}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="15"><div class="empty"><div class="empty-icon">📋</div>暂无数据，点击「+ 新增付款计划」添加</div></td></tr>`;
+
+  document.getElementById('main-content').innerHTML = `
+  <div class="table-wrap">
+    <div class="table-toolbar">
+      <div class="table-title">付款计划明细</div>
+      <div style="margin-left:auto;font-size:12px;color:var(--text3)">点击单元格可直接编辑</div>
+    </div>
+    <div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th style="width:36px">#</th>
+        <th style="min-width:120px">合同名称</th>
+        <th style="min-width:100px">供应商</th>
+        <th style="min-width:80px">填写人</th>
+        <th style="min-width:80px">用途</th>
+        <th class="num" style="min-width:100px">合同金额</th>
+        <th class="num" style="min-width:100px">上期累计收款</th>
+        <th class="num" style="min-width:100px">上期累计支付</th>
+        <th class="num" style="min-width:90px">上期结余</th>
+        <th class="num" style="min-width:100px">本月计划·现金</th>
+        <th class="num" style="min-width:110px">本月计划·供应链</th>
+        <th class="num" style="min-width:90px">本月计划合计</th>
+        <th class="num" style="min-width:100px">本期累计支付</th>
+        <th style="min-width:130px">支付比例</th>
+        <th style="width:60px"></th>
+      </tr></thead>
+      <tbody>${tbody}</tbody>
+      ${rows.length?`<tfoot><tr class="tfoot-row">
+        <td colspan="5">合计</td>
+        <td>${fmt(totals.contract)}</td>
+        <td>${fmt(totals.prev_r)}</td>
+        <td>${fmt(totals.prev_p)}</td>
+        <td>${fmt(totals.prev_b)}</td>
+        <td>${fmt(totals.cash)}</td>
+        <td>${fmt(totals.supply)}</td>
+        <td>${fmt(totals.plan)}</td>
+        <td>${fmt(totals.cum)}</td>
+        <td colspan="2"></td>
+      </tr></tfoot>`:''}
+    </table>
+    </div>
+  </div>`;
+}
+
+// ── 对上收款台账 ──────────────────────────────────────────────────────────────
+function renderReceipts() {
+  const rows = state.receipts;
+  let totals = {contract:0, output:0, prev:0, cum:0};
+  rows.forEach(r=>{
+    totals.contract += +r.contract_amount||0;
+    totals.output   += +r.confirmed_output||0;
+    totals.prev     += +r.prev_received||0;
+    totals.cum      += +r.cumulative_received||0;
+  });
+
+  const tbody = rows.length ? rows.map((r,i)=>{
+    const canE = canEdit(r);
+    const ce = (field) =>
+      canE ? `class="num editable" onclick="editCell(this,'${r.id}','${field}','number','receipt')"` : 'class="num"';
+    const ct = (field) =>
+      canE ? `class="editable" onclick="editCell(this,'${r.id}','${field}','text','receipt')"` : '';
+    const cd = canE ? `class="editable" onclick="editCell(this,'${r.id}','next_expected_date','date','receipt')"` : '';
+    return `<tr>
+      <td style="color:var(--text3);padding-left:16px">${i+1}</td>
+      <td ${ct('contract_name')}>${r.contract_name||'—'}</td>
+      <td ${ce('contract_amount')}>${fmt(r.contract_amount)}</td>
+      <td ${ce('confirmed_output')}>${fmt(r.confirmed_output)}</td>
+      <td ${ce('prev_received')}>${fmt(r.prev_received)}</td>
+      <td ${ce('cumulative_received')}>${fmt(r.cumulative_received)}</td>
+      <td>${ratioCell(+r.cumulative_received||0, +r.contract_amount||0)}</td>
+      <td ${cd} style="color:${r.next_expected_date&&new Date(r.next_expected_date)<new Date()?'var(--red)':'var(--text)'}">${r.next_expected_date||'—'}</td>
+      <td style="color:var(--text3)">${r.creator_name||'—'}</td>
+      <td>${canE?`<button class="btn btn-danger btn-sm" onclick="deleteRow('receipt','${r.id}')">删除</button>`:''}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="10"><div class="empty"><div class="empty-icon">📥</div>暂无数据，点击「+ 新增收款记录」添加</div></td></tr>`;
+
+  document.getElementById('main-content').innerHTML = `
+  <div class="table-wrap">
+    <div class="table-toolbar">
+      <div class="table-title">收款台账明细</div>
+      <div style="margin-left:auto;font-size:12px;color:var(--text3)">点击单元格可直接编辑</div>
+    </div>
+    <div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th style="width:36px">#</th>
+        <th style="min-width:140px">合同名称</th>
+        <th class="num" style="min-width:100px">合同总额</th>
+        <th class="num" style="min-width:100px">确认产值</th>
+        <th class="num" style="min-width:110px">上期已收累计</th>
+        <th class="num" style="min-width:110px">本期累计收款</th>
+        <th style="min-width:130px">收款比例</th>
+        <th style="min-width:120px">预计下次收款</th>
+        <th style="min-width:80px">填写人</th>
+        <th style="width:60px"></th>
+      </tr></thead>
+      <tbody>${tbody}</tbody>
+      ${rows.length?`<tfoot><tr class="tfoot-row">
+        <td colspan="2">合计</td>
+        <td>${fmt(totals.contract)}</td>
+        <td>${fmt(totals.output)}</td>
+        <td>${fmt(totals.prev)}</td>
+        <td>${fmt(totals.cum)}</td>
+        <td colspan="4"></td>
+      </tr></tfoot>`:''}
+    </table>
+    </div>
+  </div>`;
+}
+
+// ── 资金看板 ──────────────────────────────────────────────────────────────────
+function renderDashboard() {
+  const totalIn   = state.receipts.reduce((s,r)=>s+(+r.cumulative_received||0),0);
+  const totalPay  = state.payments.reduce((s,r)=>s+(+r.cumulative_paid||0),0);
+  const totalExtra= state.extras.reduce((s,r)=>s+(+r.amount||0),0);
+  const totalOut  = totalPay + totalExtra;
+  const balance   = totalIn - totalOut;
+  const planCash  = state.payments.reduce((s,r)=>s+(+r.plan_cash||0),0);
+  const planSupply= state.payments.reduce((s,r)=>s+(+r.plan_supply_chain||0),0);
+  const planTotal = planCash + planSupply + totalExtra;
+
+  // Progress bars for contracts
+  const progRows = state.payments.filter(r=>r.contract_amount>0).map(r=>{
+    const ratio = (+r.cumulative_paid||0)/(+r.contract_amount||0);
+    const cls = pctClass(ratio);
+    const colorMap = {'ratio-green':'var(--green)','ratio-amber':'var(--amber)','ratio-red':'var(--red)'};
+    const color = colorMap[cls];
+    return `<div class="prog-row">
+      <div class="prog-name" title="${r.contract_name}">${r.contract_name||'未命名'}</div>
+      <div class="prog-meta">${fmt(r.cumulative_paid)} / ${fmt(r.contract_amount)}</div>
+      <div class="prog-bar-wrap"><div class="prog-bar" style="width:${Math.min(ratio*100,100).toFixed(1)}%;background:${color}"></div></div>
+      <div class="prog-pct" style="color:${color}">${(ratio*100).toFixed(1)}%</div>
+    </div>`;
+  }).join('');
+
+  // Extra expenses table
+  const extraRows = state.extras.map(e=>{
+    const canE = isAdmin();
+    return `<tr>
+      <td>${e.expense_date||'—'}</td>
+      <td>${e.expense_name||'—'}</td>
+      <td class="num">${fmt(e.amount)}</td>
+      <td style="color:var(--text3)">${e.creator_name||'—'}</td>
+      <td>${canE?`<button class="btn btn-danger btn-sm" onclick="deleteRow('extra','${e.id}')">删除</button>`:''}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('main-content').innerHTML = `
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-label">本期收款合计</div>
+      <div class="stat-val">${fmt(totalIn)}</div>
+      <div class="stat-sub">${state.receipts.length} 条收款记录</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">本期支出合计</div>
+      <div class="stat-val">${fmt(totalOut)}</div>
+      <div class="stat-sub">合同支付 ${fmt(totalPay)}，其他 ${fmt(totalExtra)}</div>
+    </div>
+    <div class="stat-card ${balance<0?'warning':''}">
+      <div class="stat-label">结余</div>
+      <div class="stat-val">${fmt(balance)}</div>
+      <div class="stat-sub">${balance<0?'⚠ 支出超过收款，请注意资金缺口':'资金状况良好'}</div>
+    </div>
+  </div>
+
+  <div class="prog-section">
+    <div class="prog-title">本月计划 &nbsp;
+      <span class="tag tag-cash">现金 ${fmt(planCash)}</span> &nbsp;
+      <span class="tag tag-supply">供应链 ${fmt(planSupply)}</span>
+      ${totalExtra>0?`&nbsp;<span class="tag" style="background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)">其他支出 ${fmt(totalExtra)}</span>`:''}
+      &nbsp; <strong style="font-size:12px;color:var(--text2)">合计 ${fmt(planTotal)}</strong>
+    </div>
+  </div>
+
+  ${state.payments.length?`<div class="prog-section">
+    <div class="prog-title">合同支付进度</div>
+    ${progRows}
+  </div>`:''}
+
+  <div class="table-wrap">
+    <div class="table-toolbar">
+      <div class="table-title">其他支出项</div>
+      ${isAdmin()?`<button class="btn btn-primary btn-sm" onclick="openAddExtraModal()" style="margin-left:auto">+ 新增支出项</button>`:'<div style="margin-left:auto;font-size:11px;color:var(--text3)">仅管理员可新增</div>'}
+    </div>
+    <div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th>日期</th><th style="min-width:140px">支出项名称</th>
+        <th class="num">金额</th><th>填写人</th><th style="width:60px"></th>
+      </tr></thead>
+      <tbody>${extraRows||`<tr><td colspan="5"><div class="empty" style="padding:24px 0">暂无其他支出项</div></td></tr>`}</tbody>
+      ${state.extras.length?`<tfoot><tr class="tfoot-row"><td colspan="2">合计</td><td>${fmt(totalExtra)}</td><td colspan="2"></td></tr></tfoot>`:''}
+    </table>
+    </div>
+  </div>`;
+}
+
+// ── Inline editing ────────────────────────────────────────────────────────────
+function editCell(td, rowId, field, type, table) {
+  const rows = table==='payment'?state.payments:table==='receipt'?state.receipts:state.extras;
+  const row = rows.find(r=>r.id===rowId);
+  if (!row || !canEdit(row)) return;
+
+  const origVal = row[field]||'';
+  const origHTML = td.innerHTML;
+  const isNum = type==='number';
+  const isDate = type==='date';
+
+  const inp = document.createElement('input');
+  inp.type = isNum?'number':isDate?'date':'text';
+  inp.value = isNum?(+origVal||0):origVal;
+  inp.className = 'cell-input'+(isNum?' num':'');
+  if (isNum) { inp.step='0.01'; inp.min='0'; }
+
+  td.innerHTML=''; td.appendChild(inp);
+  inp.focus(); if(!isDate) inp.select();
+
+  const save = async () => {
+    const newVal = isNum ? (parseFloat(inp.value)||0) : inp.value.trim();
+    if (String(newVal)===String(origVal)) { td.innerHTML=origHTML; return; }
+    row[field] = newVal;
+    const { error } = await sb.from(
+      table==='payment'?'payment_plans':table==='receipt'?'receipt_records':'extra_expenses'
+    ).update({[field]:newVal}).eq('id',rowId);
+    if (error) { toast('保存失败：'+error.message); row[field]=origVal; }
+    else { toast('✓ 已保存'); logFinanceAction(table, '编辑', rowId); }
+    render();
+  };
+  inp.onblur = save;
+  inp.onkeydown = e=>{
+    if(e.key==='Enter'){e.preventDefault();save();}
+    if(e.key==='Escape'){row[field]=origVal;td.innerHTML=origHTML;}
+  };
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+async function deleteRow(table, id) {
+  if (!confirm('确认删除该条记录？')) return;
+  const tbName = table==='payment'?'payment_plans':table==='receipt'?'receipt_records':'extra_expenses';
+  const {error} = await sb.from(tbName).delete().eq('id',id);
+  if (error) { toast('删除失败'); return; }
+  if (table==='payment') state.payments = state.payments.filter(r=>r.id!==id);
+  else if (table==='receipt') state.receipts = state.receipts.filter(r=>r.id!==id);
+  else state.extras = state.extras.filter(r=>r.id!==id);
+  render(); toast('已删除');
+  logFinanceAction(table,'删除',id);
+}
+
+// ── Add modals ────────────────────────────────────────────────────────────────
+function openAddModal() {
+  if (currentTab==='payment') openAddPaymentModal();
+  else if (currentTab==='receipt') openAddReceiptModal();
+}
+
+function openAddPaymentModal() {
+  const mems = JSON.parse(localStorage.getItem('pm_session')||'{}');
+  document.getElementById('modal-box').innerHTML = `
+    <div class="modal-header"><div class="modal-title">新增付款计划</div><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">合同名称 *</label><input class="form-input" id="f-cname" placeholder="输入合同名称"></div>
+        <div class="form-group"><label class="form-label">供应商</label><input class="form-input" id="f-sup" placeholder="供应商名称"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">用途</label><input class="form-input" id="f-purpose" placeholder="款项用途"></div>
+        <div class="form-group"><label class="form-label">合同金额</label><input class="form-input" id="f-amount" type="number" min="0" step="0.01" placeholder="0.00"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);padding:6px 0 12px;border-bottom:1px solid var(--border);margin-bottom:12px">上期数据（可填写或后续编辑）</div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">上期累计收款</label><input class="form-input" id="f-pr" type="number" min="0" step="0.01" value="0"></div>
+        <div class="form-group"><label class="form-label">上期累计支付</label><input class="form-input" id="f-pp" type="number" min="0" step="0.01" value="0"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);padding:6px 0 12px;border-bottom:1px solid var(--border);margin-bottom:12px">本月计划</div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label"><span class="tag tag-cash">现金</span></label><input class="form-input" id="f-cash" type="number" min="0" step="0.01" value="0"></div>
+        <div class="form-group"><label class="form-label"><span class="tag tag-supply">供应链</span></label><input class="form-input" id="f-supply" type="number" min="0" step="0.01" value="0"></div>
+      </div>
+      <div class="form-group"><label class="form-label">本期累计支付</label><input class="form-input" id="f-cum" type="number" min="0" step="0.01" value="0"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="submitPayment(this)">创建</button>
+    </div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('f-cname').focus(),80);
+}
+
+async function submitPayment(btn) {
+  const name = document.getElementById('f-cname').value.trim();
+  if (!name) { document.getElementById('f-cname').style.borderColor='var(--red)'; return; }
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>保存中...';
+  const row = {
+    id: 'pp'+Date.now()+Math.random().toString(36).slice(2,6),
+    year_month: currentMonth,
+    contract_name: name,
+    supplier: document.getElementById('f-sup').value.trim(),
+    creator_id: currentUser.id,
+    creator_name: currentUser.name,
+    purpose: document.getElementById('f-purpose').value.trim(),
+    contract_amount: parseFloat(document.getElementById('f-amount').value)||0,
+    prev_received: parseFloat(document.getElementById('f-pr').value)||0,
+    prev_paid: parseFloat(document.getElementById('f-pp').value)||0,
+    plan_cash: parseFloat(document.getElementById('f-cash').value)||0,
+    plan_supply_chain: parseFloat(document.getElementById('f-supply').value)||0,
+    cumulative_paid: parseFloat(document.getElementById('f-cum').value)||0,
+    created_at: new Date().toISOString()
+  };
+  const {error} = await sb.from('payment_plans').insert(row);
+  if (error) { toast('保存失败：'+error.message); btn.disabled=false; btn.textContent='创建'; return; }
+  state.payments.push(row);
+  closeModal(); render(); toast('✓ 付款计划已添加');
+  logFinanceAction('payment','新增',row.id);
+}
+
+function openAddReceiptModal() {
+  document.getElementById('modal-box').innerHTML = `
+    <div class="modal-header"><div class="modal-title">新增收款记录</div><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">合同名称 *</label><input class="form-input" id="r-cname" placeholder="输入合同名称"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">合同总额</label><input class="form-input" id="r-total" type="number" min="0" step="0.01" value="0"></div>
+        <div class="form-group"><label class="form-label">确认产值</label><input class="form-input" id="r-output" type="number" min="0" step="0.01" value="0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">上期已收累计</label><input class="form-input" id="r-prev" type="number" min="0" step="0.01" value="0"></div>
+        <div class="form-group"><label class="form-label">本期累计收款</label><input class="form-input" id="r-cum" type="number" min="0" step="0.01" value="0"></div>
+      </div>
+      <div class="form-group"><label class="form-label">预计下次收款日期</label><input class="form-input" id="r-date" type="date"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="submitReceipt(this)">创建</button>
+    </div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('r-cname').focus(),80);
+}
+
+async function submitReceipt(btn) {
+  const name = document.getElementById('r-cname').value.trim();
+  if (!name) { document.getElementById('r-cname').style.borderColor='var(--red)'; return; }
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>保存中...';
+  const row = {
+    id: 'rr'+Date.now()+Math.random().toString(36).slice(2,6),
+    year_month: currentMonth,
+    contract_name: name,
+    contract_amount: parseFloat(document.getElementById('r-total').value)||0,
+    confirmed_output: parseFloat(document.getElementById('r-output').value)||0,
+    prev_received: parseFloat(document.getElementById('r-prev').value)||0,
+    cumulative_received: parseFloat(document.getElementById('r-cum').value)||0,
+    next_expected_date: document.getElementById('r-date').value||null,
+    creator_id: currentUser.id,
+    creator_name: currentUser.name,
+    created_at: new Date().toISOString()
+  };
+  const {error} = await sb.from('receipt_records').insert(row);
+  if (error) { toast('保存失败：'+error.message); btn.disabled=false; btn.textContent='创建'; return; }
+  state.receipts.push(row);
+  closeModal(); render(); toast('✓ 收款记录已添加');
+  logFinanceAction('receipt','新增',row.id);
+}
+
+function openAddExtraModal() {
+  if (!isAdmin()) { toast('仅管理员可新增支出项'); return; }
+  document.getElementById('modal-box').innerHTML = `
+    <div class="modal-header"><div class="modal-title">新增支出项</div><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">支出项名称 *</label><input class="form-input" id="e-name" placeholder="如：办公费、差旅费..."></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">日期 *</label><input class="form-input" id="e-date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+        <div class="form-group"><label class="form-label">金额 *</label><input class="form-input" id="e-amount" type="number" min="0" step="0.01" placeholder="0.00"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="submitExtra(this)">创建</button>
+    </div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('e-name').focus(),80);
+}
+
+async function submitExtra(btn) {
+  const name = document.getElementById('e-name').value.trim();
+  const date = document.getElementById('e-date').value;
+  const amount = parseFloat(document.getElementById('e-amount').value)||0;
+  if (!name||!date||!amount) { toast('请填写所有必填项'); return; }
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>保存中...';
+  const row = {
+    id: 'ex'+Date.now()+Math.random().toString(36).slice(2,6),
+    year_month: currentMonth,
+    expense_date: date,
+    expense_name: name,
+    amount,
+    creator_id: currentUser.id,
+    creator_name: currentUser.name,
+    created_at: new Date().toISOString()
+  };
+  const {error} = await sb.from('extra_expenses').insert(row);
+  if (error) { toast('保存失败：'+error.message); btn.disabled=false; btn.textContent='创建'; return; }
+  state.extras.push(row);
+  closeModal(); render(); toast('✓ 支出项已添加');
+  logFinanceAction('extra','新增',row.id);
+}
+
+// ── Export CSV ────────────────────────────────────────────────────────────────
+function doExport() {
+  if (currentTab==='payment') exportPayments();
+  else if (currentTab==='receipt') exportReceipts();
+  else exportDashboard();
+}
+
+function dlCSV(rows, filename) {
+  const csv = rows.map(r=>r.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename; a.click();
+  URL.revokeObjectURL(url);
+}
+function exportPayments() {
+  const hdr=['合同名称','供应商','填写人','用途','合同金额','上期累计收款','上期累计支付','上期结余','本月计划现金','本月计划供应链','本月计划合计','本期累计支付','支付比例'];
+  const rows = state.payments.map(r=>[
+    r.contract_name,r.supplier,r.creator_name,r.purpose,
+    r.contract_amount,r.prev_received,r.prev_paid,
+    (+r.prev_received||0)-(+r.prev_paid||0),
+    r.plan_cash,r.plan_supply_chain,
+    (+r.plan_cash||0)+(+r.plan_supply_chain||0),
+    r.cumulative_paid,
+    r.contract_amount?(((+r.cumulative_paid||0)/(+r.contract_amount))*100).toFixed(1)+'%':'0%'
+  ]);
+  dlCSV([hdr,...rows], `付款计划_${currentMonth}.csv`);
+}
+function exportReceipts() {
+  const hdr=['合同名称','合同总额','确认产值','上期已收累计','本期累计收款','收款比例','预计下次收款','填写人'];
+  const rows = state.receipts.map(r=>[
+    r.contract_name,r.contract_amount,r.confirmed_output,r.prev_received,
+    r.cumulative_received,
+    r.contract_amount?(((+r.cumulative_received||0)/(+r.contract_amount))*100).toFixed(1)+'%':'0%',
+    r.next_expected_date,r.creator_name
+  ]);
+  dlCSV([hdr,...rows], `收款台账_${currentMonth}.csv`);
+}
+function exportDashboard() {
+  const totalIn = state.receipts.reduce((s,r)=>s+(+r.cumulative_received||0),0);
+  const totalPay= state.payments.reduce((s,r)=>s+(+r.cumulative_paid||0),0);
+  const totalExtra=state.extras.reduce((s,r)=>s+(+r.amount||0),0);
+  const rows=[
+    ['指标','金额'],
+    ['本期收款合计',totalIn],
+    ['本期支出合计(合同)',totalPay],
+    ['本期支出合计(其他)',totalExtra],
+    ['结余',totalIn-totalPay-totalExtra],
+    [''],
+    ['支出项明细','日期','金额','填写人'],
+    ...state.extras.map(e=>[e.expense_name,e.expense_date,e.amount,e.creator_name])
+  ];
+  dlCSV(rows, `资金看板_${currentMonth}.csv`);
+}
+
+// ── Log ───────────────────────────────────────────────────────────────────────
+async function logFinanceAction(module, action, id) {
+  try {
+    await sb.from('logs').insert({
+      id:'fl'+Date.now()+Math.random().toString(36).slice(2,6),
+      user_id:currentUser.id, user_name:currentUser.name,
+      action:`资金-${module==='payment'?'付款计划':module==='receipt'?'收款台账':'支出项'}`,
+      detail:`${action} ID:${id}，月份:${currentMonth}`,
+      created_at:new Date().toISOString()
+    });
+  } catch(e){}
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+function toast(m) {
+  const el=document.getElementById('toast'); el.textContent=m;
+  el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+window.onload = init;
+</script>
+</body>
+</html>

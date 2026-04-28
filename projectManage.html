@@ -496,8 +496,34 @@
 
   /* ── Role badge ─────────────────────────────────────────────────────────── */
   .role-badge { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 10px; letter-spacing: .03em; }
-  .role-admin { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); }
-  .role-user  { background: var(--surface2); color: var(--text3); border: 1px solid var(--border); }
+  .role-super_admin { background: #fff8e6; color: #a06020; border: 1px solid #edd8b0; }
+  .role-admin       { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); }
+  .role-user        { background: var(--surface2); color: var(--text3); border: 1px solid var(--border); }
+
+  /* ── Menu perm checkboxes ───────────────────────────────────────────────── */
+  .perm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .perm-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color .13s, background .13s;
+    font-size: 12.5px; color: var(--text2);
+    user-select: none;
+  }
+  .perm-item:hover { background: var(--surface2); border-color: var(--border2); }
+  .perm-item.checked { border-color: var(--accent); background: var(--accent-dim); color: var(--text); }
+  .perm-item.checked .perm-check { background: var(--accent); border-color: var(--accent); }
+  .perm-item.locked { opacity: .45; cursor: not-allowed; pointer-events: none; }
+  .perm-check {
+    width: 14px; height: 14px; border-radius: 3px;
+    border: 1.5px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all .13s;
+  }
+  .perm-check.on { background: var(--accent); border-color: var(--accent); }
+  .perm-check.on::after { content:''; width:3px; height:5px; border:1.5px solid #fff; border-top:none; border-left:none; transform:rotate(43deg); }
 
   /* ── Page loader ────────────────────────────────────────────────────────── */
   #page-loader { position: fixed; inset: 0; background: var(--sb-bg); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; gap: 14px; transition: opacity .35s; }
@@ -534,41 +560,44 @@
     </div>
     <div class="sidebar-date">导航</div>
     <nav class="sidebar-nav">
-      <button class="nav-item active" data-view="today" onclick="switchView('today')">
+      <button class="nav-item active" data-view="today" data-menu-key="today" onclick="switchView('today')">
         <span class="nav-icon">○</span> 今日看板
         <span class="nav-badge" id="badge-today">0</span>
       </button>
-      <button class="nav-item" data-view="tasks" onclick="switchView('tasks')">
+      <button class="nav-item" data-view="tasks" data-menu-key="tasks" onclick="switchView('tasks')">
         <span class="nav-icon">≡</span> 全部任务
         <span class="nav-badge" id="badge-tasks">0</span>
       </button>
-      <div class="nav-section-label" style="padding-bottom:4px">分析</div>
-      <button class="nav-item" data-view="charts" onclick="switchView('charts')">
+      <div class="nav-section-label" data-menu-key="charts" style="padding-bottom:4px">分析</div>
+      <button class="nav-item" data-view="charts" data-menu-key="charts" onclick="switchView('charts')">
         <span class="nav-icon">◉</span> 数据统计
       </button>
-      <button class="nav-item" data-view="gantt" onclick="switchView('gantt')">
+      <button class="nav-item" data-view="gantt" data-menu-key="gantt" onclick="switchView('gantt')">
         <span class="nav-icon">▦</span> 甘特图
       </button>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding-right:8px">
+      <a href="finance.html" class="nav-item" data-menu-key="finance" style="text-decoration:none">
+        <span class="nav-icon">💰</span> 资金计划
+      </a>
+      <div data-menu-key="projects" style="display:flex;align-items:center;justify-content:space-between;padding-right:8px">
         <div class="nav-section-label" style="padding-right:0">项目</div>
-        <button onclick="openAddProject()" title="新建项目" style="width:20px;height:20px;border-radius:4px;border:1px solid rgba(255,255,255,.12);background:transparent;cursor:pointer;color:var(--sb-text2);font-size:15px;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s" onmouseover="this.style.background='var(--sb-hover)';this.style.color='var(--sb-text)'" onmouseout="this.style.background='transparent';this.style.color='var(--sb-text2)'">+</button>
+        <button id="sidebar-add-proj-btn" onclick="openAddProject()" title="新建项目" style="width:20px;height:20px;border-radius:4px;border:1px solid rgba(255,255,255,.12);background:transparent;cursor:pointer;color:var(--sb-text2);font-size:15px;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s" onmouseover="this.style.background='var(--sb-hover)';this.style.color='var(--sb-text)'" onmouseout="this.style.background='transparent';this.style.color='var(--sb-text2)'">+</button>
       </div>
-      <div id="sidebar-projects"></div>
+      <div id="sidebar-projects" data-menu-key="projects"></div>
     </nav>
     <div class="sidebar-bottom">
-      <button class="sidebar-add-btn" onclick="openAddTask()">
+      <button class="sidebar-add-btn" data-menu-key="add_task" onclick="openAddTask()">
         <span style="font-size:16px;line-height:1">+</span> 快速添加任务
       </button>
       <div id="admin-util-btns" style="display:flex;flex-direction:column;gap:5px">
         <div style="display:flex;gap:5px">
-          <button class="sidebar-util-btn" style="flex:1" onclick="openMembersModal()">👤 成员</button>
-          <button class="sidebar-util-btn" style="flex:1" onclick="openTagsModal()">🏷 标签</button>
+          <button class="sidebar-util-btn" data-menu-key="members" style="flex:1" onclick="openMembersModal()">👤 成员</button>
+          <button class="sidebar-util-btn" data-menu-key="tags" style="flex:1" onclick="openTagsModal()">🏷 标签</button>
         </div>
         <div style="display:flex;gap:5px">
-          <button class="sidebar-util-btn" style="flex:1" onclick="openRoleManageModal()">🔐 角色</button>
+          <button class="sidebar-util-btn" data-menu-key="roles" style="flex:1" onclick="openRoleManageModal()">🔐 角色权限</button>
         </div>
       </div>
-      <button class="sidebar-util-btn" style="width:100%;margin-top:5px" onclick="openLogsModal()">📋 操作日志</button>
+      <button class="sidebar-util-btn" data-menu-key="logs" style="width:100%;margin-top:5px" onclick="openLogsModal()">📋 操作日志</button>
     </div>
   </aside>
 
@@ -730,7 +759,8 @@ async function loadState() {
         name: m.name,
         colorIdx: m.color_idx,
         role: m.role || 'user',
-        password: m.password
+        password: m.password,
+        menuPerms: m.menu_perms || null   // null = 使用角色默认权限
     }));
 
     state.globalTags = (tagsRes.data || []).map(tg => ({
@@ -748,7 +778,7 @@ async function loadState() {
     }
     
     // 角色过滤：普通用户只看自己相关的任务和项目
-    if (currentUser && currentUser.role !== 'admin') {
+    if (currentUser && !isAdmin()) {
       state.tasks = state.tasks.filter(t => t.assignee === currentUser.id);
       // 只展示：(a) 自己是成员 (b) 自己是负责人 (c) 有自己的任务
       const visiblePids = new Set(state.tasks.map(t => t.projectId).filter(Boolean));
@@ -1032,6 +1062,61 @@ function urgencyOf(t) {
 }
 
 // --- 1. 更新右上角用户信息（含角色徽章）---
+// ─── 角色工具函数 ────────────────────────────────────────────────────────────
+const ROLE_LEVELS = { super_admin: 3, admin: 2, user: 1 };
+const ROLE_LABELS = { super_admin: '超级管理员', admin: '管理员', user: '普通用户' };
+
+function getRoleLevel(role) { return ROLE_LEVELS[role] || 1; }
+function canManageRole(operatorRole, targetRole) {
+  // 只能管理比自己低级的角色
+  return getRoleLevel(operatorRole) > getRoleLevel(targetRole);
+}
+function isSuperAdmin() { return currentUser && currentUser.role === 'super_admin'; }
+function isAdmin()      { return currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin'); }
+
+// 菜单项定义
+const MENU_DEFS = [
+  { key: 'today',     label: '今日看板',   icon: '○', required: true  },  // 必须项
+  { key: 'tasks',     label: '全部任务',   icon: '≡', required: true  },  // 必须项
+  { key: 'charts',    label: '数据统计',   icon: '◉', required: false },
+  { key: 'gantt',     label: '甘特图',     icon: '▦', required: false },
+  { key: 'projects',  label: '项目列表',   icon: '□', required: false },
+  { key: 'add_task',  label: '快速添加任务', icon: '+', required: false },
+  { key: 'members',   label: '成员管理',   icon: '👤', adminOnly: true },
+  { key: 'tags',      label: '标签管理',   icon: '🏷', adminOnly: true },
+  { key: 'roles',     label: '角色权限',   icon: '🔐', adminOnly: true },
+  { key: 'logs',      label: '操作日志',   icon: '📋', required: false },
+  { key: 'finance',   label: '资金计划',   icon: '💰', required: false },
+];
+
+// 根据角色返回默认可见菜单
+function getDefaultMenuPerms(role) {
+  if (role === 'super_admin') return MENU_DEFS.map(m => m.key);
+  if (role === 'admin') return MENU_DEFS.filter(m => !m.superOnly).map(m => m.key);
+  // 普通用户默认：今日看板、全部任务、日志
+  return ['today', 'tasks', 'logs'];
+}
+
+// 获取当前用户实际菜单权限
+function getEffectiveMenuPerms() {
+  if (!currentUser) return [];
+  // super_admin 始终拥有全部权限，不受配置影响
+  if (currentUser.role === 'super_admin') return MENU_DEFS.map(m => m.key);
+  // 有自定义配置则用自定义
+  if (currentUser.menuPerms && currentUser.menuPerms.length > 0) return currentUser.menuPerms;
+  // 否则用角色默认
+  return getDefaultMenuPerms(currentUser.role);
+}
+
+// 应用菜单权限到侧边栏
+function applyMenuPerms() {
+  const allowed = getEffectiveMenuPerms();
+  document.querySelectorAll('[data-menu-key]').forEach(el => {
+    const key = el.getAttribute('data-menu-key');
+    el.style.display = allowed.includes(key) ? '' : 'none';
+  });
+}
+
 function updateUserInfoUI() {
   if (!currentUser) return;
   const nameEl    = document.getElementById('user-name-top');
@@ -1045,12 +1130,15 @@ function updateUserInfoUI() {
     const cIdx = currentUser.colorIdx !== undefined ? currentUser.colorIdx : (currentUser.color_idx || 0);
     avatarEl.style.background = MEMBER_COLORS[cIdx % MEMBER_COLORS.length] || 'var(--accent)';
   }
-  const isAdmin = currentUser.role === 'admin';
+  const role = currentUser.role || 'user';
   if (roleBadge) {
-    roleBadge.textContent = isAdmin ? '管理员' : '普通用户';
-    roleBadge.className = 'role-badge ' + (isAdmin ? 'role-admin' : 'role-user');
+    roleBadge.textContent = ROLE_LABELS[role] || '普通用户';
+    roleBadge.className = 'role-badge role-' + role;
   }
-  if (adminBtns) adminBtns.style.display = isAdmin ? 'flex' : 'none';
+  // admin-util-btns 只有 admin 及以上可见
+  if (adminBtns) adminBtns.style.display = isAdmin() ? 'flex' : 'none';
+  // 应用菜单权限
+  applyMenuPerms();
 }
 
 // --- 2. 退出登录 ---
@@ -1097,6 +1185,7 @@ async function init() {
   if (layout) layout.style.display = 'flex';
 
   updateUserInfoUI();
+  applyMenuPerms();
   await loadState();
   initRealtime();
 
@@ -1110,15 +1199,17 @@ async function silentRoleSync() {
   try {
     const { data, error } = await sb
       .from('members')
-      .select('id, role, color_idx, password')
+      .select('id, role, color_idx, password, menu_perms')
       .eq('id', currentUser.id)
       .single();
     if (!error && data) {
-      currentUser.role     = data.role      || 'user';
-      currentUser.colorIdx = data.color_idx || 0;
-      currentUser.password = data.password  || currentUser.password;
+      currentUser.role      = data.role       || 'user';
+      currentUser.colorIdx  = data.color_idx  || 0;
+      currentUser.password  = data.password   || currentUser.password;
+      currentUser.menuPerms = data.menu_perms || null;
       localStorage.setItem('pm_session', JSON.stringify(currentUser));
-      updateUserInfoUI(); // 刷新角色徽章
+      updateUserInfoUI();
+      applyMenuPerms();  // 重新应用菜单权限
     }
   } catch(e) { /* 网络问题忽略，不影响使用 */ }
 }
@@ -2352,13 +2443,13 @@ async function confirmDeleteProject(id) {
 
 // 打开成员管理弹窗
 function openMembersModal() {
-  const isAdmin = currentUser && currentUser.role === 'admin';
+  const _isAdminUser = isAdmin();
   openModal(`${modalHeader('成员管理')}
     <div class="modal-body">
       <div id="members-list" style="max-height: 300px; overflow-y: auto; margin-bottom: 20px;">
         ${buildMembersListHTML()}
       </div>
-      ${isAdmin ? `
+      ${_isAdminUser ? `
       <div class="divider"></div>
       <div class="form-group">
         <label class="form-label">添加新协作成员</label>
@@ -2480,14 +2571,14 @@ async function deleteMember(id) {
 
 function buildMembersListHTML() {
   if (!state.members.length) return '<div style="font-size:13px;color:var(--text3);padding:8px 0">暂无成员</div>';
-  const isAdmin = currentUser && currentUser.role === 'admin';
+  const _isAdminUser = isAdmin();
   return state.members.map(m=>{
     const taskCnt = state.tasks.filter(t=>t.assignee===m.id).length;
     const hasTask = taskCnt > 0;
     const isMe = currentUser && m.id === currentUser.id;
     const role = m.role || 'user';
-    const roleHTML = `<span class="role-badge ${role==='admin'?'role-admin':'role-user'}" style="margin-right:4px">${role==='admin'?'管理员':'普通用户'}</span>`;
-    const delBtn = !isAdmin ? '' : (hasTask
+    const roleHTML = `<span class="role-badge role-${role}" style="margin-right:4px">${ROLE_LABELS[role] || role}</span>`;
+    const delBtn = !_isAdminUser ? '' : (hasTask
       ? `<button title="请先删除或转移该成员的 ${taskCnt} 个任务" style="width:20px;height:20px;border:none;background:transparent;cursor:not-allowed;color:var(--border2);font-size:14px;display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0" disabled>×</button>`
       : `<button onclick="deleteMember('${m.id}')" title="删除成员" style="width:20px;height:20px;border:none;background:transparent;cursor:pointer;color:var(--text3);font-size:14px;display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0;transition:color .15s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">×</button>`);
     return `<div class="subtask-item" style="${hasTask?'border-left:2px solid var(--border2);':''}">
@@ -2618,15 +2709,14 @@ async function deleteTag(id) {
 // ─── Role Management (Admin only) ────────────────────────────────────────────
 
 function openRoleManageModal() {
-  if (!currentUser || currentUser.role !== 'admin') { toast('无权限'); return; }
-  openModal(`${modalHeader('角色管理')}
-    <div class="modal-body">
-      <div style="font-size:12px;color:var(--text3);margin-bottom:12px;padding:8px 10px;background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:6px">
-        ⚠ 管理员权限：可以查看所有数据、管理成员、标签和项目。普通用户仅能查看自己负责的任务。
+  if (!isAdmin()) { toast('无权限'); return; }
+  openModal(`${modalHeader('角色权限管理')}
+    <div class="modal-body" style="padding-bottom:0">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);line-height:1.6">
+        <strong>权限层级：</strong>超级管理员 &gt; 管理员 &gt; 普通用户<br>
+        只能修改比自己级别低的成员角色，并为其配置可见菜单。
       </div>
-      <div id="role-manage-list">
-        ${buildRoleManageListHTML()}
-      </div>
+      <div id="role-manage-list">${buildRoleManageListHTML()}</div>
     </div>
     <div class="modal-footer">
       <div></div>
@@ -2635,44 +2725,184 @@ function openRoleManageModal() {
 }
 
 function buildRoleManageListHTML() {
+  const myLevel = getRoleLevel(currentUser?.role || 'user');
   return state.members.map(m => {
     const isMe = currentUser && m.id === currentUser.id;
     const role = m.role || 'user';
-    const isAdmin = role === 'admin';
-    return `<div class="subtask-item" style="align-items:center">
-      <div class="member-avatar" style="background:${MEMBER_COLORS[m.colorIdx % MEMBER_COLORS.length]}">${m.name.slice(0,1)}</div>
-      <div style="flex:1">
-        <div style="font-size:13px;font-weight:500">${m.name}${isMe ? ' <span style="font-size:10px;color:var(--green)">(你)</span>' : ''}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px">ID: ${m.id.slice(0,8)}...</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span class="role-badge ${isAdmin ? 'role-admin' : 'role-user'}" id="role-badge-${m.id}">${isAdmin ? '管理员' : '普通用户'}</span>
-        ${isMe ? '' : `<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
-          <button onclick="toggleMemberRole('${m.id}')" id="role-btn-${m.id}" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 10px">
-            ${isAdmin ? '降为普通用户' : '升为管理员'}
-          </button>
-          <button onclick="adminResetPassword('${m.id}','${m.name}')" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 10px;color:var(--amber);border-color:var(--amber-border)">
-            🔑 重置密码
-          </button>
-        </div>`}
+    const targetLevel = getRoleLevel(role);
+    const canEdit = !isMe && myLevel > targetLevel;
+
+    // 可以升级到哪些角色
+    const roleOptions = Object.entries(ROLE_LEVELS)
+      .filter(([r]) => getRoleLevel(r) < myLevel)  // 只能设置比自己低的
+      .sort((a, b) => b[1] - a[1])
+      .map(([r]) => `<option value="${r}" ${role===r?'selected':''}>${ROLE_LABELS[r]}</option>`)
+      .join('');
+
+    return `<div class="subtask-item" style="align-items:flex-start;gap:10px;padding:10px">
+      <div class="member-avatar" style="width:32px;height:32px;font-size:13px;background:${MEMBER_COLORS[m.colorIdx % MEMBER_COLORS.length]};flex-shrink:0;margin-top:2px">${m.name.slice(0,1)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
+          <span style="font-size:13px;font-weight:500">${m.name}</span>
+          ${isMe ? '<span style="font-size:10px;color:var(--green)">(你)</span>' : ''}
+          <span class="role-badge role-${role}">${ROLE_LABELS[role] || role}</span>
+        </div>
+        ${canEdit ? `
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
+          <select class="form-select" id="role-sel-${m.id}" style="font-size:12px;padding:4px 8px;height:28px;width:120px">
+            ${roleOptions}
+          </select>
+          <button onclick="applyRoleChange('${m.id}')" class="btn btn-ghost btn-sm" style="font-size:11px;height:28px;padding:0 10px">应用角色</button>
+          <button onclick="openMenuPermsModal('${m.id}')" class="btn btn-ghost btn-sm" style="font-size:11px;height:28px;padding:0 10px;color:var(--blue);border-color:var(--blue-border)">⚙ 菜单权限</button>
+          <button onclick="adminResetPassword('${m.id}','${m.name}')" class="btn btn-ghost btn-sm" style="font-size:11px;height:28px;padding:0 10px;color:var(--amber);border-color:var(--amber-border)">🔑 重置密码</button>
+        </div>` : `<div style="font-size:11px;color:var(--text3);margin-top:4px">
+          ${isMe ? '当前登录账号' : '无权限修改此成员'}</div>`}
       </div>
     </div>`;
   }).join('');
 }
 
-async function toggleMemberRole(memberId) {
+async function applyRoleChange(memberId) {
   const m = state.members.find(x => x.id === memberId);
   if (!m) return;
-  const newRole = (m.role || 'user') === 'admin' ? 'user' : 'admin';
-  const btn = document.getElementById('role-btn-' + memberId);
-  setLoading(btn, true);
+  const sel = document.getElementById('role-sel-' + memberId);
+  if (!sel) return;
+  const newRole = sel.value;
+  if (newRole === m.role) return;
+
+  // 权限检查
+  if (!canManageRole(currentUser.role, newRole)) {
+    toast('无权限设置此角色'); return;
+  }
+
   const { error } = await sb.from('members').update({ role: newRole }).eq('id', memberId);
-  setLoading(btn, false);
   if (error) { toast('更新失败：' + error.message); return; }
   m.role = newRole;
   document.getElementById('role-manage-list').innerHTML = buildRoleManageListHTML();
-  toast(`已将「${m.name}」设为${newRole === 'admin' ? '管理员' : '普通用户'}`);
-  logAction('修改角色', `将「${m.name}」设为${newRole === 'admin' ? '管理员' : '普通用户'}`);
+  toast(`✓ 已将「${m.name}」设为${ROLE_LABELS[newRole]}`);
+  logAction('修改角色', `将「${m.name}」设为${ROLE_LABELS[newRole]}`);
+}
+
+// ─── Menu Permission Modal ────────────────────────────────────────────────────
+function openMenuPermsModal(memberId) {
+  const m = state.members.find(x => x.id === memberId);
+  if (!m) return;
+  if (!canManageRole(currentUser.role, m.role || 'user')) {
+    toast('无权限修改此成员的菜单'); return;
+  }
+
+  // 当前成员的有效权限（用于预选 checkbox）
+  const currentPerms = m.menuPerms && m.menuPerms.length
+    ? m.menuPerms
+    : getDefaultMenuPerms(m.role || 'user');
+
+  // 过滤出该成员可配置的菜单项
+  // adminOnly 的菜单只有 admin+ 才能被配置拥有，普通用户不能拥有 adminOnly 菜单
+  const targetIsAdmin = getRoleLevel(m.role || 'user') >= 2;
+  const configurableMenus = MENU_DEFS.filter(md => {
+    if (md.adminOnly && !targetIsAdmin) return false;  // 普通用户不能有管理菜单
+    return true;
+  });
+
+  const itemsHTML = configurableMenus.map(md => {
+    const isChecked = currentPerms.includes(md.key);
+    const isRequired = md.required;
+    return `<label class="perm-item ${isChecked ? 'checked' : ''} ${isRequired ? 'locked' : ''}"
+      onclick="${isRequired ? '' : `togglePermItem(this, '${md.key}')`}" style="${isRequired ? 'cursor:not-allowed' : ''}">
+      <div class="perm-check ${isChecked ? 'on' : ''}" id="pcheck-${md.key}"></div>
+      <span>${md.icon} ${md.label}</span>
+      ${isRequired ? '<span style="font-size:10px;color:var(--text3);margin-left:auto">必选</span>' : ''}
+    </label>`;
+  }).join('');
+
+  openModal(`${modalHeader(`配置菜单权限 · ${m.name}`)}
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border)">
+        为 <strong>${m.name}</strong>（${ROLE_LABELS[m.role || 'user']}）配置可见的菜单项。必选项不可取消。
+      </div>
+      <div class="perm-grid" id="perm-grid-${memberId}">
+        ${itemsHTML}
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="resetMenuPermsToDefault('${memberId}')">恢复默认</button>
+        <button class="btn btn-ghost btn-sm" onclick="selectAllMenuPerms('${memberId}', true)">全部勾选</button>
+        <button class="btn btn-ghost btn-sm" onclick="selectAllMenuPerms('${memberId}', false)">全部取消</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div style="font-size:11px;color:var(--text3)" id="perm-tip">勾选后点击保存生效</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="openRoleManageModal()">返回</button>
+        <button class="btn btn-primary" onclick="saveMenuPerms('${memberId}', this)">保存权限</button>
+      </div>
+    </div>`);
+
+  // 存储当前编辑的权限状态
+  window._editingPerms = { memberId, perms: [...currentPerms] };
+}
+
+function togglePermItem(labelEl, key) {
+  if (!window._editingPerms) return;
+  const perms = window._editingPerms.perms;
+  const idx = perms.indexOf(key);
+  const checkEl = labelEl.querySelector('.perm-check');
+  if (idx >= 0) {
+    perms.splice(idx, 1);
+    labelEl.classList.remove('checked');
+    checkEl.classList.remove('on');
+  } else {
+    perms.push(key);
+    labelEl.classList.add('checked');
+    checkEl.classList.add('on');
+  }
+}
+
+function resetMenuPermsToDefault(memberId) {
+  const m = state.members.find(x => x.id === memberId);
+  if (!m) return;
+  window._editingPerms.perms = getDefaultMenuPerms(m.role || 'user');
+  openMenuPermsModal(memberId);
+}
+
+function selectAllMenuPerms(memberId, selectAll) {
+  if (!window._editingPerms) return;
+  const m = state.members.find(x => x.id === memberId);
+  if (!m) return;
+  const targetIsAdmin = getRoleLevel(m.role || 'user') >= 2;
+  const available = MENU_DEFS
+    .filter(md => !(md.adminOnly && !targetIsAdmin))
+    .map(md => md.key);
+  const required = MENU_DEFS.filter(md => md.required).map(md => md.key);
+  window._editingPerms.perms = selectAll ? [...available] : [...required];
+  openMenuPermsModal(memberId);
+}
+
+async function saveMenuPerms(memberId, btn) {
+  if (!window._editingPerms || window._editingPerms.memberId !== memberId) return;
+  const m = state.members.find(x => x.id === memberId);
+  if (!m) return;
+
+  // 确保必选项始终存在
+  const required = MENU_DEFS.filter(md => md.required).map(md => md.key);
+  const finalPerms = [...new Set([...required, ...window._editingPerms.perms])];
+
+  setLoading(btn, true);
+  const { error } = await sb.from('members').update({ menu_perms: finalPerms }).eq('id', memberId);
+  setLoading(btn, false);
+
+  if (error) { toast('保存失败：' + error.message); return; }
+
+  m.menuPerms = finalPerms;
+  // 如果改的是自己，立即生效
+  if (currentUser && currentUser.id === memberId) {
+    currentUser.menuPerms = finalPerms;
+    localStorage.setItem('pm_session', JSON.stringify(currentUser));
+    applyMenuPerms();
+  }
+
+  toast(`✓ 已更新「${m.name}」的菜单权限`);
+  logAction('配置菜单权限', `为「${m.name}」配置了 ${finalPerms.length} 项菜单权限`);
+  openRoleManageModal();
 }
 
 async function adminResetPassword(memberId, memberName) {
@@ -2739,7 +2969,7 @@ async function logAction(action, detail) {
 }
 
 async function openLogsModal() {
-  const isAdmin = currentUser && currentUser.role === 'admin';
+  const _isAdmin = isAdmin();
   openModal(`${modalHeader('操作日志')}
     <div class="modal-body" style="padding-bottom:0">
       <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -2772,9 +3002,9 @@ async function refreshLogsList() {
 
   listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">加载中...</div>';
 
-  const isAdmin = currentUser && currentUser.role === 'admin';
+  const _isAdminUser = isAdmin();
   // 普通用户强制只看自己；管理员可以用下拉筛选
-  const filterUserId = isAdmin
+  const filterUserId = _isAdminUser
     ? (document.getElementById('log-filter-user')?.value || '')
     : (currentUser?.id || '');
   const days = parseInt(document.getElementById('log-filter-days')?.value || '7');
