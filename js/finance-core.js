@@ -15,7 +15,8 @@ let state={
   summary:{}, prevSummary:{}, prevPayments:[], prevReceipts:[],
   prevActualReceipts:[], prevActualPayments:[],
   config:{company_name:'',dept_name:''},
-  customers:[], suppliers:[], contractsUp:[], contractsDown:[]
+  customers:[], suppliers:[], contractsUp:[], contractsDown:[],
+  monthlyRevenues:[]    // contract_monthly_revenue 全量
 };
 
 //  Auth 
@@ -72,7 +73,7 @@ function fmtMon(ym){
 //  Data loading 
 async function loadAll(){
   const pm=prevMonthOf(currentMonth);
-  const[p,r,e,ar,ap,s,ps,pp,pr,par,pap,cfg,cu,su,cup,cdn]=await Promise.all([
+  const[p,r,e,ar,ap,s,ps,pp,pr,par,pap,cfg,cu,su,cup,cdn,mr]=await Promise.all([
     sb.from('payment_plans').select('*').eq('year_month',currentMonth).order('created_at'),
     sb.from('receipt_records').select('*').eq('year_month',currentMonth).order('created_at'),
     sb.from('extra_expenses').select('*').eq('year_month',currentMonth).order('expense_date'),
@@ -88,7 +89,8 @@ async function loadAll(){
     sb.from('customers').select('*').order('name'),
     sb.from('suppliers').select('*').order('name'),
     sb.from('contracts_upstream').select('*').order('created_at'),
-    sb.from('contracts_downstream').select('*').order('created_at')
+    sb.from('contracts_downstream').select('*').order('created_at'),
+    sb.from('contract_monthly_revenue').select('*').order('year_month')
   ]);
   state.payments=p.data||[];       state.receipts=r.data||[];
   state.extras=e.data||[];         state.actualReceipts=ar.data||[];
@@ -99,6 +101,7 @@ async function loadAll(){
   state.config=cfg.data||{company_name:'',dept_name:''};
   state.customers=cu.data||[];     state.suppliers=su.data||[];
   state.contractsUp=cup.data||[];  state.contractsDown=cdn.data||[];
+  state.monthlyRevenues=mr.data||[];
   if(state.config.dept_name)
     document.getElementById('sb-dept-name').textContent=state.config.dept_name;
   const[yr,mn]=currentMonth.split('-');
@@ -138,6 +141,20 @@ function computePrevBalance(){
   const prevPlanRec=state.prevReceipts.reduce((s,r)=>s+(+r.plan_amount||0),0);
   const prevPlanExp=prevPlanPay+(+ps.labor_cost||0)+(+ps.dept_cost||0)+(+ps.amortization||0)+(+ps.company_lock||0)+(+ps.debt_service||0);
   return prevPlanRec-prevPlanExp;
+}
+// 实时现金流：上月完成净额 + 当月实际收款 - 当月实际支付
+// 仅当上月实际数据已录入时有效，否则返回 null（显示—）
+function computeRealTimeCashFlow(){
+  const prevT5=state.prevActualReceipts.reduce((s,r)=>s+(+r.amount||0),0);
+  const prevT6=state.prevActualPayments.reduce((s,r)=>s+(+r.amount||0),0);
+  if(prevT5===0&&prevT6===0) return null;  // 上月未录入，显示—
+  const ps=state.prevSummary;
+  const prevNonProj=(+ps.actual_labor||0)+(+ps.actual_dept||0)+(+ps.actual_amortization||0)
+                   +(+ps.actual_company_lock||0)+(+ps.actual_debt_service||0);
+  const prevNet=prevT5-prevT6-prevNonProj;
+  const curRec=state.actualReceipts.reduce((s,r)=>s+(+r.amount||0),0);
+  const curPay=state.actualPayments.reduce((s,r)=>s+(+r.amount||0),0);
+  return prevNet+curRec-curPay;
 }
 function computeTotals(){
   const sm=state.summary;
