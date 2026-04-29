@@ -10,7 +10,7 @@ function taskCardHTML(t) {
   const assigneeHTML = t.assignee ? `<div class="member-avatar" style="width:20px;height:20px;font-size:10px;background:${memberColor(t.assignee)}" title="${memberName(t.assignee)}">${memberInitial(t.assignee)}</div>` : '';
   const tagPills = (t.tags||[]).map(tid=>tagHTML(tid)).join('');
   const subProg = subtaskProgress(t);
-  const recurringBadge = t.recurring&&t.recurring.enabled ? '<span class="pill pill-purple" style="font-size:10px">↻ 周期</span>' : '';
+  const milestoneBadge = t.milestone ? '<span class="pill pill-amber" style="font-size:10px">◆ 里程碑</span>' : '';
   const blockedBadge = blocked ? '<span class="dep-blocked-badge">⚠ 等待前置</span>' : '';
 
   return `<div class="task-card${t.done?' done':''}${blocked?' dep-blocked':''}" onclick="openEditTask('${t.id}')">
@@ -24,7 +24,7 @@ function taskCardHTML(t) {
         <span class="pill ${di.cls}">${di.text}</span>
         <span class="pill ${priCls}">${t.priority}</span>
         <span class="pill ${si.cls}">${si.lbl}</span>
-        ${tagPills}${recurringBadge}${blockedBadge}
+        ${tagPills}${milestoneBadge}${blockedBadge}
         ${subProg}
       </div>
     </div>
@@ -133,8 +133,8 @@ function openAddTask() {
       </div>
       ${state.globalTags.length?`<div class="form-group"><label class="form-label">标签</label><select class="form-select" id="fi-tag"><option value="">无</option>${tagSelectOpts}</select></div>`:''}
       <div class="toggle-row">
-        <div><div class="toggle-label">周期性任务</div><div class="toggle-sub">每周一自动生成新实例</div></div>
-        <button class="toggle" id="fi-recurring" onclick="this.classList.toggle('on')"></button>
+        <div><div class="toggle-label">设为里程碑</div><div class="toggle-sub">在甘特图中以菱形节点标注</div></div>
+        <button class="toggle" id="fi-milestone" onclick="this.classList.toggle('on')"></button>
       </div>
     </div>
     <div class="modal-footer">
@@ -170,6 +170,7 @@ async function submitAddTask(btn) {
     done: false,
     tags: [],
     subtasks: [],
+    milestone: document.getElementById('fi-milestone')?.classList.contains('on') || false,
     created_at: new Date().toISOString().slice(0,10)
   };
 
@@ -209,8 +210,6 @@ function openEditTask(id) {
     <span class="pill pill-gray" style="font-size:10px;flex-shrink:0">${projName(x.projectId)}</span>
   </div>`).join('') : '<div style="font-size:12px;color:var(--text3);padding:10px 12px">没有其他进行中的任务</div>';
 
-  const recurringOn = t.recurring&&t.recurring.enabled;
-
   openModal(`${modalHeader('编辑任务')}
     <div class="modal-tabs">
       <button class="modal-tab active" id="tab-basic" onclick="switchTaskTab('basic','${id}')">基本信息</button>
@@ -233,8 +232,8 @@ function openEditTask(id) {
         <div class="form-group"><label class="form-label">状态</label><select class="form-select" id="fi-status"><option value="todo"${t.status==='todo'?' selected':''}>待启动</option><option value="doing"${t.status==='doing'?' selected':''}>进行中</option><option value="waiting"${t.status==='waiting'?' selected':''}>待反馈</option><option value="done"${t.status==='done'?' selected':''}>已完成</option></select></div>
         ${state.globalTags.length?`<div class="form-group"><label class="form-label">标签</label><div class="tag-list">${tagChipsHTML}</div></div>`:''}
         <div class="toggle-row">
-          <div><div class="toggle-label">周期性任务</div><div class="toggle-sub">每周一自动生成新实例</div></div>
-          <button class="toggle${recurringOn?' on':''}" id="fi-recurring" onclick="this.classList.toggle('on')"></button>
+          <div><div class="toggle-label">设为里程碑</div><div class="toggle-sub">在甘特图中以菱形节点标注</div></div>
+          <button class="toggle${t.milestone?' on':''}" id="fi-milestone" onclick="this.classList.toggle('on')"></button>
         </div>
       </div>
       <div id="tab-pane-sub" style="display:none">
@@ -332,6 +331,7 @@ async function submitEditTask(id, btn) {
   t.priority = document.getElementById('fi-pri').value;
   t.status = document.getElementById('fi-status').value;
   t.done = t.status === 'done';
+  t.milestone = document.getElementById('fi-milestone')?.classList.contains('on') || false;
 
   await syncTask(t);
   setLoading(btn, false);

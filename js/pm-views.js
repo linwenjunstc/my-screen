@@ -441,11 +441,12 @@ function renderGantt() {
       const isOverdue = !t.done && new Date(t.due)<today;
       const blocked = isBlocked(t);
 
-      leftHTML += `<div class="gantt-row-name${t.done?' done-row':''}" onclick="openEditTask('${t.id}')" title="${t.title}">${blocked?'⚠ ':''}${t.title}</div>`;
+      leftHTML += `<div class="gantt-row-name${t.done?' done-row':''}${t.milestone?' milestone-row':''}" onclick="openEditTask('${t.id}')" title="${t.title}">${t.milestone?'◆ ':''}${blocked?'⚠ ':''}${t.title}</div>`;
       rightHTML += `<div style="position:relative;height:44px;border-bottom:1px solid var(--border);width:${chartWidth}px;background:${t.done?'transparent':'var(--surface)'}">
-        <div title="${t.title}" onclick="openEditTask('${t.id}')" style="position:absolute;top:10px;left:${left}px;width:${width}px;height:24px;background:${barColor};opacity:${t.done?.5:1};border-radius:5px;cursor:pointer;display:flex;align-items:center;padding:0 8px;overflow:hidden;transition:opacity .15s;${isOverdue?'outline:1.5px solid var(--red);':''}" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='${t.done?.5:1}'">
-          <span style="font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500">${t.title}</span>
+        <div title="${t.title}" onclick="openEditTask('${t.id}')" style="position:absolute;top:10px;left:${left}px;width:${width}px;height:24px;background:${barColor};opacity:${t.done?.5:1};border-radius:${t.milestone?'3px':'5px'};cursor:pointer;display:flex;align-items:center;padding:0 8px;overflow:hidden;transition:opacity .15s;${isOverdue?'outline:1.5px solid var(--red);':''}${t.milestone?'outline:2px solid '+barColor+';outline-offset:2px;':''} " onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='${t.done?.5:1}'">
+          <span style="font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500">${t.milestone?'◆ ':''}${t.title}</span>
         </div>
+        ${t.milestone?`<div style="position:absolute;left:${left+width}px;top:50%;transform:translate(-50%,-50%) rotate(45deg);width:12px;height:12px;background:var(--amber);border:2px solid #fff;box-shadow:0 0 0 1.5px var(--amber);pointer-events:none;z-index:2"></div>`:''}
         ${t.due===todayStr?`<div style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--red);font-weight:600">今</div>`:''}
       </div>`;
     });

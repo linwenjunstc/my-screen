@@ -205,6 +205,9 @@ function switchTab(tab){
   const addBtn=document.getElementById('add-btn');
   if(ADD_LABELS[tab]){addBtn.style.display='';addBtn.textContent=ADD_LABELS[tab];}
   else addBtn.style.display='none';
+  // 基础库 Tab 隐藏导出按钮
+  const exportBtn=document.getElementById('export-btn');
+  if(exportBtn) exportBtn.style.display=['contracts','customers','suppliers'].includes(tab)?'none':'';
   render();
 }
 function render(){
@@ -213,6 +216,9 @@ function render(){
     dashboard:renderDashboard,contracts:renderContracts,
     customers:renderCustomers,suppliers:renderSuppliers};
   (fn[currentTab]||renderT1)();
+  // 入场动画
+  const mc=document.getElementById('main-content');
+  if(mc){mc.classList.remove('view-pane');void mc.offsetWidth;mc.classList.add('view-pane');}
 }
 function openAddModal(){
   const fn={receipt:openAddReceiptModal,payment:openAddPaymentModal,

@@ -5,136 +5,555 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PM 协作看板 · 登录</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #07090f; --surface: rgba(13,17,30,0.88); --border: rgba(255,255,255,0.07);
-    --border-glow: rgba(0,210,255,0.4); --text: #e8eaf0; --text2: #8890a4; --text3: #4a5068;
-    --accent: #00d2ff; --red: #ff4d6a; --green: #00e5a0;
-    --mono: 'Space Mono', monospace; --font: 'DM Sans', -apple-system, sans-serif;
-  }
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; }
-  body { font-family: var(--font); background: var(--bg); color: var(--text); overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-  .grid-bg { position: fixed; inset: 0; z-index: 0; }
-  .grid-bg::before { content:''; position:absolute; inset:-50%; background-image:linear-gradient(rgba(0,210,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,210,255,.04) 1px,transparent 1px); background-size:44px 44px; animation:gridMove 20s linear infinite; }
-  .grid-bg::after { content:''; position:absolute; inset:0; background:radial-gradient(ellipse 70% 60% at 50% 40%,transparent 0%,var(--bg) 80%); }
-  @keyframes gridMove { 0%{transform:translate(0,0)} 100%{transform:translate(44px,44px)} }
-  .orb { position:fixed; border-radius:50%; filter:blur(80px); z-index:0; pointer-events:none; }
-  .orb-1 { width:500px;height:500px;background:rgba(0,90,180,.18);top:-160px;left:-120px;animation:orbFloat1 12s ease-in-out infinite; }
-  .orb-2 { width:400px;height:400px;background:rgba(0,180,120,.10);bottom:-100px;right:-80px;animation:orbFloat2 15s ease-in-out infinite; }
-  @keyframes orbFloat1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(40px,30px)} }
-  @keyframes orbFloat2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-30px,-40px)} }
-  .scanline { position:fixed;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(0,210,255,.3),transparent);z-index:1;animation:scanMove 6s ease-in-out infinite;pointer-events:none; }
-  @keyframes scanMove { 0%{top:-4px;opacity:0} 10%{opacity:1} 90%{opacity:.6} 100%{top:100vh;opacity:0} }
-  .card-wrap { position:relative;z-index:10;width:100%;max-width:400px;padding:0 20px; }
-  .card { background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px 38px 36px;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.04),0 24px 80px rgba(0,0,0,.5),0 0 20px rgba(0,210,255,.15);animation:cardIn .5s cubic-bezier(.22,1,.36,1) both; }
-  @keyframes cardIn { from{opacity:0;transform:translateY(24px) scale(.97)} to{opacity:1;transform:none} }
-  .card::before { content:'';position:absolute;top:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.6; }
-  .corner { position:absolute;width:12px;height:12px; }
-  .corner-tl { top:10px;left:10px;border-top:1px solid rgba(0,210,255,.4);border-left:1px solid rgba(0,210,255,.4); }
-  .corner-tr { top:10px;right:10px;border-top:1px solid rgba(0,210,255,.4);border-right:1px solid rgba(0,210,255,.4); }
-  .corner-bl { bottom:10px;left:10px;border-bottom:1px solid rgba(0,210,255,.4);border-left:1px solid rgba(0,210,255,.4); }
-  .corner-br { bottom:10px;right:10px;border-bottom:1px solid rgba(0,210,255,.4);border-right:1px solid rgba(0,210,255,.4); }
-  .logo-area { text-align:center;margin-bottom:30px; }
-  .logo-icon { width:48px;height:48px;margin:0 auto 14px;position:relative;display:flex;align-items:center;justify-content:center; }
-  .logo-icon svg { width:48px;height:48px; }
-  .logo-ring { position:absolute;inset:0;border-radius:50%;border:1px solid rgba(0,210,255,.3);animation:ringPulse 3s ease-in-out infinite; }
-  .logo-ring-2 { inset:-6px;border-color:rgba(0,210,255,.12);animation-delay:.5s; }
-  @keyframes ringPulse { 0%,100%{opacity:.5;transform:scale(1)} 50%{opacity:1;transform:scale(1.04)} }
-  .logo-title { font-size:18px;font-weight:600;color:var(--text);letter-spacing:.5px;margin-bottom:4px; }
-  .logo-sub { font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase; }
-  .status-bar { display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:26px;padding:7px 14px;background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:6px; }
-  .status-dot { display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.05em; }
-  .status-dot::before { content:'';width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:dotPulse 2s ease-in-out infinite; }
-  .status-dot:nth-child(2)::before { animation-delay:.4s; }
-  .status-dot:nth-child(3)::before { animation-delay:.8s;background:var(--accent);box-shadow:0 0 6px var(--accent); }
-  @keyframes dotPulse { 0%,100%{opacity:.6} 50%{opacity:1} }
-  .form-group { margin-bottom:16px; }
-  .form-label { display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:7px; }
-  .form-label::before { content:'//';color:var(--accent);opacity:.7; }
-  .form-input { width:100%;padding:11px 14px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s,background .2s;caret-color:var(--accent); }
-  .form-input::placeholder { color:var(--text3); }
-  .form-input:focus { border-color:var(--border-glow);background:rgba(0,210,255,.04);box-shadow:0 0 0 3px rgba(0,210,255,.08); }
-  .btn-login { width:100%;padding:13px;background:linear-gradient(135deg,#0090c8,#00d2ff,#00a8d8);border:none;border-radius:8px;color:#fff;font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;letter-spacing:.3px;position:relative;overflow:hidden;transition:opacity .2s,transform .1s;margin-top:6px; }
-  .btn-login:hover { opacity:.9; }
-  .btn-login:active { transform:scale(.99); }
-  .btn-login:disabled { opacity:.6;cursor:not-allowed;transform:none; }
-  .btn-inner { display:flex;align-items:center;justify-content:center;gap:8px; }
-  @keyframes spin { to{transform:rotate(360deg)} }
-  .spinner { width:15px;height:15px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0; }
-  .msg-box { display:none;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:6px;font-size:12px;margin-top:12px;line-height:1.5; }
-  .msg-box.show { display:flex; }
-  .msg-error { background:rgba(255,77,106,.08);border:1px solid rgba(255,77,106,.2);color:var(--red); }
-  .msg-success { background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.2);color:var(--green); }
-  .card-footer { margin-top:20px;display:flex;align-items:center;justify-content:space-between; }
-  .footer-tag { font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.06em; }
-  .version-badge { display:flex;align-items:center;gap:5px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;font-family:var(--mono);font-size:9px;color:var(--text3); }
-  .version-badge::before { content:'●';color:var(--accent);font-size:7px; }
+:root {
+  --bg:        #f0ede6;
+  --surface:   #ffffff;
+  --surface2:  #f5f3ee;
+  --surface3:  #ebe9e3;
+  --border:    #e4e1d8;
+  --border2:   #ccc9bf;
+  --text:      #1a1916;
+  --text2:     #5c5a54;
+  --text3:     #9c9a94;
+  --teal:      #0e7268;
+  --teal-bg:   #edf6f5;
+  --teal-dim:  rgba(14,114,104,.1);
+  --red:       #c94040;
+  --red-bg:    #fdf2f2;
+  --red-border:#f0c8c8;
+  --green:     #1e6e44;
+  --sb-bg:     #1c1b18;
+  --sb-border: rgba(255,255,255,.07);
+  --sb-text:   #c8c5be;
+  --sb-text2:  #7a7870;
+  --font:      'DM Sans', -apple-system, 'PingFang SC', sans-serif;
+  --mono:      'DM Mono', monospace;
+  --radius-sm: 6px;
+  --radius:    10px;
+  --radius-lg: 14px;
+  --shadow:    0 1px 3px rgba(0,0,0,.04), 0 4px 14px rgba(0,0,0,.05);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,.1), 0 2px 8px rgba(0,0,0,.06);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── 背景纹理（与主页 sidebar 同款暗色块 + 暖色纸张底）──────────────── */
+.bg-left {
+  position: fixed;
+  left: 0; top: 0; bottom: 0;
+  width: 42%;
+  background: var(--sb-bg);
+  z-index: 0;
+  /* 微妙的噪点质感 */
+  background-image:
+    radial-gradient(ellipse 80% 60% at 20% 50%, rgba(14,114,104,.12) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 80% at 80% 80%, rgba(14,114,104,.06) 0%, transparent 60%);
+}
+.bg-right {
+  position: fixed;
+  right: 0; top: 0; bottom: 0;
+  width: 58%;
+  background: var(--bg);
+  z-index: 0;
+}
+/* 分隔线光晕 */
+.bg-left::after {
+  content: '';
+  position: absolute;
+  right: -1px; top: 10%; bottom: 10%;
+  width: 1px;
+  background: linear-gradient(to bottom,
+    transparent,
+    rgba(14,114,104,.4) 30%,
+    rgba(14,114,104,.6) 50%,
+    rgba(14,114,104,.4) 70%,
+    transparent
+  );
+}
+
+/* 浮动装饰点 */
+.dot {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+.dot-1 {
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, rgba(14,114,104,.15) 0%, transparent 70%);
+  top: -80px; left: -80px;
+  animation: floatA 14s ease-in-out infinite;
+}
+.dot-2 {
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(14,114,104,.08) 0%, transparent 70%);
+  bottom: 0; left: 20%;
+  animation: floatB 18s ease-in-out infinite;
+}
+.dot-3 {
+  width: 240px; height: 240px;
+  background: radial-gradient(circle, rgba(240,237,230,.6) 0%, transparent 70%);
+  top: -60px; right: 10%;
+  animation: floatA 16s ease-in-out infinite reverse;
+}
+@keyframes floatA {
+  0%, 100% { transform: translate(0, 0); }
+  33%       { transform: translate(20px, 30px); }
+  66%       { transform: translate(-10px, 15px); }
+}
+@keyframes floatB {
+  0%, 100% { transform: translate(0, 0); }
+  50%       { transform: translate(30px, -20px); }
+}
+
+/* ── 左侧品牌区 ─────────────────────────────────────────────────── */
+.brand-panel {
+  position: fixed;
+  left: 0; top: 0; bottom: 0;
+  width: 42%;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  gap: 0;
+}
+
+.brand-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px; height: 56px;
+  margin-bottom: 24px;
+  position: relative;
+}
+.brand-logo svg {
+  width: 56px; height: 56px;
+  position: relative;
+  z-index: 1;
+}
+.brand-logo-ring {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 1px solid rgba(14,114,104,.25);
+  animation: logoPulse 3s ease-in-out infinite;
+}
+.brand-logo-ring-2 {
+  inset: -16px;
+  border-color: rgba(14,114,104,.1);
+  animation-delay: .6s;
+}
+@keyframes logoPulse {
+  0%, 100% { opacity: .5; transform: scale(1); }
+  50%       { opacity: 1; transform: scale(1.04); }
+}
+
+.brand-name {
+  font-size: 22px;
+  font-weight: 600;
+  color: #f0ede6;
+  letter-spacing: -.3px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+.brand-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--sb-text2);
+  letter-spacing: .12em;
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+/* 系统状态指示 */
+.status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 200px;
+}
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--sb-text2);
+  letter-spacing: .04em;
+}
+.status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--teal);
+  box-shadow: 0 0 6px var(--teal);
+  flex-shrink: 0;
+  animation: dotBlink 2.5s ease-in-out infinite;
+}
+.status-dot.amber {
+  background: #a06020;
+  box-shadow: 0 0 6px #a06020;
+  animation-delay: .5s;
+}
+.status-dot.blue {
+  background: #1a52a0;
+  box-shadow: 0 0 6px #1a52a0;
+  animation-delay: 1s;
+}
+@keyframes dotBlink {
+  0%, 100% { opacity: .5; }
+  50%       { opacity: 1; }
+}
+.status-bar-fill {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, rgba(255,255,255,.08), transparent);
+}
+
+.brand-version {
+  position: absolute;
+  bottom: 28px;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--sb-text2);
+  letter-spacing: .08em;
+  opacity: .6;
+}
+
+/* ── 右侧登录表单 ────────────────────────────────────────────────── */
+.form-panel {
+  position: fixed;
+  right: 0; top: 0; bottom: 0;
+  width: 58%;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+}
+
+.card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 38px 36px;
+  box-shadow: var(--shadow-lg);
+  animation: cardIn .4s cubic-bezier(.22,1,.36,1) both;
+  position: relative;
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(20px) scale(.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 卡片顶部 teal 线 */
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 20%; right: 20%;
+  height: 2px;
+  border-radius: 0 0 4px 4px;
+  background: linear-gradient(90deg, transparent, var(--teal), transparent);
+  opacity: .7;
+}
+
+.card-header {
+  margin-bottom: 28px;
+}
+.card-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -.3px;
+  margin-bottom: 5px;
+}
+.card-subtitle {
+  font-size: 13px;
+  color: var(--text3);
+  line-height: 1.5;
+}
+
+/* ── 表单 ────────────────────────────────────────────────────────── */
+.form-group { margin-bottom: 16px; }
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text2);
+  margin-bottom: 6px;
+  letter-spacing: .01em;
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px 13px;
+  font-size: 14px;
+  font-family: var(--font);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  outline: none;
+  transition: border-color .18s, box-shadow .18s, background .18s;
+}
+.form-input::placeholder { color: var(--text3); font-size: 13px; }
+.form-input:focus {
+  background: var(--surface);
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(14,114,104,.1);
+}
+
+.btn-login {
+  width: 100%;
+  padding: 12px;
+  margin-top: 8px;
+  background: var(--sb-bg);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: var(--radius-sm);
+  color: #f0ede6;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: opacity .15s, transform .1s;
+  letter-spacing: .1px;
+}
+/* teal shimmer on hover */
+.btn-login::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(14,114,104,.0) 0%, rgba(14,114,104,.15) 100%);
+  opacity: 0;
+  transition: opacity .2s;
+}
+.btn-login:hover::before { opacity: 1; }
+.btn-login:hover { opacity: .92; }
+.btn-login:active { transform: scale(.98); }
+.btn-login:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
+.btn-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+.btn-arrow {
+  width: 18px; height: 18px;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition: transform .2s;
+}
+.btn-login:hover .btn-arrow { transform: translateX(2px); }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .65s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ── 消息框 ──────────────────────────────────────────────────────── */
+.msg-box {
+  display: none;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 13px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  margin-top: 12px;
+  line-height: 1.5;
+  animation: msgIn .2s ease;
+}
+@keyframes msgIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.msg-box.show { display: flex; }
+.msg-error   { background: var(--red-bg); border: 1px solid var(--red-border); color: var(--red); }
+.msg-success { background: #edf7f2; border: 1px solid #a8d8bc; color: var(--green); }
+
+/* ── 卡片底部 ────────────────────────────────────────────────────── */
+.card-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.footer-hint {
+  font-size: 11.5px;
+  color: var(--text3);
+}
+.footer-ver {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--text3);
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  letter-spacing: .04em;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.footer-ver::before {
+  content: '';
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--teal);
+  box-shadow: 0 0 4px var(--teal);
+}
+
+/* ── 输入框行内图标 ──────────────────────────────────────────────── */
+.input-wrap { position: relative; }
+.input-wrap .form-input { padding-left: 38px; }
+.input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text3);
+  font-size: 14px;
+  pointer-events: none;
+  transition: color .15s;
+}
+.input-wrap:focus-within .input-icon { color: var(--teal); }
+
+/* ── 响应式（窄屏变单列）────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .bg-left, .brand-panel { display: none; }
+  .bg-right { width: 100%; }
+  .form-panel { width: 100%; padding: 24px; }
+}
 </style>
 </head>
 <body>
 
-<div class="grid-bg"></div>
-<div class="orb orb-1"></div>
-<div class="orb orb-2"></div>
-<div class="scanline"></div>
+<!-- 背景 -->
+<div class="bg-left"></div>
+<div class="bg-right"></div>
+<div class="dot dot-1"></div>
+<div class="dot dot-2"></div>
+<div class="dot dot-3"></div>
 
-<div class="card-wrap">
+<!-- 左侧品牌面板 -->
+<div class="brand-panel">
+  <div class="brand-logo">
+    <div class="brand-logo-ring"></div>
+    <div class="brand-logo-ring brand-logo-ring-2"></div>
+    <svg viewBox="0 0 56 56" fill="none">
+      <circle cx="28" cy="28" r="24" stroke="rgba(14,114,104,.2)" stroke-width="1.5"/>
+      <rect x="14" y="15" width="12" height="12" rx="3" fill="rgba(14,114,104,.8)"/>
+      <rect x="30" y="15" width="12" height="12" rx="3" fill="rgba(14,114,104,.4)"/>
+      <rect x="14" y="31" width="12" height="10" rx="3" fill="rgba(14,114,104,.4)"/>
+      <rect x="30" y="31" width="12" height="10" rx="3" fill="rgba(14,114,104,.9)"/>
+    </svg>
+  </div>
+
+  <div class="brand-name">PM 协作看板</div>
+  <div class="brand-sub">COLLABORATIVE TASK MANAGER</div>
+
+  <div class="status-list">
+    <div class="status-item">
+      <div class="status-dot"></div>
+      <span>DATABASE</span>
+      <div class="status-bar-fill"></div>
+      <span style="color:rgba(14,114,104,.8)">ONLINE</span>
+    </div>
+    <div class="status-item">
+      <div class="status-dot amber"></div>
+      <span>REALTIME</span>
+      <div class="status-bar-fill"></div>
+      <span style="color:rgba(160,96,32,.8)">ACTIVE</span>
+    </div>
+    <div class="status-item">
+      <div class="status-dot blue"></div>
+      <span>SECURE</span>
+      <div class="status-bar-fill"></div>
+      <span style="color:rgba(26,82,160,.8)">ENABLED</span>
+    </div>
+  </div>
+
+  <div class="brand-version">ACCESS CONTROL v2.0 · PM BOARD v4</div>
+</div>
+
+<!-- 右侧登录表单 -->
+<div class="form-panel">
   <div class="card">
-    <div class="corner corner-tl"></div>
-    <div class="corner corner-tr"></div>
-    <div class="corner corner-bl"></div>
-    <div class="corner corner-br"></div>
-    <div class="logo-area">
-      <div class="logo-icon">
-        <div class="logo-ring"></div>
-        <div class="logo-ring logo-ring-2"></div>
-        <svg viewBox="0 0 48 48" fill="none">
-          <circle cx="24" cy="24" r="20" stroke="rgba(0,210,255,.2)" stroke-width="1.5"/>
-          <rect x="13" y="14" width="10" height="10" rx="2" fill="rgba(0,210,255,.7)" opacity=".8"/>
-          <rect x="25" y="14" width="10" height="10" rx="2" fill="rgba(0,210,255,.4)" opacity=".6"/>
-          <rect x="13" y="26" width="10" height="8" rx="2" fill="rgba(0,210,255,.4)" opacity=".5"/>
-          <rect x="25" y="26" width="10" height="8" rx="2" fill="rgba(0,210,255,.7)" opacity=".9"/>
-        </svg>
-      </div>
-      <div class="logo-title">PM 协作看板</div>
-      <div class="logo-sub">Collaborative Task Manager</div>
+    <div class="card-header">
+      <div class="card-title">欢迎回来</div>
+      <div class="card-subtitle">输入你的账号和密码以继续</div>
     </div>
-    <div class="status-bar">
-      <div class="status-dot">DATABASE</div>
-      <div class="status-dot">REALTIME</div>
-      <div class="status-dot">SECURE</div>
-    </div>
+
     <div class="form-group">
-      <div class="form-label">账号名</div>
-      <input type="text" id="login-user" class="form-input" placeholder="输入你的账号名"
-             autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
+      <label class="form-label">账号名</label>
+      <div class="input-wrap">
+        <span class="input-icon">👤</span>
+        <input type="text" id="login-user" class="form-input"
+               placeholder="输入你的账号名"
+               autocomplete="username"
+               onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
+      </div>
     </div>
-    <div class="form-group" style="margin-bottom:20px">
-      <div class="form-label">登录密码</div>
-      <input type="password" id="login-pass" class="form-input" placeholder="••••••••"
-             autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+
+    <div class="form-group" style="margin-bottom:22px">
+      <label class="form-label">登录密码</label>
+      <div class="input-wrap">
+        <span class="input-icon">🔑</span>
+        <input type="password" id="login-pass" class="form-input"
+               placeholder="••••••••"
+               autocomplete="current-password"
+               onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
     </div>
+
     <button class="btn-login" id="login-btn" onclick="doLogin()">
       <div class="btn-inner" id="btn-inner">
         <span>进入系统</span>
-        <span style="font-size:16px;line-height:1">→</span>
+        <div class="btn-arrow">→</div>
       </div>
     </button>
-    <div class="msg-box msg-error" id="msg-err"></div>
+
+    <div class="msg-box msg-error"   id="msg-err"></div>
     <div class="msg-box msg-success" id="msg-ok"></div>
+
     <div class="card-footer">
-      <div class="footer-tag">ACCESS CONTROL v2.0</div>
-      <div class="version-badge">PM BOARD v4</div>
+      <div class="footer-hint">仅限授权成员访问</div>
+      <div class="footer-ver">v4.0</div>
     </div>
   </div>
 </div>
 
 <script>
-// ── 补丁：静默吞掉 Supabase 客户端的 DataCloneError ──────────────────────────
-// Supabase JS 新版本会在 auth 广播时调用 window.postMessage 传递 Headers 对象，
-// Headers 无法被序列化，导致 DataCloneError。我们不需要这个广播功能，直接屏蔽。
 ;(function patchPostMessage() {
   const orig = window.postMessage.bind(window);
   window.postMessage = function(data, targetOrigin, transfer) {
@@ -143,35 +562,33 @@
   };
 })();
 
-// ── Supabase 初始化 ───────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://rfjrkcclhvuldenpdlye.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_a29IWCUpjugzMqx6VGnNhw_bpU9Grpi';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
-    persistSession: false,
-    autoRefreshToken: false,
+    persistSession: false, autoRefreshToken: false,
     detectSessionInUrl: false,
     storage: { getItem: ()=>null, setItem: ()=>{}, removeItem: ()=>{} }
   }
 });
 
-// ── 已有有效 Session 则直接跳转 ───────────────────────────────────────────────
 try {
   const _s = JSON.parse(localStorage.getItem('pm_session') || 'null');
-  if (_s && _s.id && _s.loginAt && (Date.now() - _s.loginAt) < 8*3600*1000) {
+  if (_s && _s.id && _s.loginAt && (Date.now() - _s.loginAt) < 8*3600*1000)
     window.location.href = 'projectManage.html';
-  }
 } catch(e) { localStorage.removeItem('pm_session'); }
 
-// ── 登录 ──────────────────────────────────────────────────────────────────────
 async function doLogin() {
   const name     = document.getElementById('login-user').value.trim();
   const pass     = document.getElementById('login-pass').value;
   const btn      = document.getElementById('login-btn');
   const btnInner = document.getElementById('btn-inner');
   const errBox   = document.getElementById('msg-err');
+  const okBox    = document.getElementById('msg-ok');
 
   errBox.classList.remove('show');
+  okBox.classList.remove('show');
+
   if (!name || !pass) {
     errBox.textContent = '账号名和密码不能为空';
     errBox.classList.add('show');
@@ -182,32 +599,23 @@ async function doLogin() {
   btnInner.innerHTML = '<span class="spinner"></span><span>验证中...</span>';
 
   const { data, error } = await sb
-    .from('members')
-    .select('*')
-    .eq('name', name)
-    .eq('password', pass)
-    .maybeSingle();
+    .from('members').select('*')
+    .eq('name', name).eq('password', pass).maybeSingle();
 
-  if (error) {
+  if (error || !data) {
     btn.disabled = false;
-    btnInner.innerHTML = '<span>进入系统</span><span style="font-size:16px;line-height:1">→</span>';
-    errBox.textContent = '数据库错误：' + error.message;
+    btnInner.innerHTML = '<span>进入系统</span><div class="btn-arrow">→</div>';
+    errBox.textContent = error ? '数据库错误：' + error.message : '账号或密码错误，请重试';
     errBox.classList.add('show');
+    document.getElementById('login-pass').value = '';
+    document.getElementById('login-pass').focus();
     return;
   }
 
-  if (!data) {
-    btn.disabled = false;
-    btnInner.innerHTML = '<span>进入系统</span><span style="font-size:16px;line-height:1">→</span>';
-    errBox.textContent = '账号或密码错误';
-    errBox.classList.add('show');
-    return;
-  }
-
-  // 登录成功
   localStorage.setItem('pm_session', JSON.stringify({ ...data, loginAt: Date.now() }));
-  btnInner.innerHTML = '<span>✓</span><span>验证成功，跳转中...</span>';
-  setTimeout(() => { window.location.href = 'projectManage.html'; }, 500);
+  btnInner.innerHTML = '<span>✓ 验证成功，跳转中...</span>';
+  btn.style.background = '#1e6e44';
+  setTimeout(() => { window.location.href = 'projectManage.html'; }, 600);
 }
 </script>
 </body>
