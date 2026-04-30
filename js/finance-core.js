@@ -192,7 +192,6 @@ const TAB_TITLES={
 };
 const ADD_LABELS={
   receipt:'+ 新增收款记录', payment:'+ 新增付款明细',
-  t5:'+ 新增收款明细', t6:'+ 新增支付明细',
   contracts:'+ 新增合同', customers:'+ 新增客户', suppliers:'+ 新增供应商'
 };
 function switchTab(tab){
@@ -222,7 +221,6 @@ function render(){
 }
 function openAddModal(){
   const fn={receipt:openAddReceiptModal,payment:openAddPaymentModal,
-    t5:openAddT5Modal,t6:openAddT6Modal,
     contracts:openAddContractModal,customers:openAddCustomerModal,suppliers:openAddSupplierModal};
   if(fn[currentTab])fn[currentTab]();
 }

@@ -117,6 +117,7 @@ function renderContracts(){
       return `<tr class="clickable" onclick="openEditContractModal('up','${r.id}')">
         <td style="color:var(--text3);width:28px;text-align:center">${i+1}</td>
         <td style="min-width:150px">${r.name}</td>
+        <td style="font-size:12px;color:var(--text2);min-width:100px">${r.main_contract_no||'—'}</td>
         <td>${r.customer_name||'—'}</td>
         <td class="num">${fmt(r.amount)}</td>
         <td class="num">${rv.exclTax?fmt(rv.exclTax):'—'}</td>
@@ -128,7 +129,7 @@ function renderContracts(){
         <td class="num ${progCls}">${rv.exclTax?(rv.progress*100).toFixed(1)+'%':'—'}</td>
         <td class="num">${rv.yearProfit?fmt(rv.yearProfit):'—'}</td>
         <td><button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openRevenueModal('${r.id}')">📊 营收</button></td>
-        <td><span class="tag ${r.status==='active'?'tag-active':'tag-settled'}">${r.status==='active'?'执行中':'已结算'}</span></td>
+        <td onclick="event.stopPropagation()"><select class="status-inline ${r.status==='active'?'tag-active':'tag-settled'}" onchange="updateContractStatus('up','${r.id}',this)"><option value="active" ${r.status!=='settled'?'selected':''}>执行中</option><option value="settled" ${r.status==='settled'?'selected':''}>已结算</option></select></td>
       </tr>`;
     } else {
       const linked = r.upstream_contract_id ? state.contractsUp.find(x=>x.id===r.upstream_contract_id) : null;
@@ -138,11 +139,11 @@ function renderContracts(){
         <td>${r.supplier_name||'—'}</td>
         <td class="num">${fmt(r.amount)}</td>
         <td>${linked?`<span class="linked-badge">${linked.name}</span>`:'—'}</td>
-        <td><span class="tag ${r.status==='active'?'tag-active':'tag-settled'}">${r.status==='active'?'执行中':'已结算'}</span></td>
+        <td onclick="event.stopPropagation()"><select class="status-inline ${r.status==='active'?'tag-active':'tag-settled'}" onchange="updateContractStatus('down','${r.id}',this)"><option value="active" ${r.status!=='settled'?'selected':''}>执行中</option><option value="settled" ${r.status==='settled'?'selected':''}>已结算</option></select></td>
         <td style="font-size:12px;color:var(--text3)">${r.remark||'—'}</td>
       </tr>`;
     }
-  }).join('') : `<tr><td colspan="${isUp?14:7}"><div class="empty"><div class="empty-icon">📄</div>暂无合同，点击右上角新增</div></td></tr>`;
+  }).join('') : `<tr><td colspan="${isUp?15:7}"><div class="empty"><div class="empty-icon">📄</div>暂无合同，点击右上角新增</div></td></tr>`;
 
   document.getElementById('main-content').innerHTML=`
   <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
@@ -170,6 +171,7 @@ function renderContracts(){
       <thead><tr>
         <th style="width:28px">#</th>
         <th style="min-width:150px">合同名称</th>
+        ${isUp?'<th style="min-width:110px">主合同编号</th>':''}
         <th style="min-width:100px">${isUp?'客户名称':'供应商名称'}</th>
         <th class="num">合同金额</th>
         ${isUp?`
@@ -218,6 +220,10 @@ function openEditContractModal(dir,id){
       <input class="form-input" id="ct-name" value="${r?r.name||'':''}">
     </div>
     ${isUp?`
+    <div class="form-group">
+      <label class="form-label">主合同编号</label>
+      <input class="form-input" id="ct-mcno" placeholder="如 HT-2024-001（可空）" value="${r?r.main_contract_no||'':''}">
+    </div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">客户</label>
@@ -352,6 +358,7 @@ async function saveContract(dir,id,btn){
     data.tax_rate          = +q('ct-taxrate')||null;
     data.target_profit_rate= +q('ct-profrate')||null;
     data.measured_revenue  = +q('ct-measured')||0;
+    data.main_contract_no  = q('ct-mcno')||'';
   } else {
     const suId=document.getElementById('ct-su').value;
     data.supplier_id   = suId||null;
@@ -476,7 +483,15 @@ function renderCustomers(){
   <div class="table-wrap">
     <div class="table-toolbar">
       <div class="table-title">客户库</div>
-      <div style="margin-left:auto;font-size:11px;color:var(--text3)">合同统计自动关联合同库 · 点击「执行中」查看明细</div>
+      <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+        <button class="btn btn-ghost btn-sm" onclick="downloadCustomerTemplate()">↓ 模板</button>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0">
+          ↑ 导入 Excel
+          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importCustomersExcel(event)">
+        </label>
+        <button class="btn btn-ghost btn-sm" onclick="exportCustomersExcel()">↓ 导出</button>
+        <span style="font-size:11px;color:var(--text3)">点击「执行中」查看合同明细</span>
+      </div>
     </div>
     <div class="table-scroll"><table>
       <thead><tr>
@@ -690,3 +705,19 @@ async function deleteRow(table,id){
 }
 
 //  Excel 导出（第4步完成完整版，此处为预留入口）
+
+// ── 合同状态内联更新 ──────────────────────────────────────────────────────────
+async function updateContractStatus(dir, id, sel){
+  const status = sel.value;
+  const tbl = dir==='up' ? 'contracts_upstream' : 'contracts_downstream';
+  const arr = dir==='up' ? state.contractsUp : state.contractsDown;
+  // 立即更新样式
+  sel.className = `status-inline ${status==='active'?'tag-active':'tag-settled'}`;
+  const {error} = await sb.from(tbl)
+    .update({status, updated_at: new Date().toISOString()}).eq('id', id);
+  if(error){ toast('✗ 状态更新失败'); return; }
+  const item = arr.find(x=>x.id===id);
+  if(item) item.status = status;
+  toast(`✓ 状态已更新为「${status==='active'?'执行中':'已结算'}」`);
+  logAction('更新合同状态', `合同 ${id} → ${status}`);
+}

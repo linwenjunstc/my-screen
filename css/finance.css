@@ -227,3 +227,22 @@ tbody tr.clickable:hover td{background:var(--surface2);cursor:pointer}
 .sb-nav::-webkit-scrollbar{width:4px}
 .sb-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1)}
 .sb-nav::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2)}
+
+/* ── 合同状态内联下拉 ────────────────────────────────────────────── */
+.status-inline{
+  border:none;outline:none;cursor:pointer;
+  padding:2px 20px 2px 8px;border-radius:4px;
+  font-size:11px;font-weight:600;font-family:var(--font);
+  appearance:none;-webkit-appearance:none;
+  background-repeat:no-repeat;
+  background-position:right 5px center;
+  background-size:10px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23999'/%3E%3C/svg%3E");
+}
+.status-inline.tag-active{
+  background-color:var(--green-bg);color:var(--green);
+}
+.status-inline.tag-settled{
+  background-color:var(--surface3);color:var(--text2);
+}
+.status-inline:hover{opacity:.85;}

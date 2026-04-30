@@ -119,7 +119,7 @@ window.onload=init;
 function downloadContractTemplate(dir){
   const wb = XLSX.utils.book_new();
   if(dir==='up'){
-    const headers=[['合同名称*','客户名称','签约日期(YYYY-MM-DD)','合同金额(元)','税率(如0.09)',
+    const headers=[['合同名称*','主合同编号','客户名称','签约日期(YYYY-MM-DD)','合同金额(元)','税率(如0.09)',
       '目标利润率(如0.15)','已计量营收(元)','考核周期(年份如2026)','状态(active/settled)','备注']];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(headers), '对上合同导入模板');
   } else {
@@ -136,12 +136,12 @@ function exportContractsExcel(dir){
   const year = window._contractYear || new Date().getFullYear().toString();
   if(dir==='up'){
     const rows = state.contractsUp.filter(r=>!r.assessment_year||r.assessment_year===year);
-    const head = ['合同名称','客户名称','合同金额(元)','不含税金额(元)','税率','目标利润率',
+    const head = ['合同名称','主合同编号','客户名称','合同金额(元)','不含税金额(元)','税率','目标利润率',
       '已计量营收(元)','年累计完成营收(元)','开累完成营收(元)','营收完成进度%','年完成毛利(元)',
       '考核周期','状态','签约日期','备注'];
     const data = [head, ...rows.map(r=>{
       const rv = computeContractRevenue(r, year);
-      return [r.name, r.customer_name||'', r.amount||0,
+      return [r.name, r.main_contract_no||'', r.customer_name||'', r.amount||0,
         rv.exclTax?rv.exclTax.toFixed(2):'', r.tax_rate||'', r.target_profit_rate||'',
         r.measured_revenue||0, rv.yearCum.toFixed(2), rv.cumRev.toFixed(2),
         rv.exclTax?(rv.progress*100).toFixed(1)+'%':'',
@@ -163,6 +163,28 @@ function exportContractsExcel(dir){
   logAction('导出资金报表', `导出${dir==='up'?'对上':'对下'}合同库 Excel`);
 }
 
+// ── 工具：Excel 日期序列号转 YYYY-MM-DD 字符串 ───────────────────────────────
+function xlsxDateToStr(val){
+  if(!val) return null;
+  if(typeof val==='number'){
+    // Excel 日期序列号
+    try{
+      const d=XLSX.SSF.parse_date_code(val);
+      if(d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+    }catch(e){}
+  }
+  const s=String(val).trim();
+  if(!s) return null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // 支持 YYYY/MM/DD 格式
+  const m=s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if(m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  const d=new Date(s);
+  if(!isNaN(d.getTime()))
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return null;
+}
+
 // ── 合同库 Excel 导入 ─────────────────────────────────────────────────────────
 async function importContractsExcel(event, dir){
   const file = event.target.files[0];
@@ -172,64 +194,180 @@ async function importContractsExcel(event, dir){
   const reader = new FileReader();
   reader.onload = async e => {
     try{
-      const wb   = XLSX.read(e.target.result, {type:'array'});
+      const wb   = XLSX.read(e.target.result, {type:'array', cellDates:false});
       const ws   = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
       if(rows.length < 2){ toast('文件无数据行'); return; }
 
-      const header = rows[0];
-      const dataRows = rows.slice(1).filter(r=>r[0]); // 跳过空行（第一列为合同名称）
+      const dataRows = rows.slice(1).filter(r=>String(r[0]||'').trim()); // 跳过空行
 
       if(!dataRows.length){ toast('无有效数据'); return; }
 
-      let added=0, skipped=0;
+      let added=0, skipped=0, failed=0;
       const ops=[];
+      const newRecords=[];
 
       for(const row of dataRows){
         const name = String(row[0]||'').trim();
         if(!name){ skipped++; continue; }
 
         if(dir==='up'){
+          const statusRaw = String(row[9]||'').trim().toLowerCase();
           const record = {
             id: 'cu'+uid(),
             name,
-            customer_name:  String(row[1]||''),
-            sign_date:      row[2]||null,
-            amount:         +row[3]||0,
-            tax_rate:       +row[4]||null,
-            target_profit_rate: +row[5]||null,
-            measured_revenue:   +row[6]||0,
-            assessment_year: String(row[7]||''),
-            status:         String(row[8]||'active'),
-            remark:         String(row[9]||''),
+            main_contract_no:    String(row[1]||'').trim(),
+            customer_name:       String(row[2]||'').trim(),
+            sign_date:           xlsxDateToStr(row[3]),
+            amount:              parseFloat(row[4])||0,
+            tax_rate:            row[5]!==''?parseFloat(row[5])||null:null,
+            target_profit_rate:  row[6]!==''?parseFloat(row[6])||null:null,
+            measured_revenue:    parseFloat(row[7])||0,
+            assessment_year:     row[8]?String(Math.round(+row[8])||row[8]).trim():'',
+            status:              (statusRaw==='settled'||statusRaw==='已结算')?'settled':'active',
+            remark:              String(row[10]||'').trim(),
             created_at: new Date().toISOString()
           };
           ops.push(sb.from('contracts_upstream').insert(record));
-          state.contractsUp.push(record);
+          newRecords.push({dir:'up', record});
         } else {
-          // 对下：关联对上合同（按名字匹配）
-          const upName = String(row[3]||'');
+          const upName = String(row[3]||'').trim();
           const linked = upName ? state.contractsUp.find(x=>x.name===upName) : null;
+          const statusRaw = String(row[4]||'').trim().toLowerCase();
           const record = {
             id: 'cd'+uid(),
             name,
-            supplier_name:        String(row[1]||''),
-            amount:               +row[2]||0,
+            supplier_name:        String(row[1]||'').trim(),
+            amount:               parseFloat(row[2])||0,
             upstream_contract_id: linked?linked.id:null,
-            status:               String(row[4]||'active'),
-            remark:               String(row[5]||''),
+            status:               (statusRaw==='settled'||statusRaw==='已结算')?'settled':'active',
+            remark:               String(row[5]||'').trim(),
             created_at: new Date().toISOString()
           };
           ops.push(sb.from('contracts_downstream').insert(record));
-          state.contractsDown.push(record);
+          newRecords.push({dir:'down', record});
         }
         added++;
       }
 
-      if(ops.length) await Promise.all(ops);
+      if(!ops.length){ toast('无可导入数据'); return; }
+
+      // 逐条插入并收集错误（Supabase v2 返回 {data,error}，不会 throw）
+      const results = await Promise.all(ops);
+      results.forEach((res, idx)=>{
+        if(res.error){
+          failed++;
+          console.warn('合同导入错误', newRecords[idx]?.record?.name, res.error.message);
+        } else {
+          const {dir:d, record:rec} = newRecords[idx];
+          if(d==='up') state.contractsUp.push(rec);
+          else state.contractsDown.push(rec);
+        }
+      });
+      added -= failed;
       render();
-      toast(`✓ 导入完成：${added} 条成功${skipped?'，'+skipped+' 条跳过':''}`);
-      logAction('新增'+(dir==='up'?'对上合同':'对下合同'), `批量导入 ${added} 条`);
+      if(failed>0)
+        toast(`⚠ 导入完成：${added} 条成功，${failed} 条失败（查看控制台）${skipped?'，'+skipped+' 跳过':''}`);
+      else
+        toast(`✓ 导入完成：${added} 条成功${skipped?'，'+skipped+' 条跳过':''}`);
+      logAction('新增'+(dir==='up'?'对上合同':'对下合同'), `批量导入 ${added} 条成功${failed?'，'+failed+' 失败':''}`);
+    } catch(err){
+      toast('✗ 导入失败：' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── 客户库模板下载 ────────────────────────────────────────────────────────────
+function downloadCustomerTemplate(){
+  const wb = XLSX.utils.book_new();
+  const headers=[['客户名称*','简称','联系人','联系电话','备注']];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(headers), '客户库导入模板');
+  XLSX.writeFile(wb, '客户库导入模板.xlsx');
+  toast('✓ 模板已下载');
+}
+
+// ── 客户库导出 ────────────────────────────────────────────────────────────────
+function exportCustomersExcel(){
+  const wb = XLSX.utils.book_new();
+  const head = ['客户名称','简称','联系人','联系电话','累签合同数','累签合同金额(元)','备注'];
+  const data = [head, ...state.customers.map(r=>{
+    const contracts = state.contractsUp.filter(c=>c.customer_id===r.id);
+    const totalAmt  = contracts.reduce((s,c)=>s+(+c.amount||0),0);
+    return [r.name, r.short_name||'', r.contact||'', r.phone||'',
+            contracts.length, totalAmt, r.remark||''];
+  })];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), '客户库');
+  XLSX.writeFile(wb, `客户库_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast('✓ 已导出客户库');
+  logAction('导出客户库', `共 ${state.customers.length} 条`);
+}
+
+// ── 客户库 Excel 导入（按名称覆盖更新）────────────────────────────────────────
+async function importCustomersExcel(event){
+  const file = event.target.files[0];
+  if(!file){ event.target.value=''; return; }
+  event.target.value = '';
+
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try{
+      const wb   = XLSX.read(e.target.result, {type:'array', cellDates:false});
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      if(rows.length < 2){ toast('文件无数据行'); return; }
+
+      const dataRows = rows.slice(1).filter(r=>String(r[0]||'').trim());
+      if(!dataRows.length){ toast('无有效数据'); return; }
+
+      let upserted=0, failed=0, skipped=0;
+      const ops=[];
+      const upsertRecords=[];
+
+      for(const row of dataRows){
+        const name = String(row[0]||'').trim();
+        if(!name){ skipped++; continue; }
+
+        // 按名称查重：已存在则更新，否则新增
+        const existing = state.customers.find(c=>c.name===name);
+        const record = {
+          id:          existing ? existing.id : 'cu'+uid(),
+          name,
+          short_name:  String(row[1]||'').trim(),
+          contact:     String(row[2]||'').trim(),
+          phone:       String(row[3]||'').trim(),
+          remark:      String(row[4]||'').trim(),
+          updated_at:  new Date().toISOString()
+        };
+        if(!existing) record.created_at = new Date().toISOString();
+
+        ops.push(sb.from('customers').upsert(record));
+        upsertRecords.push({existing, record});
+        upserted++;
+      }
+
+      const results = await Promise.all(ops);
+      results.forEach((res, idx)=>{
+        if(res.error){
+          failed++;
+          console.warn('客户导入错误', upsertRecords[idx]?.record?.name, res.error.message);
+        } else {
+          const {existing, record} = upsertRecords[idx];
+          if(existing){
+            const i = state.customers.findIndex(c=>c.id===existing.id);
+            if(i>=0) state.customers[i]={...state.customers[i],...record};
+          } else {
+            state.customers.push(record);
+          }
+        }
+      });
+      upserted -= failed;
+      render();
+      if(failed>0)
+        toast(`⚠ 导入完成：${upserted} 条成功，${failed} 条失败${skipped?'，'+skipped+' 跳过':''}`);
+      else
+        toast(`✓ 导入完成：${upserted} 条（含覆盖更新）${skipped?'，'+skipped+' 跳过':''}`);
+      logAction('导入客户库', `批量导入/更新 ${upserted} 条`);
     } catch(err){
       toast('✗ 导入失败：' + err.message);
     }
