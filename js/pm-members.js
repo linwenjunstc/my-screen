@@ -117,20 +117,18 @@ async function deleteMember(id) {
     return;
   }
 
-  if (!confirm(`确定要从协作团队中移除「${m.name}」吗？该成员将无法再登录。`)) return;
-
-  // 从云端删除
-  const { error } = await sb.from('members').delete().eq('id', id);
-  
-  if (error) {
-    toast("删除失败");
-  } else {
-    state.members = state.members.filter(x => x.id !== id);
-    const listEl = document.getElementById('members-list');
-    if (listEl) listEl.innerHTML = buildMembersListHTML();
-    toast('成员已移除');
-    logAction('删除成员', `移除成员「${m.name}」`);
-  }
+  showConfirm('移除成员', `确定要从协作团队中移除「${m.name}」吗？该成员将无法再登录。`, async function() {
+    const { error } = await sb.from('members').delete().eq('id', id);
+    if (error) {
+      toast('删除失败', 'error');
+    } else {
+      state.members = state.members.filter(x => x.id !== id);
+      const listEl = document.getElementById('members-list');
+      if (listEl) listEl.innerHTML = buildMembersListHTML();
+      toast('成员已移除', 'success');
+      logAction('删除成员', `移除成员「${m.name}」`);
+    }
+  }, {danger: true, confirmLabel: '移除'});
 }
 
 function buildMembersListHTML() {
@@ -260,14 +258,15 @@ async function deleteTag(id) {
   const msg = usedCount > 0
     ? `标签「${tg.name}」被 ${usedCount} 个任务使用，删除后这些任务将失去该标签。确认删除？`
     : `确认删除标签「${tg.name}」？`;
-  if (!confirm(msg)) return;
-  const { error } = await sb.from('tags').delete().eq('id', id);
-  if (error) { toast('删除失败'); return; }
-  state.globalTags = state.globalTags.filter(t => t.id !== id);
-  state.tasks.forEach(t => { if (t.tags) t.tags = t.tags.filter(x => x !== id); });
-  document.getElementById('tags-list').innerHTML = buildTagsListHTML();
-  toast('标签已删除');
-  logAction('删除标签', `删除标签「${tg.name}」`);
+  showConfirm('删除标签', msg, async function() {
+    const { error } = await sb.from('tags').delete().eq('id', id);
+    if (error) { toast('删除失败', 'error'); return; }
+    state.globalTags = state.globalTags.filter(t => t.id !== id);
+    state.tasks.forEach(t => { if (t.tags) t.tags = t.tags.filter(x => x !== id); });
+    document.getElementById('tags-list').innerHTML = buildTagsListHTML();
+    toast('标签已删除', 'success');
+    logAction('删除标签', `删除标签「${tg.name}」`);
+  }, {danger: true, confirmLabel: '删除'});
 }
 
 // ─── Role Management (Admin only) ────────────────────────────────────────────
@@ -317,8 +316,8 @@ function buildRoleManageListHTML() {
             ${roleOptions}
           </select>
           <button onclick="applyRoleChange('${m.id}')" class="btn btn-ghost btn-sm" style="font-size:11px;height:28px;padding:0 10px">应用角色</button>
-          <button onclick="openMenuPermsModal('${m.id}')" class="btn btn-ghost btn-sm" style="font-size:11px;height:28px;padding:0 10px;color:var(--blue);border-color:var(--blue-border)">⚙ 菜单权限</button>
-          <button onclick="adminResetPassword('${m.id}','${m.name}')" class="btn btn-ghost btn-sm" style="font-size:11px;height:28px;padding:0 10px;color:var(--amber);border-color:var(--amber-border)">🔑 重置密码</button>
+          <button onclick="openMenuPermsModal('${m.id}')" class="btn btn-ghost btn-sm" style="font-size:11px;height:28px;padding:0 10px;color:var(--blue);border-color:var(--blue-border)"><i data-lucide="settings" style="width:12px;height:12px;margin-right:3px"></i>菜单权限</button>
+          <button onclick="adminResetPassword('${m.id}','${m.name}')" class="btn btn-ghost btn-sm" style="font-size:11px;height:28px;padding:0 10px;color:var(--amber);border-color:var(--amber-border)"><i data-lucide="key" style="width:12px;height:12px;margin-right:3px"></i>重置密码</button>
         </div>` : `<div style="font-size:11px;color:var(--text3);margin-top:4px">
           ${isMe ? '当前登录账号' : '无权限修改此成员'}</div>`}
       </div>
@@ -471,25 +470,15 @@ async function saveMenuPerms(memberId, btn) {
 
 async function adminResetPassword(memberId, memberName) {
   const DEFAULT_PWD = '123456';
-  // 弹窗确认
-  const confirmed = confirm(
-    `⚠️ 重置密码确认
-
-即将把「${memberName}」的登录密码重置为：${DEFAULT_PWD}
-
-请提醒该用户登录后及时修改密码。
-
-确认重置？`
-  );
-  if (!confirmed) return;
-  const { error } = await sb.from('members').update({ password: DEFAULT_PWD }).eq('id', memberId);
-  if (error) { toast('重置失败：' + error.message); return; }
-  // 如果重置的是自己，同步更新本地 session
-  if (currentUser && currentUser.id === memberId) {
-    currentUser.password = DEFAULT_PWD;
-    localStorage.setItem('pm_session', JSON.stringify(currentUser));
-  }
-  toast(`✓ 「${memberName}」的密码已重置为 ${DEFAULT_PWD}`);
-  logAction('重置密码', `管理员重置了「${memberName}」的密码`);
+  showConfirm('重置密码', `即将把「${memberName}」的登录密码重置为：${DEFAULT_PWD}\n\n请提醒该用户登录后及时修改密码。`, async function() {
+    const { error } = await sb.from('members').update({ password: DEFAULT_PWD }).eq('id', memberId);
+    if (error) { toast('重置失败：' + error.message, 'error'); return; }
+    if (currentUser && currentUser.id === memberId) {
+      currentUser.password = DEFAULT_PWD;
+      localStorage.setItem('pm_session', JSON.stringify(currentUser));
+    }
+    toast(`「${memberName}」的密码已重置为 ${DEFAULT_PWD}`, 'success');
+    logAction('重置密码', `管理员重置了「${memberName}」的密码`);
+  }, {confirmLabel: '确认重置'});
 }
 

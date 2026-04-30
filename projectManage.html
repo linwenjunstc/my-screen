@@ -22,7 +22,12 @@
   <!-- ══════════ PM 侧栏 ══════════ -->
   <aside class="sidebar" id="sidebar-pm">
     <div class="sidebar-logo">
-      <div class="logo-text">PM Board</div>
+      <div class="sidebar-logo-row">
+        <div class="logo-text">PM Board</div>
+        <button class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" title="折叠侧栏">
+          <i data-lucide="panel-left" style="width:16px;height:16px"></i>
+        </button>
+      </div>
       <div class="logo-sub" id="sidebar-date-label">加载中...</div>
     </div>
     <div class="sidebar-date">导航</div>
@@ -103,19 +108,37 @@
   <main class="main">
     <!-- Top tab bar -->
     <div class="top-tab-bar" id="top-tab-bar">
-      <button class="top-tab active" id="top-tab-pm" onclick="switchModule('pm')">项目管理</button>
-      <button class="top-tab" id="top-tab-finance" onclick="switchModule('finance')">资金计划</button>
+      <button class="top-tab active" id="top-tab-pm" data-menu-key="pm" onclick="switchModule('pm')"><i data-lucide="list-todo" style="width:15px;height:15px"></i>项目管理</button>
+      <button class="top-tab" id="top-tab-finance" data-menu-key="finance" onclick="switchModule('finance')"><i data-lucide="landmark" style="width:15px;height:15px"></i>资金计划</button>
       <div class="top-tab-right">
-        <div id="user-profile-header" style="display:flex;align-items:center;gap:8px">
-          <div id="user-avatar-top" class="member-avatar" style="width:28px;height:28px;font-size:12px;background:var(--accent);color:#fff">?</div>
-          <div style="display:flex;flex-direction:column;gap:2px">
-            <span id="user-name-top" style="font-size:13px;font-weight:600;color:var(--text);line-height:1.2">加载中...</span>
-            <span id="user-role-badge" class="role-badge role-user">普通用户</span>
+        <button class="theme-toggle-btn" onclick="toggleTheme()" title="切换主题">
+          <i data-lucide="sun" class="theme-icon-light" style="width:15px;height:15px"></i>
+          <i data-lucide="moon" class="theme-icon-dark" style="width:15px;height:15px"></i>
+        </button>
+        <div class="user-dropdown" id="user-dropdown">
+          <button class="user-dropdown-trigger" onclick="toggleUserDropdown(event)">
+            <div class="member-avatar" id="user-avatar-top" style="width:26px;height:26px;font-size:11px;background:var(--accent);color:#fff">?</div>
+            <span class="user-dropdown-name" id="user-name-top">加载中...</span>
+            <i data-lucide="chevron-down" class="user-dropdown-chevron" style="width:14px;height:14px"></i>
+          </button>
+          <div class="user-dropdown-menu" id="user-dropdown-menu">
+            <div class="dropdown-user-info">
+              <span id="dropdown-user-name" style="font-size:13px;font-weight:600;color:var(--text)">—</span>
+              <span id="dropdown-user-role" class="role-badge role-user" style="margin-top:2px">普通用户</span>
+            </div>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item" onclick="openChangePasswordModal();closeUserDropdown()">
+              <i data-lucide="key" style="width:14px;height:14px"></i> 修改密码
+            </button>
+            <button class="dropdown-item" id="dropdown-system-config" data-menu-key="system_config" onclick="openSystemConfigModal();closeUserDropdown()">
+              <i data-lucide="settings" style="width:14px;height:14px"></i> 系统配置
+            </button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-item-danger" onclick="handleLogout()">
+              <i data-lucide="log-out" style="width:14px;height:14px"></i> 退出登录
+            </button>
           </div>
-          <button class="btn btn-ghost btn-sm" onclick="openChangePasswordModal()" title="修改密码"><i data-lucide="key" style="width:14px;height:14px"></i></button>
-          <button class="btn btn-ghost btn-sm" onclick="handleLogout()" style="color:var(--red);border-color:var(--red-border)">退出</button>
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="openSystemConfigModal()" style="margin-left:8px">⚙ <i data-lucide="settings" style="width:14px;height:14px;margin-right:3px"></i>系统配置</button>
       </div>
     </div>
 
@@ -148,6 +171,29 @@
   <div class="modal" id="modal-box" onclick="event.stopPropagation()"></div>
 </div>
 <div class="toast" id="toast"></div>
+<div class="chart-tooltip" id="chart-tooltip"></div>
+<div class="confetti-container" id="confetti-container"></div>
+<!-- Keyboard shortcuts help -->
+<div class="shortcuts-overlay" id="shortcuts-overlay" onclick="closeShortcutsHelp()">
+  <div class="shortcuts-panel" onclick="event.stopPropagation()">
+    <div class="shortcuts-header">
+      <span class="shortcuts-title">键盘快捷键</span>
+      <button class="modal-close" onclick="closeShortcutsHelp()"><i data-lucide="x"></i></button>
+    </div>
+    <div class="shortcuts-grid">
+      <div class="shortcut-item"><kbd>N</kbd><span>新建任务</span></div>
+      <div class="shortcut-item"><kbd>/</kbd><span>聚焦搜索</span></div>
+      <div class="shortcut-item"><kbd>1</kbd><span>今日看板</span></div>
+      <div class="shortcut-item"><kbd>2</kbd><span>全部任务</span></div>
+      <div class="shortcut-item"><kbd>3</kbd><span>项目</span></div>
+      <div class="shortcut-item"><kbd>4</kbd><span>数据统计</span></div>
+      <div class="shortcut-item"><kbd>5</kbd><span>甘特图</span></div>
+      <div class="shortcut-item"><kbd>Esc</kbd><span>关闭弹窗</span></div>
+      <div class="shortcut-item"><kbd>?</kbd><span>显示快捷键</span></div>
+      <div class="shortcut-item"><kbd>Ctrl+K</kbd><span>切换主题</span></div>
+    </div>
+  </div>
+</div>
 
 <!-- JS 模块 -->
 <script src="js/pm-core.js"></script>
@@ -174,6 +220,10 @@ let financeInitialized = false;
 
 window.switchModule = function(mod) {
   if (mod === activeModule) return;
+  // 权限守卫：没有对应菜单权限则不允许切换
+  var allowed = [];
+  try { allowed = getEffectiveMenuPerms(); } catch(e) {}
+  if (allowed.length && !allowed.includes(mod)) return;
   activeModule = mod;
   closeMobileSidebar();
 
@@ -288,29 +338,6 @@ document.addEventListener('click', function(e) {
   if (navItem) closeMobileSidebar();
 });
 
-// Top tab bar styles (injected here since they're unique to the merged page)
-const tabStyles = document.createElement('style');
-tabStyles.textContent = `
-  .top-tab-bar {
-    height: 44px; flex-shrink: 0;
-    background: var(--sb-bg);
-    display: flex; align-items: center; gap: 4px;
-    padding: 0 16px;
-    border-bottom: 1px solid var(--sb-border);
-  }
-  .top-tab {
-    padding: 8px 16px; border-radius: var(--radius-sm);
-    background: transparent; color: var(--sb-text2);
-    border: none; font-family: var(--font); font-size: 13px;
-    cursor: pointer; transition: all .13s; font-weight: 500;
-  }
-  .top-tab:hover { background: var(--sb-hover); color: var(--sb-text); }
-  .top-tab.active { background: var(--sb-active); color: #f0ede6; }
-  .top-tab-right {
-    margin-left: auto; display: flex; align-items: center; gap: 8px;
-  }
-`;
-document.head.appendChild(tabStyles);
 </script>
 
 </body>

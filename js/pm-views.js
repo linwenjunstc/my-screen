@@ -80,18 +80,18 @@ function renderToday() {
   }
 
   const groups = [
-    {tasks:g0,dot:'#d94f3d',label:'紧急 / 逾期'},
-    {tasks:g1,dot:'#b87333',label:'3 天内'},
-    {tasks:g2,dot:'#2e7d52',label:'本周内'},
-    {tasks:g3,dot:'#a09e98',label:'较远'},
-    {tasks:done,dot:'#c0c0b8',label:'已完成'},
+    {tasks:g0,dot:'#e74c3c',label:'紧急 / 逾期'},
+    {tasks:g1,dot:'#d4842a',label:'3 天内'},
+    {tasks:g2,dot:'#27ae60',label:'本周内'},
+    {tasks:g3,dot:'#a8a59e',label:'较远'},
+    {tasks:done,dot:'#b8b5ae',label:'已完成'},
   ];
   let anyTask = false;
   groups.forEach(g => {
     if (!g.tasks.length) return; anyTask = true;
     html += `<div class="task-group"><div class="group-header"><div class="group-dot" style="background:${g.dot}"></div><span class="group-title">${g.label}</span><span class="group-count">${g.tasks.length}</span></div>${g.tasks.map(t=>taskCardHTML(t)).join('')}</div>`;
   });
-  if (!anyTask) html += `<div class="empty-state"><i data-lucide="check" class="empty-icon"></i>今天没有待推进的任务<div class="empty-hint">点击左下角快速添加</div></div>`;
+  if (!anyTask) html += `<div class="empty-state"><i data-lucide="check" class="empty-icon"></i>今天没有待推进的任务<div class="empty-hint">一切尽在掌握</div><div class="empty-action"><button class="btn btn-primary btn-sm" onclick="openAddTask()"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建任务</button></div></div>`;
   html += '</div>';
   document.getElementById('main-content').innerHTML = html;
 
@@ -153,7 +153,7 @@ function renderTaskList() {
     <div class="filter-bar"><span class="filter-chip${filterProject==='all'?' on':''}" onclick="filterProject='all';renderTaskList()">全部项目</span>${projChips}</div>
     <div class="filter-bar" style="margin-top:-12px">${statusChips}</div>
     <div class="filter-bar" style="margin-top:-12px"><span class="filter-chip${filterAssignee==='all'?' on':''}" onclick="filterAssignee='all';renderTaskList()">全部成员</span>${assigneeChips}</div>
-    ${tasks.length ? tasks.map(t=>taskCardHTML(t)).join('') : '<div class="empty-state"><i data-lucide="circle" class="empty-icon"></i>没有匹配的任务</div>'}
+    ${tasks.length ? tasks.map(t=>taskCardHTML(t)).join('') : '<div class="empty-state"><i data-lucide="search" class="empty-icon"></i>没有匹配的任务<div class="empty-hint">试试调整筛选条件</div></div>'}
   </div>`;
   document.getElementById('main-content').innerHTML = html;
 }
@@ -171,7 +171,7 @@ function renderProjects() {
     tasks.forEach(t=>sc[t.status]=(sc[t.status]||0)+1);
     const color = PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length];
     const memberAvatars = (p.members||[]).slice(0,4).map(mid=>`<div class="member-avatar" style="background:${memberColor(mid)}" title="${memberName(mid)}">${memberInitial(mid)}</div>`).join('');
-    html += `<div class="project-card" onclick="switchView('project-${p.id}')">
+    html += `<div class="project-card stagger-in" onclick="switchView('project-${p.id}')">
       <div class="proj-header">
         <div><div class="proj-name" style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;background:${color};border-radius:50%;display:inline-block;flex-shrink:0"></span>${p.name}</div></div>
         <div class="proj-actions" onclick="event.stopPropagation()">
@@ -193,7 +193,7 @@ function renderProjects() {
       ${memberAvatars?`<div style="display:flex;gap:4px;margin-top:12px">${memberAvatars}</div>`:''}
     </div>`;
   });
-  if (!state.projects.length) html += '<div class="empty-state"><i data-lucide="square" class="empty-icon"></i>还没有项目</div>';
+  if (!state.projects.length) html += '<div class="empty-state"><i data-lucide="folder-open" class="empty-icon"></i>还没有项目<div class="empty-hint">创建项目来组织你的任务</div><div class="empty-action"><button class="btn btn-primary btn-sm" onclick="openAddProject()"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建项目</button></div></div>';
   html += '</div></div>';
   document.getElementById('main-content').innerHTML = html;
 }
@@ -230,8 +230,8 @@ function renderProjectView(pid) {
   const active = tasks.filter(t=>!t.done).sort((a,b)=>urgencyOf(a)-urgencyOf(b)||priorityOrder(a.priority)-priorityOrder(b.priority));
   const doneT = tasks.filter(t=>t.done);
   if (active.length) html += active.map(t=>taskCardHTML(t)).join('');
-  if (doneT.length) html += `<div class="task-group" style="margin-top:20px"><div class="group-header"><div class="group-dot" style="background:#c0c0b8"></div><span class="group-title">已完成</span><span class="group-count">${doneT.length}</span></div>${doneT.map(t=>taskCardHTML(t)).join('')}</div>`;
-  if (!tasks.length) html += '<div class="empty-state"><i data-lucide="circle" class="empty-icon"></i>这个项目还没有任务<div class="empty-hint">点击右上角新建任务</div></div>';
+  if (doneT.length) html += `<div class="task-group" style="margin-top:20px"><div class="group-header"><div class="group-dot" style="background:#b8b5ae"></div><span class="group-title">已完成</span><span class="group-count">${doneT.length}</span></div>${doneT.map(t=>taskCardHTML(t)).join('')}</div>`;
+  if (!tasks.length) html += '<div class="empty-state"><i data-lucide="clipboard-list" class="empty-icon"></i>这个项目还没有任务<div class="empty-hint">开始规划第一个任务吧</div><div class="empty-action"><button class="btn btn-primary btn-sm" onclick="openAddTask()"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建任务</button></div></div>';
   html += '</div>';
   document.getElementById('main-content').innerHTML = html;
 }
@@ -239,32 +239,32 @@ function renderProjectView(pid) {
 // ─── Charts ───────────────────────────────────────────────────────────────────
 function renderCharts() {
   document.getElementById('header-title').textContent = '图表分析';
-  document.getElementById('header-sub').textContent = '任务状态分布 · 项目进度 · 燃尽图';
+  document.getElementById('header-sub').textContent = '任务状态 · 优先级 · 成员负载 · 月度趋势';
 
   const total = state.tasks.length;
   const statusCount = {todo:0,doing:0,waiting:0,done:0};
   state.tasks.forEach(t => statusCount[t.status]=(statusCount[t.status]||0)+1);
 
   const donutData = [
-    {label:'待启动',count:statusCount.todo,color:'#d0cfc8'},
-    {label:'进行中',count:statusCount.doing,color:'#2563a8'},
-    {label:'待反馈',count:statusCount.waiting,color:'#b87333'},
-    {label:'已完成',count:statusCount.done,color:'#2e7d52'},
+    {label:'待启动',count:statusCount.todo,color:'#d4d1c9'},
+    {label:'进行中',count:statusCount.doing,color:'#2e7dd1'},
+    {label:'待反馈',count:statusCount.waiting,color:'#d4842a'},
+    {label:'已完成',count:statusCount.done,color:'#27ae60'},
   ];
 
   const donutSVG = buildDonutSVG(donutData, total);
 
-  // Project completion bars
+  // Project progress bars
   let projBarsHTML = '<div class="proj-progress-list">';
   if (!state.projects.length) {
-    projBarsHTML += '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px">暂无项目</div>';
+    projBarsHTML += '<div class="empty-state" style="padding:28px 20px"><i data-lucide="bar-chart-3" class="empty-icon" style="width:32px;height:32px"></i>暂无项目数据<div class="empty-hint">创建项目后这里会展示进度</div></div>';
   } else {
     state.projects.forEach(p => {
       const tasks = state.tasks.filter(t=>t.projectId===p.id);
       const doneCnt = tasks.filter(t=>t.done).length;
       const pct = tasks.length?Math.round(doneCnt/tasks.length*100):0;
       const color = PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length];
-      projBarsHTML += `<div class="proj-progress-row">
+      projBarsHTML += `<div class="proj-progress-row" data-tip="${p.name}: ${doneCnt}/${tasks.length} 完成 · ${pct}%">
         <div class="proj-progress-label">
           <span class="proj-progress-name">${p.name}</span>
           <span class="proj-progress-pct">${doneCnt}/${tasks.length} · ${pct}%</span>
@@ -277,7 +277,47 @@ function renderCharts() {
   }
   projBarsHTML += '</div>';
 
-  // Burndown selector
+  // Priority distribution
+  const priorityData = {紧急:0,重要:0,普通:0};
+  state.tasks.forEach(t => { if (!t.done && priorityData[t.priority] !== undefined) priorityData[t.priority]++; });
+  const priTotal = priorityData['紧急']+priorityData['重要']+priorityData['普通'] || 1;
+  const priBarsHTML = [
+    {label:'紧急',count:priorityData['紧急'],color:'var(--red)',bg:'var(--red-bg)'},
+    {label:'重要',count:priorityData['重要'],color:'var(--amber)',bg:'var(--amber-bg)'},
+    {label:'普通',count:priorityData['普通'],color:'var(--text3)',bg:'var(--surface2)'},
+  ].map(d => {
+    const w = Math.max(2, Math.round(d.count/priTotal*100));
+    return `<div class="chart-bar-row" data-tip="${d.label}优先级: ${d.count} 个任务 (${Math.round(d.count/priTotal*100)}%)">
+      <span class="chart-bar-label">${d.label}</span>
+      <div class="chart-bar-track"><div class="chart-bar-fill" style="width:${w}%;background:${d.color}"></div></div>
+      <span class="chart-bar-val">${d.count}</span>
+    </div>`;
+  }).join('');
+
+  // Member workload
+  let membersHTML = '';
+  if (state.members.length) {
+    const active = state.tasks.filter(t=>!t.done);
+    const maxTask = Math.max(1, ...state.members.map(m => active.filter(t=>t.assignee===m.id).length));
+    membersHTML = state.members.map(m => {
+      const myTasks = active.filter(t=>t.assignee===m.id);
+      const cnt = myTasks.length;
+      const doneCnt = state.tasks.filter(t=>t.assignee===m.id&&t.done).length;
+      const totalMine = cnt + doneCnt || 1;
+      const pct = Math.round(doneCnt/totalMine*100);
+      const w = Math.max(2, Math.round(cnt/maxTask*100));
+      const color = memberColor(m.id);
+      return `<div class="chart-bar-row" data-tip="${m.name}: ${cnt} 个待办任务 · 完成率 ${pct}%">
+        <span class="chart-bar-label" style="display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>${m.name}</span>
+        <div class="chart-bar-track"><div class="chart-bar-fill" style="width:${w}%;background:${color}"></div></div>
+        <span class="chart-bar-val" style="font-size:11px">${cnt} 待办 · ${pct}% 完成</span>
+      </div>`;
+    }).join('');
+  } else {
+    membersHTML = '<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px">暂无成员数据</div>';
+  }
+
+  // Burndown
   const burndownOpts = `<option value="all">全部项目</option>` +
     state.projects.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
 
@@ -296,8 +336,25 @@ function renderCharts() {
       </div>
 
       <div class="chart-card">
+        <div class="chart-title">待办优先级分布</div>
+        <div class="chart-bars">${priBarsHTML}</div>
+      </div>
+
+      <div class="chart-card">
         <div class="chart-title">项目完成进度</div>
         ${projBarsHTML}
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-title">成员待办负载</div>
+        <div class="chart-bars">${membersHTML}</div>
+      </div>
+
+      <div class="chart-card full">
+        <div class="chart-title">月度任务趋势
+          <span style="font-size:11px;font-weight:400;color:var(--text3)">近30天</span>
+        </div>
+        <div id="monthly-trend-area">${buildMonthlyTrendSVG()}</div>
       </div>
 
       <div class="chart-card full">
@@ -320,7 +377,7 @@ function buildDonutSVG(data, total) {
   const cx=90,cy=90,r=72,ir=46;
   let svg = `<svg width="180" height="180" viewBox="0 0 180 180">`;
   if (total===0) {
-    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#f0efe9"/><circle cx="${cx}" cy="${cy}" r="${ir}" fill="white"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="#a09e98" font-size="13">暂无数据</text>`;
+    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#f2f1ec"/><circle cx="${cx}" cy="${cy}" r="${ir}" fill="white"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="#a8a59e" font-size="13">暂无数据</text>`;
   } else {
     let sa = -Math.PI/2;
     data.forEach(d => {
@@ -336,7 +393,7 @@ function buildDonutSVG(data, total) {
     });
     const activeCnt = total - (data.find(d=>d.label==='已完成')||{count:0}).count;
     svg += `<text x="${cx}" y="${cy-9}" text-anchor="middle" fill="#1a1916" font-size="22" font-weight="600" font-family="DM Mono, monospace">${activeCnt}</text>
-            <text x="${cx}" y="${cy+10}" text-anchor="middle" fill="#a09e98" font-size="11">进行中</text>`;
+            <text x="${cx}" y="${cy+10}" text-anchor="middle" fill="#a8a59e" font-size="11">进行中</text>`;
   }
   return svg+'</svg>';
 }
@@ -374,24 +431,102 @@ function buildBurndownSVG(projId) {
   for (let i=0; i<=yTicks; i++) {
     const v = Math.round(minVal + (range*i/yTicks));
     const y = toY(v);
-    gridLines += `<line x1="${padL}" y1="${y}" x2="${padL+chartW}" y2="${y}" stroke="#e2e0d8" stroke-width="1"/>`;
-    yLabels += `<text x="${padL-6}" y="${y}" text-anchor="end" dominant-baseline="middle" fill="#a09e98" font-size="11">${v}</text>`;
+    gridLines += `<line x1="${padL}" y1="${y}" x2="${padL+chartW}" y2="${y}" stroke="#e8e5df" stroke-width="1"/>`;
+    yLabels += `<text x="${padL-6}" y="${y}" text-anchor="end" dominant-baseline="middle" fill="#a8a59e" font-size="11">${v}</text>`;
   }
 
   // X date labels (show first, middle, last)
   let xLabels = '';
   const xLabelIdxs = [0, Math.floor((log.length-1)/2), log.length-1];
   xLabelIdxs.forEach(i => {
-    if (i < log.length) xLabels += `<text x="${toX(i)}" y="${padT+chartH+18}" text-anchor="middle" fill="#a09e98" font-size="11">${log[i].date.slice(5)}</text>`;
+    if (i < log.length) xLabels += `<text x="${toX(i)}" y="${padT+chartH+18}" text-anchor="middle" fill="#a8a59e" font-size="11">${log[i].date.slice(5)}</text>`;
   });
 
   return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block">
     ${gridLines}
-    <path d="${areaPath}" fill="#2563a8" opacity="0.08"/>
-    <polyline points="${pointsStr}" fill="none" stroke="#2563a8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-    ${log.map((l,i)=>`<circle cx="${toX(i)}" cy="${toY(l.remaining)}" r="3.5" fill="#2563a8"/>`).join('')}
+    <path d="${areaPath}" fill="#2e7dd1" opacity="0.08"/>
+    <polyline points="${pointsStr}" fill="none" stroke="#2e7dd1" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+    ${log.map((l,i)=>`<circle cx="${toX(i)}" cy="${toY(l.remaining)}" r="10" fill="transparent" stroke="none" data-tip="${l.date}: 剩余 ${l.remaining} 个任务" style="cursor:pointer"/>`).join('')}
+    ${log.map((l,i)=>`<circle cx="${toX(i)}" cy="${toY(l.remaining)}" r="3.5" fill="#2e7dd1" style="pointer-events:none"/>`).join('')}
     ${yLabels}${xLabels}
-    <text x="${padL}" y="${padT-4}" fill="#a09e98" font-size="10">剩余任务数</text>
+    <text x="${padL}" y="${padT-4}" fill="#a8a59e" font-size="10">剩余任务数</text>
+  </svg>`;
+}
+
+// ─── Monthly trend (new vs completed per day, last 30 days) ───────────────────
+function buildMonthlyTrendSVG() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today); d.setDate(d.getDate() - i);
+    days.push(d.toISOString().slice(0,10));
+  }
+
+  const createdByDay = {}; const completedByDay = {};
+  days.forEach(d => { createdByDay[d] = 0; completedByDay[d] = 0; });
+  state.tasks.forEach(t => {
+    if (t.createdAt) { const k = t.createdAt.slice(0,10); if (createdByDay[k] !== undefined) createdByDay[k]++; }
+    if (t.completedAt) { const k = t.completedAt.slice(0,10); if (completedByDay[k] !== undefined) completedByDay[k]++; }
+  });
+
+  const W = 680, H = 200, padL = 44, padR = 20, padT = 16, padB = 36;
+  const chartW = W - padL - padR, chartH = H - padT - padB;
+
+  const createdVals = days.map(d => createdByDay[d]);
+  const completedVals = days.map(d => completedByDay[d]);
+  const maxVal = Math.max(...createdVals, ...completedVals, 1);
+  const range = maxVal || 1;
+
+  const toX = (i) => padL + (i / (days.length - 1)) * chartW;
+  const toY = (v) => padT + (1 - v / range) * chartH;
+
+  // Grid lines and Y labels
+  const yTicks = 4;
+  let gridLines = '', yLabels = '';
+  for (let i = 0; i <= yTicks; i++) {
+    const v = Math.round(maxVal * i / yTicks);
+    const y = toY(v);
+    gridLines += `<line x1="${padL}" y1="${y}" x2="${padL+chartW}" y2="${y}" stroke="#e8e5df" stroke-width="1"/>`;
+    yLabels += `<text x="${padL-6}" y="${y}" text-anchor="end" dominant-baseline="middle" fill="#a8a59e" font-size="10">${v}</text>`;
+  }
+
+  // X labels
+  let xLabels = '';
+  [0, 9, 19, 29].forEach(i => {
+    if (i < days.length) xLabels += `<text x="${toX(i)}" y="${padT+chartH+16}" text-anchor="middle" fill="#a8a59e" font-size="10">${days[i].slice(5)}</text>`;
+  });
+
+  // Build polylines
+  function polyline(vals, stroke, dash) {
+    let pts = vals.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
+    return `<polyline points="${pts}" fill="none" stroke="${stroke}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"${dash ? ' stroke-dasharray="5,3"' : ''}/>`;
+  }
+
+  // Area fills
+  function areaFill(vals, color, opacity) {
+    const top = padT;
+    const pts = vals.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
+    const areaPts = `M${toX(0)},${top+chartH} ` + vals.map((v,i) => `L${toX(i)},${toY(v)}`).join(' ') + ` L${toX(days.length-1)},${top+chartH} Z`;
+    return `<path d="${areaPts}" fill="${color}" opacity="${opacity}"/>`;
+  }
+
+  // Hover dots for each data point
+  let createdDots = days.map((d, i) => `<circle cx="${toX(i)}" cy="${toY(createdByDay[d])}" r="8" fill="transparent" stroke="none" data-tip="${d}: 新建 ${createdByDay[d]} 个任务" style="cursor:pointer"/>`).join('');
+  let completedDots = days.map((d, i) => `<circle cx="${toX(i)}" cy="${toY(completedByDay[d])}" r="8" fill="transparent" stroke="none" data-tip="${d}: 完成 ${completedByDay[d]} 个任务" style="cursor:pointer"/>`).join('');
+
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block">
+    ${gridLines}
+    ${areaFill(createdVals, '#2e7dd1', '0.06')}
+    ${areaFill(completedVals, '#27ae60', '0.08')}
+    ${polyline(createdVals, '#2e7dd1', false)}
+    ${polyline(completedVals, '#27ae60', true)}
+    ${yLabels}${xLabels}
+    ${createdDots}${completedDots}
+    <circle cx="${toX(0)}" cy="${toY(createdVals[0])}" r="3" fill="#2e7dd1" style="pointer-events:none"/>
+    <circle cx="${toX(days.length-1)}" cy="${toY(createdVals[days.length-1])}" r="3" fill="#2e7dd1" style="pointer-events:none"/>
+    <circle cx="${toX(0)}" cy="${toY(completedVals[0])}" r="3" fill="#27ae60" style="pointer-events:none"/>
+    <circle cx="${toX(days.length-1)}" cy="${toY(completedVals[days.length-1])}" r="3" fill="#27ae60" style="pointer-events:none"/>
+    <text x="${padL}" y="${padT-3}" fill="#a8a59e" font-size="10">任务数</text>
   </svg>`;
 }
 
@@ -437,8 +572,8 @@ function renderGantt() {
   }
   // Today marker
   dateHeaderHTML += `<div style="position:absolute;left:${todayOffset*ganttDayW}px;top:0;width:${ganttDayW}px;bottom:-9999px;background:rgba(37,99,168,.07);pointer-events:none"></div>`;
-  dateHeaderHTML += `<div style="position:absolute;left:${todayOffset*ganttDayW+ganttDayW/2}px;top:0;bottom:-9999px;border-left:2px dashed #2563a8;pointer-events:none"></div>`;
-  dateHeaderHTML += `<div style="position:absolute;left:${todayOffset*ganttDayW+1}px;top:2px;background:#2563a8;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;white-space:nowrap">今</div>`;
+  dateHeaderHTML += `<div style="position:absolute;left:${todayOffset*ganttDayW+ganttDayW/2}px;top:0;bottom:-9999px;border-left:2px dashed #2e7dd1;pointer-events:none"></div>`;
+  dateHeaderHTML += `<div style="position:absolute;left:${todayOffset*ganttDayW+1}px;top:2px;background:#2e7dd1;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;white-space:nowrap">今</div>`;
 
   // Grid lines every 7 days
   for (let i=0; i<totalDays; i+=7) {
@@ -467,7 +602,7 @@ function renderGantt() {
       const durDays = Math.max(1, Math.round((endD-startD)/86400000)+1);
       const left = Math.max(0, startOffset)*ganttDayW;
       const width = Math.max(ganttDayW-4, durDays*ganttDayW-4);
-      const barColor = t.done ? '#c0c0b8' : color;
+      const barColor = t.done ? '#b8b5ae' : color;
       const isOverdue = !t.done && new Date(t.due)<today;
       const blocked = isBlocked(t);
 
@@ -522,7 +657,7 @@ function ganttScrollToday() {
   sc.scrollLeft = Math.max(0, sc.scrollLeft + (sc.querySelector('[style*="border-left:2px dashed"]') ? 0 : 300));
   // Better: find the today line element
   setTimeout(()=>{
-    const todayLine = document.querySelector('[style*="border-left:2px dashed #2563a8"]');
+    const todayLine = document.querySelector('[style*="border-left:2px dashed #2e7dd1"]');
     if (todayLine && sc) {
       const parent = sc.getBoundingClientRect();
       sc.scrollLeft = Math.max(0, (parseInt(todayLine.style.left)||0) - parent.width/3);

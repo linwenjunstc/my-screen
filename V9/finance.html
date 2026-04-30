@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资金计划 — PM Board</title>
+<!-- 外部依赖 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- 样式 -->
+<link rel="stylesheet" href="css/finance.css">
+</head>
+<body>
+<div id="page-loader">
+  <div class="loader-ring"></div>
+  <div class="loader-text">LOADING...</div>
+</div>
+<div class="layout" id="main-layout" style="display:none">
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logo-text">PM Board</div>
+      <div class="sb-sub" id="sb-dept-name">资金计划模块</div>
+    </div>
+    <div class="month-picker">
+      <div class="month-label">月份</div>
+      <select class="month-select" id="month-select" onchange="onMonthChange(this.value)"></select>
+    </div>
+    <div class="sb-section">计划报表</div>
+    <nav class="sb-nav">
+      <button class="sb-item active" id="tab-t1" onclick="switchTab('t1')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="14" height="14" rx="2"/><line x1="1" y1="5.5" x2="15" y2="5.5"/><line x1="1" y1="9.5" x2="15" y2="9.5"/></svg>月度资金计划
+      </button>
+      <button class="sb-item" id="tab-receipt" onclick="switchTab('receipt')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="1,12 5,7 8,10 11,6 15,3"/></svg>对上收款台账
+      </button>
+      <button class="sb-item" id="tab-payment" onclick="switchTab('payment')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="10" rx="2"/><line x1="1" y1="7" x2="15" y2="7"/></svg>对下付款计划
+      </button>
+      <button class="sb-item" id="tab-t4" onclick="switchTab('t4')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="2,12 5,8 8,10 11,5 14,3"/><line x1="2" y1="13" x2="14" y2="13"/></svg>完成情况
+      </button>
+      <button class="sb-item" id="tab-t5" onclick="switchTab('t5')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><polyline points="8,5 8,8 10,10"/></svg>实际收款明细
+      </button>
+      <button class="sb-item" id="tab-t6" onclick="switchTab('t6')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><polyline points="8,5 8,8 6,10"/></svg>实际支付明细
+      </button>
+      <button class="sb-item" id="tab-dashboard" onclick="switchTab('dashboard')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="9" width="4" height="6" rx="1"/><rect x="6" y="5" width="4" height="10" rx="1"/><rect x="11" y="1" width="4" height="14" rx="1"/></svg>资金看板
+      </button>
+    </nav>
+    <div class="sb-bottom">
+      <button class="sb-util" onclick="openBaseLibModal()">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><line x1="5" y1="5.5" x2="11" y2="5.5"/><line x1="5" y1="8" x2="11" y2="8"/></svg>基础库配置
+      </button>
+      <button class="sb-util" onclick="openSettingsModal()">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>系统配置
+      </button>
+      <button class="sb-util" onclick="location.href='projectManage.html'">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="8,2 4,6 8,10"/></svg>返回主系统
+      </button>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="main-header">
+      <div>
+        <div class="main-title" id="header-title">月度资金计划</div>
+        <div class="main-sub" id="header-sub"></div>
+      </div>
+      <div class="header-right">
+        <span id="user-label" style="font-size:12px;color:var(--text3)"></span>
+        <button class="btn btn-green btn-sm" id="export-btn" onclick="exportXlsx()">↓ 导出 Excel</button>
+        <button class="btn btn-primary btn-sm" id="add-btn" onclick="openAddModal()" style="display:none">+ 新增</button>
+      </div>
+    </header>
+    <div class="main-content" id="main-content"></div>
+  </main>
+</div>
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal-box" onclick="event.stopPropagation()"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- JS 模块（顺序不可调换） -->
+<script src="js/finance-core.js"></script>   <!-- state / init / loadAll / helpers -->
+<script src="js/finance-t1.js"></script>      <!-- T1 月度资金计划 -->
+<script src="js/finance-t2.js"></script>      <!-- T2 对上收款台账 -->
+<script src="js/finance-t3.js"></script>      <!-- T3 对下付款计划 -->
+<script src="js/finance-t4.js"></script>      <!-- T4 完成情况 -->
+<script src="js/finance-t5t6.js"></script>    <!-- T5/T6 实际收付明细 -->
+<script src="js/finance-base.js"></script>    <!-- 资金看板/合同库/客户库/供应商库 -->
+<script src="js/finance-export.js"></script>  <!-- Excel导出/系统设置 -->
+<script>window.onload = init;</script>
+</body>
+</html>

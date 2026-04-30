@@ -1,5 +1,5 @@
 ﻿/* ════════════════════════════════════════════════
- * finance-base.js  —  资金看板 / 合同库 / 客户库 / 供应商库 / deleteRow / finLogAction / modal utils
+ * finance-base.js  —  资金看板 / 合同库 / 客户库 / 供应商库 / deleteRow / logAction / modal utils
  * ════════════════════════════════════════════════ */
 
 //  基础库配置弹框
@@ -7,7 +7,7 @@ function openBaseLibModal(){
   openModal(`
   <div class="modal-header">
     <div class="modal-title">基础库配置</div>
-    <button class="modal-close" onclick="closeModal()"><i data-lucide="x"></i></button>
+    <button class="modal-close" onclick="closeModal()">×</button>
   </div>
   <div class="modal-body" style="display:flex;flex-direction:column;gap:10px;padding:24px">
     <button class="btn btn-ghost" style="padding:14px 20px;font-size:14px;justify-content:flex-start;display:flex;align-items:center;gap:10px;width:100%" onclick="closeModal();switchTab('contracts')">
@@ -27,37 +27,16 @@ function openBaseLibModal(){
 
 function renderDashboard(){
   const c=computeTotals();
-  const actRec=finState.actualReceipts.reduce((s,r)=>s+(+r.amount||0),0);
-  const actPay=finState.actualPayments.reduce((s,r)=>s+(+r.amount||0),0);
+  const actRec=state.actualReceipts.reduce((s,r)=>s+(+r.amount||0),0);
+  const actPay=state.actualPayments.reduce((s,r)=>s+(+r.amount||0),0);
   const recRatio=c.planRec?((actRec/c.planRec)*100).toFixed(1):0;
   const payRatio=c.planPay?((actPay/c.planPay)*100).toFixed(1):0;
-  const rtcf=computeRealTimeCashFlow();
+  const rtcf=computeRealTimeCashFlow();   // null = 上月未录入
   const rtcfVal=rtcf===null?'<span style="color:var(--text3)">—</span>'
     :`<span style="color:${rtcf>=0?'var(--green)':'var(--red)'}">${fmt(rtcf)}</span>`;
   const prevMon=prevMonthOf(currentMonth);
-
-  // Mini donut for income vs expense
-  const flowTotal = actRec + actPay || 1;
-  const recAngle = (actRec / flowTotal) * 360;
-  const donutRing = `<svg width="72" height="72" viewBox="0 0 72 72">
-    <circle cx="36" cy="36" r="28" fill="none" stroke="#e8e5df" stroke-width="6"/>
-    <circle cx="36" cy="36" r="28" fill="none" stroke="#27ae60" stroke-width="6"
-      stroke-dasharray="${(recAngle/360)*176} 176" stroke-dashoffset="0" stroke-linecap="round"
-      transform="rotate(-90 36 36)"/>
-    <circle cx="36" cy="36" r="28" fill="none" stroke="#2e7dd1" stroke-width="6"
-      stroke-dasharray="${((360-recAngle)/360)*176} 176" stroke-dashoffset="${-(recAngle/360)*176}" stroke-linecap="round"
-      transform="rotate(-90 36 36)"/>
-    <text x="36" y="40" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600" font-family="DM Mono,monospace">${(recAngle/360*100).toFixed(0)}%</text>
-  </svg>`;
-
-  // Month-over-month comparison
-  const prevRec = finState.prevActualReceipts.reduce((s,r)=>s+(+r.amount||0),0);
-  const prevPay = finState.prevActualPayments.reduce((s,r)=>s+(+r.amount||0),0);
-  const recChange = prevRec ? ((actRec - prevRec) / prevRec * 100).toFixed(0) : null;
-  const payChange = prevPay ? ((actPay - prevPay) / prevPay * 100).toFixed(0) : null;
-
   document.getElementById('main-content').innerHTML=`
-  <div class="stat-grid" style="grid-template-columns:repeat(5,1fr)">
+  <div class="stat-grid">
     <div class="stat-card ${c.surplus>=0?'positive':'warning'}">
       <div class="stat-label">资金溢缺</div>
       <div class="stat-val">${fmt(c.surplus)}</div>
@@ -74,82 +53,44 @@ function renderDashboard(){
       <div class="stat-sub">实支 ${fmt(actPay)} · ${payRatio}%</div>
     </div>
     <div class="stat-card ${rtcf===null?'':'rtcf-card'}">
-      <div class="stat-label">实时现金流<span class="stat-hint" title="上月完成净额 + 当月实收 − 当月实付"> ⓘ</span></div>
+      <div class="stat-label">实时现金流
+        <span class="stat-hint" title="上月完成净额 + 当月实收 − 当月实付">ⓘ</span>
+      </div>
       <div class="stat-val">${rtcfVal}</div>
-      <div class="stat-sub">${rtcf===null?'待录入 '+fmtMon(prevMon):'上月净额 '+fmt(computePrevBalance())}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">收付比例</div>
-      <div style="display:flex;align-items:center;gap:10px">
-        ${donutRing}
-        <div style="font-size:10px;color:var(--text3);line-height:1.6">
-          <span style="color:#27ae60">●</span> 收 ${(recAngle/360*100).toFixed(0)}%<br>
-          <span style="color:#2e7dd1">●</span> 付 ${((360-recAngle)/360*100).toFixed(0)}%
-        </div>
-      </div>
+      <div class="stat-sub">${rtcf===null?'待录入 '+fmtMon(prevMon)+' 完成情况':'上月净额 '+fmt(computePrevBalance())+' + 当月收付差 '+fmt(actRec-actPay)}</div>
     </div>
   </div>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px">
-    <div class="chart-card" style="padding:16px 18px">
-      <div class="chart-title" style="margin-bottom:10px">月度环比
-        <span style="font-size:11px;font-weight:400;color:var(--text3)">较上月</span>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:12px;color:var(--text2)"><span style="color:#27ae60">●</span> 实际收款</span>
-          <span style="font-size:13px;font-family:var(--mono);font-weight:600;color:${recChange===null?'var(--text3)':recChange>=0?'#27ae60':'#e74c3c'}">${recChange===null?'—':(recChange>=0?'+'+recChange:recChange)+'%'}</span>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:12px;color:var(--text2)"><span style="color:#2e7dd1">●</span> 实际付款</span>
-          <span style="font-size:13px;font-family:var(--mono);font-weight:600;color:${payChange===null?'var(--text3)':payChange<=0?'#27ae60':'#e74c3c'}">${payChange===null?'—':(payChange<=0?payChange:'+'+payChange)+'%'}</span>
-        </div>
-      </div>
-    </div>
-    <div class="chart-card" style="padding:16px 18px">
-      <div class="chart-title" style="margin-bottom:10px">收款完成率</div>
-      <div class="proj-progress-track" style="height:32px;margin-top:8px">
-        <div class="proj-progress-fill" style="width:${Math.min(recRatio,100)}%;background:var(--grad-green);display:flex;align-items:center;justify-content:flex-end;padding-right:10px;font-size:12px;font-weight:600;color:#fff;font-family:var(--mono)">${recRatio}%</div>
-      </div>
-      <div style="margin-top:12px;font-size:11px;color:var(--text3)">付款完成率</div>
-      <div class="proj-progress-track" style="height:32px;margin-top:6px">
-        <div class="proj-progress-fill" style="width:${Math.min(payRatio,100)}%;background:var(--grad-blue);display:flex;align-items:center;justify-content:flex-end;padding-right:10px;font-size:12px;font-weight:600;color:#fff;font-family:var(--mono)">${payRatio}%</div>
-      </div>
-    </div>
-  </div>
-
   <div class="prog-section">
-    <div class="prog-title"><i data-lucide="arrow-down" style="width:13px;height:13px;margin-right:4px"></i>收款进度（对上）</div>
-    ${finState.receipts.map(r=>{
+    <div class="prog-title">📥 收款进度（对上）</div>
+    ${state.receipts.map(r=>{
       const ratio=r.contract_amount?(+r.cumulative_received||0)/(+r.contract_amount):0;
-      const cls=ratio>=1?'ratio-red':ratio>=0.6?'ratio-amber':'ratio-green';
-      return `<div class="prog-row" data-tip="${r.contract_name||'—'}: 累计收款 ${fmt(r.cumulative_received)} / ${fmt(r.contract_amount)} 元 (${(ratio*100).toFixed(1)}%)">
+      const cls=ratio>=1?'ratio-red':ratio>=0.8?'ratio-amber':'ratio-green';
+      return `<div class="prog-row">
         <div class="prog-name">${r.contract_name||'—'}</div>
         <div class="prog-meta">${fmt(r.cumulative_received)} / ${fmt(r.contract_amount)} 元</div>
-        <div class="prog-bar-wrap"><div class="prog-bar" style="width:${Math.min(ratio*100,100).toFixed(1)}%;background:var(--grad-green)"></div></div>
+        <div class="prog-bar-wrap"><div class="prog-bar" style="width:${Math.min(ratio*100,100).toFixed(1)}%;background:var(--${cls==='ratio-green'?'green':cls==='ratio-amber'?'amber':'red'})"></div></div>
         <div class="prog-pct ${cls}">${(ratio*100).toFixed(1)}%</div>
       </div>`;
     }).join('')||'<div style="color:var(--text3);font-size:12px;padding:8px 0">暂无收款计划</div>'}
   </div>
   <div class="prog-section">
-    <div class="prog-title"><i data-lucide="arrow-up" style="width:13px;height:13px;margin-right:4px"></i>付款进度（对下）</div>
-    ${finState.payments.map(r=>{
+    <div class="prog-title">📤 付款进度（对下）</div>
+    ${state.payments.map(r=>{
       const act=getActualPaidForPayment(r);
       const planSub=(+r.plan_cash||0)+(+r.plan_supply_chain||0);
       const ratio=planSub?act/planSub:0;
-      const cls=ratio>=1?'ratio-red':ratio>=0.6?'ratio-amber':'ratio-green';
-      return `<div class="prog-row" data-tip="${r.contract_name||'—'}: 实际支付 ${fmt(act)} / 计划 ${fmt(planSub)} 元${planSub?' ('+(ratio*100).toFixed(1)+'%)':''}">
+      const cls=ratio>=1?'ratio-red':ratio>=0.8?'ratio-amber':'ratio-green';
+      return `<div class="prog-row">
         <div class="prog-name">${r.contract_name||'—'}</div>
         <div class="prog-meta">${fmt(act)} / ${fmt(planSub)} 元</div>
-        <div class="prog-bar-wrap"><div class="prog-bar" style="width:${Math.min(ratio*100,100).toFixed(1)}%;background:var(--grad-blue)"></div></div>
+        <div class="prog-bar-wrap"><div class="prog-bar" style="width:${Math.min(ratio*100,100).toFixed(1)}%;background:var(--${cls==='ratio-green'?'green':cls==='ratio-amber'?'amber':'red'})"></div></div>
         <div class="prog-pct ${cls}">${planSub?(ratio*100).toFixed(1)+'%':'—'}</div>
       </div>`;
     }).join('')||'<div style="color:var(--text3);font-size:12px;padding:8px 0">暂无付款计划</div>'}
   </div>`;
-  setTimeout(() => { if (typeof setupChartTipListeners === 'function') setupChartTipListeners(); }, 50);
 }
 
-//  合同库
+//  合同库 
 window._contractTab='up';
 // ── 合同库 ──────────────────────────────────────────────────────────────────
 window._contractTab  = 'up';
@@ -164,7 +105,7 @@ function computeContractRevenue(r, year){
   const targetProf = exclTax * (+r.target_profit_rate||0);
   const measured   = +r.measured_revenue||0;
 
-  const yearRevs = finState.actualReceipts
+  const yearRevs = state.actualReceipts
     .filter(m => m.upstream_contract_id === r.id && (m.year_month||'').startsWith(year+'-'));
   const yearCum  = yearRevs.reduce((s,m)=>s+(+m.amount||0), 0);
 
@@ -182,77 +123,34 @@ function renderContracts(){
   const year  = window._contractYear || new Date().getFullYear().toString();
   const revYear = window._revenueYear || new Date().getFullYear().toString();
 
-  // Init pagination state
-  if (!window._pageSize) window._pageSize = 20;
-  if (!window._pageNum) window._pageNum = {};
-  const pgKey = 'contract_' + tab;
-  if (!window._pageNum[pgKey]) window._pageNum[pgKey] = 1;
-  const pageSize = window._pageSize;
-  const currentPage = window._pageNum[pgKey];
-
-  // Init filter state
-  if (!window._filters) window._filters = {};
-  const f = window._filters;
-
   // 签约维度年份下拉
-  const existYears = [...new Set(finState.contractsUp.map(r=>r.assessment_year||'').filter(Boolean))];
+  const existYears = [...new Set(state.contractsUp.map(r=>r.assessment_year||'').filter(Boolean))];
   const curY = new Date().getFullYear();
   for(let y=curY-2;y<=curY+2;y++) if(!existYears.includes(String(y))) existYears.push(String(y));
   existYears.sort();
   const yearOpts = existYears.map(y=>`<option value="${y}" ${y===year?'selected':''}>${y}年</option>`).join('');
 
   // 营收确认维度年份下拉
-  const existRevYears = [...new Set(finState.contractsUp.map(r=>r.revenue_assessment_year||'').filter(Boolean))];
+  const existRevYears = [...new Set(state.contractsUp.map(r=>r.revenue_assessment_year||'').filter(Boolean))];
   for(let y=curY-2;y<=curY+2;y++) if(!existRevYears.includes(String(y))) existRevYears.push(String(y));
   existRevYears.sort();
   const revYearOpts = existRevYears.map(y=>`<option value="${y}" ${y===revYear?'selected':''}>${y}年</option>`).join('');
 
   // 对上合同：按两个考核周期筛选
-  let rawRows = isUp
-    ? finState.contractsUp.filter(r => {
+  const rawRows = isUp
+    ? state.contractsUp.filter(r => {
         const matchSign = !r.assessment_year || r.assessment_year === year;
         const matchRev  = !r.revenue_assessment_year || r.revenue_assessment_year === revYear;
         return matchSign && matchRev;
       })
-    : finState.contractsDown;
+    : state.contractsDown;
 
-  // ── Apply text filters ──
-  if (isUp) {
-    const fn = (f.up_name || '').toLowerCase();
-    const fc = (f.up_no || '').toLowerCase();
-    const fcust = (f.up_customer || '').toLowerCase();
-    const fstat = f.up_status || 'all';
-    if (fn) rawRows = rawRows.filter(r => (r.name||'').toLowerCase().includes(fn));
-    if (fc) rawRows = rawRows.filter(r => (r.main_contract_no||'').toLowerCase().includes(fc));
-    if (fcust) rawRows = rawRows.filter(r => (r.customer_name||'').toLowerCase().includes(fcust));
-    if (fstat !== 'all') rawRows = rawRows.filter(r => r.status === fstat);
-  } else {
-    const fn = (f.down_name || '').toLowerCase();
-    const fs = (f.down_supplier || '').toLowerCase();
-    const fl = (f.down_link || '').toLowerCase();
-    if (fn) rawRows = rawRows.filter(r => (r.name||'').toLowerCase().includes(fn));
-    if (fs) rawRows = rawRows.filter(r => (r.supplier_name||'').toLowerCase().includes(fs));
-    if (fl) rawRows = rawRows.filter(r => {
-      const linked = r.upstream_contract_id ? finState.contractsUp.find(x=>x.id===r.upstream_contract_id) : null;
-      return linked ? (linked.name||'').toLowerCase().includes(fl) : false;
-    });
-  }
-
-  // ── Pagination ──
-  const total = rawRows.length;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  if (currentPage > totalPages) window._pageNum[pgKey] = totalPages;
-  const p = Math.min(window._pageNum[pgKey], totalPages);
-  const startIdx = (p - 1) * pageSize;
-  const paged = rawRows.slice(startIdx, startIdx + pageSize);
-
-  const tbody = paged.length ? paged.map((r,i)=>{
-    const realIdx = startIdx + i + 1;
+  const tbody = rawRows.length ? rawRows.map((r,i)=>{
     if(isUp){
       const rv = computeContractRevenue(r, year);
       const progCls = rv.progress>=1?'ratio-red':rv.progress>=0.8?'ratio-amber':'ratio-green';
       return `<tr class="clickable" onclick="openEditContractModal('up','${r.id}')">
-        <td style="color:var(--text3);width:28px;text-align:center">${realIdx}</td>
+        <td style="color:var(--text3);width:28px;text-align:center">${i+1}</td>
         <td style="min-width:150px">${r.name}</td>
         <td style="font-size:12px;color:var(--text2);min-width:100px">${r.main_contract_no||'—'}</td>
         <td>${r.customer_name||'—'}</td>
@@ -265,13 +163,13 @@ function renderContracts(){
         <td class="num">${fmt(rv.cumRev)}</td>
         <td class="num ${progCls}">${rv.exclTax?(rv.progress*100).toFixed(1)+'%':'—'}</td>
         <td class="num">${rv.yearProfit?fmt(rv.yearProfit):'—'}</td>
-        <td><button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openRevenueModal('${r.id}')"><i data-lucide="bar-chart-3" style="width:13px;height:13px;margin-right:2px"></i>营收</button></td>
+        <td><button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openRevenueModal('${r.id}')">📊 营收</button></td>
         <td onclick="event.stopPropagation()"><select class="status-inline ${r.status==='active'?'tag-active':'tag-settled'}" onchange="updateContractStatus('up','${r.id}',this)"><option value="active" ${r.status!=='settled'?'selected':''}>执行中</option><option value="settled" ${r.status==='settled'?'selected':''}>已结算</option></select></td>
       </tr>`;
     } else {
-      const linked = r.upstream_contract_id ? finState.contractsUp.find(x=>x.id===r.upstream_contract_id) : null;
+      const linked = r.upstream_contract_id ? state.contractsUp.find(x=>x.id===r.upstream_contract_id) : null;
       return `<tr class="clickable" onclick="openEditContractModal('down','${r.id}')">
-        <td style="color:var(--text3);width:28px;text-align:center">${realIdx}</td>
+        <td style="color:var(--text3);width:28px;text-align:center">${i+1}</td>
         <td>${r.name}</td>
         <td>${r.supplier_name||'—'}</td>
         <td class="num">${fmt(r.amount)}</td>
@@ -280,74 +178,21 @@ function renderContracts(){
         <td style="font-size:12px;color:var(--text3)">${r.remark||'—'}</td>
       </tr>`;
     }
-  }).join('') : `<tr><td colspan="${isUp?15:7}"><div class="empty"><i data-lucide="file-text" class="empty-icon"></i>暂无合同，点击右上角新增</div></td></tr>`;
-
-  // ── Pagination HTML ──
-  let pageHTML = '';
-  if (total > 20) {
-    const sizeOpts = [20, 50, 100].map(s => `<option value="${s}" ${s===pageSize?'selected':''}>${s}条/页</option>`).join('');
-    let pages = '';
-    for (let i = 1; i <= totalPages; i++) {
-      if (totalPages <= 7 || i === 1 || i === totalPages || (i >= p-1 && i <= p+1)) {
-        pages += `<button class="btn btn-xs ${i===p?'btn-primary':'btn-ghost'}" onclick="window._pageNum['${pgKey}']=${i};renderContracts()">${i}</button>`;
-      } else if (i === 2 || i === totalPages-1) {
-        pages += '<span style="color:var(--text3);padding:0 4px">…</span>';
-      }
-    }
-    pageHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-top:1px solid var(--border);background:var(--surface2)">
-      <div style="display:flex;align-items:center;gap:8px">
-        <select class="form-select" style="width:auto;padding:4px 8px;font-size:11px" onchange="window._pageSize=+this.value;window._pageNum['${pgKey}']=1;renderContracts()">${sizeOpts}</select>
-        <span style="font-size:11px;color:var(--text3)">共 ${total} 条</span>
-      </div>
-      <div style="display:flex;gap:4px;align-items:center">
-        <button class="btn btn-xs btn-ghost" onclick="window._pageNum['${pgKey}']=1;renderContracts()" ${p===1?'disabled':''}>«</button>
-        ${pages}
-        <button class="btn btn-xs btn-ghost" onclick="window._pageNum['${pgKey}']=${totalPages};renderContracts()" ${p===totalPages?'disabled':''}>»</button>
-      </div>
-    </div>`;
-  }
-
-  // ── Filter row HTML ──
-  let filterHTML = '';
-  if (isUp) {
-    filterHTML = `<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
-      <input class="form-input" id="f-up-name" placeholder="合同名称..." style="width:140px;padding:5px 10px;font-size:12px" value="${f.up_name||''}">
-      <input class="form-input" id="f-up-no" placeholder="主合同编号..." style="width:130px;padding:5px 10px;font-size:12px" value="${f.up_no||''}">
-      <input class="form-input" id="f-up-customer" placeholder="客户名称..." style="width:130px;padding:5px 10px;font-size:12px" value="${f.up_customer||''}">
-      <select class="form-select" id="f-up-status" style="width:auto;padding:5px 10px;font-size:12px">
-        <option value="all" ${f.up_status==='all'||!f.up_status?'selected':''}>全部状态</option>
-        <option value="active" ${f.up_status==='active'?'selected':''}>执行中</option>
-        <option value="settled" ${f.up_status==='settled'?'selected':''}>已结算</option>
-      </select>
-      <button class="btn btn-sm btn-primary" onclick="applyContractFilters()">查询</button>
-      <button class="btn btn-sm btn-ghost" onclick="resetContractFilters()">重置</button>
-      <span style="font-size:11px;color:var(--text3);margin-left:4px">${total} 条结果</span>
-    </div>`;
-  } else {
-    filterHTML = `<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
-      <input class="form-input" id="f-down-name" placeholder="合同名称..." style="width:140px;padding:5px 10px;font-size:12px" value="${f.down_name||''}">
-      <input class="form-input" id="f-down-supplier" placeholder="供应商名称..." style="width:130px;padding:5px 10px;font-size:12px" value="${f.down_supplier||''}">
-      <input class="form-input" id="f-down-link" placeholder="关联对上合同..." style="width:150px;padding:5px 10px;font-size:12px" value="${f.down_link||''}">
-      <button class="btn btn-sm btn-primary" onclick="applyContractFilters()">查询</button>
-      <button class="btn btn-sm btn-ghost" onclick="resetContractFilters()">重置</button>
-      <span style="font-size:11px;color:var(--text3);margin-left:4px">${total} 条结果</span>
-    </div>`;
-  }
+  }).join('') : `<tr><td colspan="${isUp?15:7}"><div class="empty"><div class="empty-icon">📄</div>暂无合同，点击右上角新增</div></td></tr>`;
 
   document.getElementById('main-content').innerHTML=`
   <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
-    <button class="btn btn-sm ${isUp?'btn-primary':'btn-ghost'}" onclick="window._contractTab='up';window._pageNum['contract_up']=window._pageNum['contract_up']||1;renderContracts()">对上合同（${finState.contractsUp.length}）</button>
-    <button class="btn btn-sm ${!isUp?'btn-primary':'btn-ghost'}" onclick="window._contractTab='down';window._pageNum['contract_down']=window._pageNum['contract_down']||1;renderContracts()">对下合同（${finState.contractsDown.length}）</button>
+    <button class="btn btn-sm ${isUp?'btn-primary':'btn-ghost'}" onclick="window._contractTab='up';renderContracts()">对上合同（${state.contractsUp.length}）</button>
+    <button class="btn btn-sm ${!isUp?'btn-primary':'btn-ghost'}" onclick="window._contractTab='down';renderContracts()">对下合同（${state.contractsDown.length}）</button>
     ${isUp?`<div style="margin-left:12px;display:flex;align-items:center;gap:6px">
       <span style="font-size:12px;color:var(--text3)">签约周期</span>
-      <select class="form-select" style="width:130px;height:42px;font-size:14px;padding-right:28px" onchange="window._contractYear=this.value;window._pageNum['${pgKey}']=1;renderContracts()">${yearOpts}</select>
+      <select class="form-select" style="width:130px;height:42px;font-size:14px;padding-right:28px" onchange="window._contractYear=this.value;renderContracts()">${yearOpts}</select>
     </div>
     <div style="display:flex;align-items:center;gap:6px">
       <span style="font-size:12px;color:var(--text3)">营收周期</span>
-      <select class="form-select" style="width:130px;height:42px;font-size:14px;padding-right:28px" onchange="window._revenueYear=this.value;window._pageNum['${pgKey}']=1;renderContracts()">${revYearOpts}</select>
+      <select class="form-select" style="width:130px;height:42px;font-size:14px;padding-right:28px" onchange="window._revenueYear=this.value;renderContracts()">${revYearOpts}</select>
     </div>`:''}
   </div>
-  ${filterHTML}
   <div class="table-wrap">
     <div class="table-toolbar">
       <div class="table-title">${isUp?'对上合同库':'对下合同库'}</div>
@@ -378,77 +223,26 @@ function renderContracts(){
         <th class="num" style="min-width:90px">营收完成进度</th>
         <th class="num" style="min-width:90px">年完成毛利</th>
         <th style="width:70px">营收</th>
-        <th>状态</th>
         `:`
         <th style="min-width:120px">关联对上合同</th>
-        <th>状态</th>
         <th style="min-width:80px">备注</th>
         `}
+        <th>状态</th>
       </tr></thead>
       <tbody>${tbody}</tbody>
     </table></div>
-    ${pageHTML}
   </div>`;
 }
-
-// ── 合同筛选 查询/重置 ──
-window.applyContractFilters = function() {
-  const isUp = window._contractTab === 'up';
-  const pgKey = 'contract_' + window._contractTab;
-  window._filters = window._filters || {};
-  if (isUp) {
-    window._filters.up_name = (document.getElementById('f-up-name')||{}).value || '';
-    window._filters.up_no = (document.getElementById('f-up-no')||{}).value || '';
-    window._filters.up_customer = (document.getElementById('f-up-customer')||{}).value || '';
-    window._filters.up_status = (document.getElementById('f-up-status')||{}).value || 'all';
-  } else {
-    window._filters.down_name = (document.getElementById('f-down-name')||{}).value || '';
-    window._filters.down_supplier = (document.getElementById('f-down-supplier')||{}).value || '';
-    window._filters.down_link = (document.getElementById('f-down-link')||{}).value || '';
-  }
-  window._pageNum[pgKey] = 1;
-  renderContracts();
-};
-
-window.resetContractFilters = function() {
-  const isUp = window._contractTab === 'up';
-  const pgKey = 'contract_' + window._contractTab;
-  window._filters = window._filters || {};
-  if (isUp) {
-    window._filters.up_name = '';
-    window._filters.up_no = '';
-    window._filters.up_customer = '';
-    window._filters.up_status = 'all';
-  } else {
-    window._filters.down_name = '';
-    window._filters.down_supplier = '';
-    window._filters.down_link = '';
-  }
-  window._pageNum[pgKey] = 1;
-  renderContracts();
-};
-
-window.applySupplierFilter = function() {
-  window._filters = window._filters || {};
-  window._filters.supplier_name = (document.getElementById('f-supplier-name')||{}).value || '';
-  renderSuppliers();
-};
-
-window.resetSupplierFilter = function() {
-  window._filters = window._filters || {};
-  window._filters.supplier_name = '';
-  renderSuppliers();
-};
 
 function openAddContractModal(){openEditContractModal(window._contractTab||'up',null);}
 function openEditContractModal(dir,id){
   const isUp = dir==='up';
-  const arr  = isUp?finState.contractsUp:finState.contractsDown;
+  const arr  = isUp?state.contractsUp:state.contractsDown;
   const r    = id?arr.find(x=>x.id===id):null;
   const isEdit = !!r;
-  const cuOpts = finState.customers.map(c=>`<option value="${c.id}" ${r&&r.customer_id===c.id?'selected':''}>${c.name}</option>`).join('');
-  const suOpts = finState.suppliers.map(s=>`<option value="${s.id}" ${r&&r.supplier_id===s.id?'selected':''}>${s.name}</option>`).join('');
-  const upOpts = finState.contractsUp.map(c=>`<option value="${c.id}" ${r&&r.upstream_contract_id===c.id?'selected':''}>${c.name}</option>`).join('');
+  const cuOpts = state.customers.map(c=>`<option value="${c.id}" ${r&&r.customer_id===c.id?'selected':''}>${c.name}</option>`).join('');
+  const suOpts = state.suppliers.map(s=>`<option value="${s.id}" ${r&&r.supplier_id===s.id?'selected':''}>${s.name}</option>`).join('');
+  const upOpts = state.contractsUp.map(c=>`<option value="${c.id}" ${r&&r.upstream_contract_id===c.id?'selected':''}>${c.name}</option>`).join('');
 
   // 年份下拉（考核周期）
   const curY = new Date().getFullYear();
@@ -458,7 +252,7 @@ function openEditContractModal(dir,id){
   openModal(`
   <div class="modal-header">
     <div class="modal-title">${isEdit?'编辑合同':'新增'+(isUp?'对上':'对下')+'合同'}</div>
-    <button class="modal-close" onclick="closeModal()"><i data-lucide="x"></i></button>
+    <button class="modal-close" onclick="closeModal()">×</button>
   </div>
   <div class="modal-body">
     <div class="form-group">
@@ -564,7 +358,7 @@ function openEditContractModal(dir,id){
   <div class="modal-footer">
     <div style="display:flex;gap:6px">
       ${isEdit?`<button class="btn btn-danger btn-sm" onclick="deleteRow('${isUp?'contracts_upstream':'contracts_downstream'}','${r.id}')">删除</button>`:''}
-      ${isEdit&&isUp?`<button class="btn btn-ghost btn-sm" onclick="closeModal();openRevenueModal('${r.id}')"><i data-lucide="bar-chart-3" style="width:13px;height:13px;margin-right:2px"></i>营收管理</button>`:''}
+      ${isEdit&&isUp?`<button class="btn btn-ghost btn-sm" onclick="closeModal();openRevenueModal('${r.id}')">📊 营收管理</button>`:''}
     </div>
     <div class="modal-footer-right">
       <button class="btn btn-ghost" onclick="closeModal()">取消</button>
@@ -590,12 +384,12 @@ function calcContractDerived(){
 
 function onContractCuChange(){
   const v=document.getElementById('ct-cu').value;
-  const c=finState.customers.find(x=>x.id===v);
+  const c=state.customers.find(x=>x.id===v);
   if(c)document.getElementById('ct-cu-txt').value=c.name;
 }
 function onContractSuChange(){
   const v=document.getElementById('ct-su').value;
-  const s=finState.suppliers.find(x=>x.id===v);
+  const s=state.suppliers.find(x=>x.id===v);
   if(s)document.getElementById('ct-su-txt').value=s.name;
 }
 
@@ -608,7 +402,7 @@ async function saveContract(dir,id,btn){
   if(isUp){
     const cuId=document.getElementById('ct-cu').value;
     data.customer_id   = cuId||null;
-    data.customer_name = cuId?(finState.customers.find(c=>c.id===cuId)||{}).name||q('ct-cu-txt'):q('ct-cu-txt');
+    data.customer_name = cuId?(state.customers.find(c=>c.id===cuId)||{}).name||q('ct-cu-txt'):q('ct-cu-txt');
     data.sign_date       = q('ct-date')||null;
     data.assessment_year = document.getElementById('ct-year')?.value||null;
     data.revenue_assessment_year = document.getElementById('ct-rev-year')?.value||null;
@@ -619,11 +413,11 @@ async function saveContract(dir,id,btn){
   } else {
     const suId=document.getElementById('ct-su').value;
     data.supplier_id   = suId||null;
-    data.supplier_name = suId?(finState.suppliers.find(s=>s.id===suId)||{}).name||q('ct-su-txt'):q('ct-su-txt');
+    data.supplier_name = suId?(state.suppliers.find(s=>s.id===suId)||{}).name||q('ct-su-txt'):q('ct-su-txt');
     data.upstream_contract_id = document.getElementById('ct-up').value||null;
   }
   const tbl=isUp?'contracts_upstream':'contracts_downstream';
-  const arr=isUp?finState.contractsUp:finState.contractsDown;
+  const arr=isUp?state.contractsUp:state.contractsDown;
   if(id){
     await sb.from(tbl).update({...data,updated_at:new Date().toISOString()}).eq('id',id);
     const i=arr.findIndex(x=>x.id===id);
@@ -633,20 +427,20 @@ async function saveContract(dir,id,btn){
     await sb.from(tbl).insert(row);
     arr.push(row);
   }
-  setLoading(btn,false);closeModal();finRender();toast(`✓ ${id?'已更新':'已添加'}`);
-  finLogAction(id?'更新'+(isUp?'对上合同':'对下合同'):'新增'+(isUp?'对上合同':'对下合同'), `「${name}」`);
+  setLoading(btn,false);closeModal();render();toast(`✓ ${id?'已更新':'已添加'}`);
+  logAction(id?'更新'+(isUp?'对上合同':'对下合同'):'新增'+(isUp?'对上合同':'对下合同'), `「${name}」`);
 }
 
 // ── 营收管理子弹框 ────────────────────────────────────────────────────────────
 function openRevenueModal(contractId){
-  const r   = finState.contractsUp.find(x=>x.id===contractId);
+  const r   = state.contractsUp.find(x=>x.id===contractId);
   if(!r) return;
   const year = window._contractYear || new Date().getFullYear().toString();
   const rv   = computeContractRevenue(r, year);
 
   const months = Array.from({length:12},(_,i)=>`${year}-${String(i+1).padStart(2,'0')}`);
   const revMap = {};
-  finState.monthlyRevenues
+  state.monthlyRevenues
     .filter(m=>m.contract_id===contractId&&(m.year_month||'').startsWith(year+'-'))
     .forEach(m=>{ revMap[m.year_month] = m; });
 
@@ -665,8 +459,8 @@ function openRevenueModal(contractId){
 
   openModal(`
   <div class="modal-header">
-    <div class="modal-title"><i data-lucide="bar-chart-3" style="width:14px;height:14px;margin-right:4px"></i>营收管理 — ${r.name}</div>
-    <button class="modal-close" onclick="closeModal()"><i data-lucide="x"></i></button>
+    <div class="modal-title">📊 营收管理 — ${r.name}</div>
+    <button class="modal-close" onclick="closeModal()">×</button>
   </div>
   <div class="modal-body">
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;padding:12px;background:var(--surface2);border-radius:6px;font-size:12px">
@@ -724,7 +518,7 @@ async function saveMonthlyRevenue(contractId, year, btn){
     const dtl  = dtls[i].value.trim();
     if(!amt && !cnt && !dtl) continue; // skip empty rows
 
-    const existing = finState.monthlyRevenues.find(m=>m.contract_id===contractId&&m.year_month===ym);
+    const existing = state.monthlyRevenues.find(m=>m.contract_id===contractId&&m.year_month===ym);
     const record = {
       contract_id: contractId,
       year_month: ym,
@@ -756,10 +550,10 @@ async function saveMonthlyRevenue(contractId, year, btn){
     if(res.error){ fail++; return; }
     const {existing, record} = newRecords[idx];
     if(existing){
-      const i = finState.monthlyRevenues.findIndex(m=>m.id===existing.id);
-      if(i>=0) finState.monthlyRevenues[i] = {...finState.monthlyRevenues[i], ...record};
+      const i = state.monthlyRevenues.findIndex(m=>m.id===existing.id);
+      if(i>=0) state.monthlyRevenues[i] = {...state.monthlyRevenues[i], ...record};
     } else {
-      finState.monthlyRevenues.push(record);
+      state.monthlyRevenues.push(record);
     }
     ok++;
   });
@@ -768,15 +562,15 @@ async function saveMonthlyRevenue(contractId, year, btn){
   if(fail>0) toast(`⚠ 保存完成：${ok} 条成功，${fail} 条失败`);
   else toast(`✓ 已保存 ${ok} 条月度营收`);
   closeModal();
-  finRender();
+  render();
 }
 
 
 function renderCustomers(){
-  const rows=finState.customers;
+  const rows=state.customers;
   const tbody=rows.length?rows.map((r,i)=>{
     // 实时从合同库计算三个统计字段
-    const allContracts    = finState.contractsUp.filter(c=>c.customer_id===r.id);
+    const allContracts    = state.contractsUp.filter(c=>c.customer_id===r.id);
     const activeContracts = allContracts.filter(c=>c.status==='active');
     const totalAmt        = allContracts.reduce((s,c)=>s+(+c.amount||0),0);
     const activeCount     = activeContracts.length;
@@ -797,7 +591,7 @@ function renderCustomers(){
       <td style="font-size:12px;color:var(--text3)">${r.remark||'—'}</td>
     </tr>`;
   }).join('')
-  :`<tr><td colspan="9"><div class="empty"><i data-lucide="users" class="empty-icon"></i>暂无客户，点击右上角新增</div></td></tr>`;
+  :`<tr><td colspan="9"><div class="empty"><div class="empty-icon">👤</div>暂无客户，点击右上角新增</div></td></tr>`;
 
   document.getElementById('main-content').innerHTML=`
   <div class="table-wrap">
@@ -832,7 +626,7 @@ function renderCustomers(){
 
 // 执行中合同弹框列表
 function openCustomerContractsModal(customerId, customerName){
-  const actives = finState.contractsUp.filter(c=>c.customer_id===customerId&&c.status==='active');
+  const actives = state.contractsUp.filter(c=>c.customer_id===customerId&&c.status==='active');
   const rows = actives.map((c,i)=>{
     const rv = computeContractRevenue(c, window._contractYear||new Date().getFullYear().toString());
     return `<tr class="clickable" onclick="closeModal();window._contractTab='up';switchTab('contracts');setTimeout(()=>openEditContractModal('up','${c.id}'),100)">
@@ -848,7 +642,7 @@ function openCustomerContractsModal(customerId, customerName){
   openModal(`
   <div class="modal-header">
     <div class="modal-title">执行中合同 — ${customerName}（${actives.length} 个）</div>
-    <button class="modal-close" onclick="closeModal()"><i data-lucide="x"></i></button>
+    <button class="modal-close" onclick="closeModal()">×</button>
   </div>
   <div class="modal-body" style="padding-top:8px">
     <table>
@@ -871,13 +665,13 @@ function openCustomerContractsModal(customerId, customerName){
 
 function openAddCustomerModal(){openEditCustomerModal(null);}
 function openEditCustomerModal(id){
-  const r=id?finState.customers.find(x=>x.id===id):null;
+  const r=id?state.customers.find(x=>x.id===id):null;
   const isEdit=!!r;
 
   // 编辑弹框内也显示统计（只读）
   let statsHtml='';
   if(isEdit){
-    const all    = finState.contractsUp.filter(c=>c.customer_id===r.id);
+    const all    = state.contractsUp.filter(c=>c.customer_id===r.id);
     const active = all.filter(c=>c.status==='active');
     const total  = all.reduce((s,c)=>s+(+c.amount||0),0);
     statsHtml=`
@@ -896,7 +690,7 @@ function openEditCustomerModal(id){
   openModal(`
   <div class="modal-header">
     <div class="modal-title">${isEdit?'编辑客户':'新增客户'}</div>
-    <button class="modal-close" onclick="closeModal()"><i data-lucide="x"></i></button>
+    <button class="modal-close" onclick="closeModal()">×</button>
   </div>
   <div class="modal-body">
     ${statsHtml}
@@ -925,27 +719,21 @@ async function saveCustomer(id,btn){
   const data={name,short_name:q('cu-short'),contact:q('cu-contact'),phone:q('cu-phone'),remark:q('cu-remark')};
   if(id){
     await sb.from('customers').update({...data,updated_at:new Date().toISOString()}).eq('id',id);
-    const i=finState.customers.findIndex(x=>x.id===id);
-    if(i>=0)finState.customers[i]={...finState.customers[i],...data};
+    const i=state.customers.findIndex(x=>x.id===id);
+    if(i>=0)state.customers[i]={...state.customers[i],...data};
   } else {
     const row={id:'cu'+uid(),...data,created_at:new Date().toISOString()};
     await sb.from('customers').insert(row);
-    finState.customers.push(row);
+    state.customers.push(row);
   }
-  setLoading(btn,false);closeModal();finRender();toast(`✓ ${id?'已更新':'已添加'}`);
-  finLogAction(id?'更新客户':'新增客户', `「${name}」`);
+  setLoading(btn,false);closeModal();render();toast(`✓ ${id?'已更新':'已添加'}`);
+  logAction(id?'更新客户':'新增客户', `「${name}」`);
 }
 
-//  供应商库
+//  供应商库 
 function renderSuppliers(){
-  window._filters = window._filters || {};
-  const fName = (window._filters.supplier_name || '').toLowerCase();
-
-  let rows = finState.suppliers;
-  if (fName) rows = rows.filter(r => (r.name||'').toLowerCase().includes(fName));
-
-  const total = rows.length;
-  const tbody = rows.length ? rows.map((r,i)=>`
+  const rows=state.suppliers;
+  const tbody=rows.length?rows.map((r,i)=>`
     <tr class="clickable" onclick="openEditSupplierModal('${r.id}')">
       <td style="color:var(--text3);width:32px;text-align:center">${i+1}</td>
       <td style="font-weight:500">${r.name}</td>
@@ -954,17 +742,8 @@ function renderSuppliers(){
       <td style="font-family:var(--mono);font-size:12px">${r.phone||'—'}</td>
       <td style="font-size:12px;color:var(--text3)">${r.remark||'—'}</td>
     </tr>`).join('')
-    :`<tr><td colspan="6"><div class="empty"><i data-lucide="building" class="empty-icon"></i>暂无供应商，点击右上角新增</div></td></tr>`;
-
-  const filterHTML = `<div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
-    <input class="form-input" id="f-supplier-name" placeholder="供应商名称..." style="width:200px;padding:5px 10px;font-size:12px" value="${window._filters.supplier_name||''}">
-    <button class="btn btn-sm btn-primary" onclick="applySupplierFilter()">查询</button>
-    <button class="btn btn-sm btn-ghost" onclick="resetSupplierFilter()">重置</button>
-    <span style="font-size:11px;color:var(--text3);margin-left:4px">${total} 条结果</span>
-  </div>`;
-
+    :`<tr><td colspan="6"><div class="empty"><div class="empty-icon">🏢</div>暂无供应商，点击右上角新增</div></td></tr>`;
   document.getElementById('main-content').innerHTML=`
-  ${filterHTML}
   <div class="table-wrap">
     <div class="table-toolbar"><div class="table-title">供应商库</div><div style="margin-left:auto;font-size:11px;color:var(--text3)">点击行编辑</div></div>
     <div class="table-scroll"><table style="width:auto;min-width:100%">
@@ -979,12 +758,12 @@ function renderSuppliers(){
 }
 function openAddSupplierModal(){openEditSupplierModal(null);}
 function openEditSupplierModal(id){
-  const r=id?finState.suppliers.find(x=>x.id===id):null;
+  const r=id?state.suppliers.find(x=>x.id===id):null;
   const isEdit=!!r;
   openModal(`
   <div class="modal-header">
     <div class="modal-title">${isEdit?'编辑供应商':'新增供应商'}</div>
-    <button class="modal-close" onclick="closeModal()"><i data-lucide="x"></i></button>
+    <button class="modal-close" onclick="closeModal()">×</button>
   </div>
   <div class="modal-body">
     <div class="form-row">
@@ -1012,31 +791,31 @@ async function saveSupplier(id,btn){
   const data={name,short_name:q('su-short'),contact:q('su-contact'),phone:q('su-phone'),remark:q('su-remark')};
   if(id){
     await sb.from('suppliers').update({...data,updated_at:new Date().toISOString()}).eq('id',id);
-    const i=finState.suppliers.findIndex(x=>x.id===id);
-    if(i>=0)finState.suppliers[i]={...finState.suppliers[i],...data};
+    const i=state.suppliers.findIndex(x=>x.id===id);
+    if(i>=0)state.suppliers[i]={...state.suppliers[i],...data};
   } else {
     const row={id:'su'+uid(),...data,created_at:new Date().toISOString()};
     await sb.from('suppliers').insert(row);
-    finState.suppliers.push(row);
+    state.suppliers.push(row);
   }
-  setLoading(btn,false);closeModal();finRender();toast(`✓ ${id?'已更新':'已添加'}`);
-  finLogAction(id?'更新供应商':'新增供应商', `「${name}」`);
+  setLoading(btn,false);closeModal();render();toast(`✓ ${id?'已更新':'已添加'}`);
+  logAction(id?'更新供应商':'新增供应商', `「${name}」`);
 }
 
 //  删除通用 
 async function deleteRow(table,id){
-  showConfirm('确认删除', '确认删除该条记录？此操作不可撤销。', async function() {
-    await sb.from(table).delete().eq('id',id);
-    const tblMap={
-      payment_plans:'payments', receipt_records:'receipts',
-      actual_receipts:'actualReceipts', actual_payments:'actualPayments',
-      contracts_upstream:'contractsUp', contracts_downstream:'contractsDown',
-      customers:'customers', suppliers:'suppliers'
-    };
-    const key=tblMap[table];
-    if(key&&finState[key])finState[key]=finState[key].filter(x=>x.id!==id);
-    closeModal();finRender();toast('已删除', 'success');
-  }, {danger: true, confirmLabel: '删除'});
+  if(!confirm('确认删除该条记录？此操作不可撤销。'))return;
+  await sb.from(table).delete().eq('id',id);
+  // 同步本地 state
+  const tblMap={
+    payment_plans:'payments', receipt_records:'receipts',
+    actual_receipts:'actualReceipts', actual_payments:'actualPayments',
+    contracts_upstream:'contractsUp', contracts_downstream:'contractsDown',
+    customers:'customers', suppliers:'suppliers'
+  };
+  const key=tblMap[table];
+  if(key&&state[key])state[key]=state[key].filter(x=>x.id!==id);
+  closeModal();render();toast('✓ 已删除');
 }
 
 //  Excel 导出（第4步完成完整版，此处为预留入口）
@@ -1045,7 +824,7 @@ async function deleteRow(table,id){
 async function updateContractStatus(dir, id, sel){
   const status = sel.value;
   const tbl = dir==='up' ? 'contracts_upstream' : 'contracts_downstream';
-  const arr = dir==='up' ? finState.contractsUp : finState.contractsDown;
+  const arr = dir==='up' ? state.contractsUp : state.contractsDown;
   // 立即更新样式
   sel.className = `status-inline ${status==='active'?'tag-active':'tag-settled'}`;
   const {error} = await sb.from(tbl)
@@ -1054,6 +833,6 @@ async function updateContractStatus(dir, id, sel){
   const item = arr.find(x=>x.id===id);
   if(item) item.status = status;
   toast(`✓ 状态已更新为「${status==='active'?'执行中':'已结算'}」`);
-  finLogAction('更新合同状态', `合同 ${id} → ${status}`);
+  logAction('更新合同状态', `合同 ${id} → ${status}`);
 }
 

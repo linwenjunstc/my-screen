@@ -72,18 +72,18 @@ let state = {
     recurringLastGenerated: '' // 必须加上，否则周期任务报错
 };
 
-const MEMBER_COLORS = ['#2e7dd1','#27ae60','#d4842a','#e74c3c','#8b4de8','#e04080','#0ea57c','#c06020'];
+const MEMBER_COLORS = ['#2563a8','#2e7d52','#b87333','#d94f3d','#7c3aed','#be185d','#0e7490','#854d0e'];
 const TAG_PALETTES = [
-  {bg:'#edf4fc',color:'#2e7dd1',border:'#a8c9f0'},
-  {bg:'#edf8f2',color:'#27ae60',border:'#a3ddba'},
-  {bg:'#fef9f2',color:'#d4842a',border:'#edd0a0'},
-  {bg:'#fef6f6',color:'#e74c3c',border:'#f7c8c5'},
-  {bg:'#f6f0fc',color:'#8b4de8',border:'#d0b8f5'},
-  {bg:'#fef4f8',color:'#e04080',border:'#f5b8d4'},
-  {bg:'#edf8f4',color:'#0ea57c',border:'#90d8c2'},
-  {bg:'#fefaf4',color:'#c06020',border:'#f5c898'},
+  {bg:'#eef4fc',color:'#2563a8',border:'#b8d0ef'},
+  {bg:'#eef6f2',color:'#2e7d52',border:'#b8ddc9'},
+  {bg:'#fdf6ee',color:'#b87333',border:'#f0d9b8'},
+  {bg:'#fdf0ee',color:'#d94f3d',border:'#f5c4bc'},
+  {bg:'#f5eefa',color:'#7c3aed',border:'#d4b5f5'},
+  {bg:'#fef0f5',color:'#be185d',border:'#f5b8d4'},
+  {bg:'#ecfdf5',color:'#065f46',border:'#6ee7b7'},
+  {bg:'#fff7ed',color:'#9a3412',border:'#fdba74'},
 ];
-const PROJ_COLORS = ['#2e7dd1','#27ae60','#d4842a','#e74c3c','#8b4de8','#0ea57c','#e04080','#c06020','#a8a59e'];
+const PROJ_COLORS = ['#2563a8','#2e7d52','#b87333','#d94f3d','#7c3aed','#0e7490','#be185d','#854d0e','#a09e98'];
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
@@ -454,17 +454,15 @@ const MENU_DEFS = [
   { key: 'tags',      label: '标签管理',   icon: '🏷', adminOnly: true },
   { key: 'roles',     label: '角色权限',   icon: '🔐', adminOnly: true },
   { key: 'logs',      label: '操作日志',   icon: '📋', required: false },
-  { key: 'pm',        label: '项目管理',   icon: '□', required: true  },
   { key: 'finance',   label: '资金计划',   icon: '💰', required: false },
-  { key: 'system_config', label: '系统配置', icon: '⚙', adminOnly: true },
 ];
 
 // 根据角色返回默认可见菜单
 function getDefaultMenuPerms(role) {
   if (role === 'super_admin') return MENU_DEFS.map(m => m.key);
   if (role === 'admin') return MENU_DEFS.filter(m => !m.superOnly).map(m => m.key);
-  // 普通用户默认：PM 模块、今日看板、全部任务、日志（无资金计划）
-  return ['pm', 'today', 'tasks', 'logs'];
+  // 普通用户默认：今日看板、全部任务、日志
+  return ['today', 'tasks', 'logs'];
 }
 
 // 获取当前用户实际菜单权限
@@ -478,22 +476,13 @@ function getEffectiveMenuPerms() {
   return getDefaultMenuPerms(currentUser.role);
 }
 
-// 应用菜单权限到侧边栏和顶部 Tab
+// 应用菜单权限到侧边栏
 function applyMenuPerms() {
   const allowed = getEffectiveMenuPerms();
   document.querySelectorAll('[data-menu-key]').forEach(el => {
     const key = el.getAttribute('data-menu-key');
-    el.classList.toggle('menu-hidden', !allowed.includes(key));
+    el.style.display = allowed.includes(key) ? '' : 'none';
   });
-  // 顶部模块切换 Tab 的显示/隐藏
-  const pmTab = document.getElementById('top-tab-pm');
-  const finTab = document.getElementById('top-tab-finance');
-  if (pmTab) pmTab.classList.toggle('menu-hidden', !allowed.includes('pm'));
-  if (finTab) finTab.classList.toggle('menu-hidden', !allowed.includes('finance'));
-  // 如果当前激活的模块被隐藏了，自动切换
-  if (activeModule === 'finance' && !allowed.includes('finance')) {
-    switchModule('pm');
-  }
 }
 
 function updateUserInfoUI() {
@@ -501,35 +490,31 @@ function updateUserInfoUI() {
   const nameEl    = document.getElementById('user-name-top');
   const avatarEl  = document.getElementById('user-avatar-top');
   const roleBadge = document.getElementById('user-role-badge');
-  const dropdownName = document.getElementById('dropdown-user-name');
-  const dropdownRole = document.getElementById('dropdown-user-role');
+  const adminBtns = document.getElementById('admin-util-btns');
 
   if (nameEl) nameEl.textContent = currentUser.name;
   if (avatarEl) {
     avatarEl.textContent = currentUser.name.slice(0, 1);
-    var cIdx = currentUser.colorIdx !== undefined ? currentUser.colorIdx : (currentUser.color_idx || 0);
+    const cIdx = currentUser.colorIdx !== undefined ? currentUser.colorIdx : (currentUser.color_idx || 0);
     avatarEl.style.background = MEMBER_COLORS[cIdx % MEMBER_COLORS.length] || 'var(--accent)';
   }
-  var role = currentUser.role || 'user';
+  const role = currentUser.role || 'user';
   if (roleBadge) {
     roleBadge.textContent = ROLE_LABELS[role] || '普通用户';
     roleBadge.className = 'role-badge role-' + role;
   }
-  if (dropdownName) dropdownName.textContent = currentUser.name;
-  if (dropdownRole) {
-    dropdownRole.textContent = ROLE_LABELS[role] || '普通用户';
-    dropdownRole.className = 'role-badge role-' + role;
-  }
+  // admin-util-btns 只有 admin 及以上可见
+  if (adminBtns) adminBtns.style.display = isAdmin() ? 'flex' : 'none';
   // 应用菜单权限
   applyMenuPerms();
 }
 
 // --- 2. 退出登录 ---
 function handleLogout() {
-  showConfirm('退出登录', '确定要退出登录吗？', function() {
+  if (confirm('确定要退出登录吗？')) {
     localStorage.removeItem('pm_session');
     window.location.href = 'login.html';
-  });
+  }
 }
 
 // --- 3. 实时同步 ---
@@ -568,12 +553,7 @@ async function init() {
   if (layout) layout.style.display = 'flex';
 
   updateUserInfoUI();
-  restoreTheme();
   applyMenuPerms();
-  initRippleEffect();
-  restoreSidebarState();
-  initKeyboardShortcuts();
-  initChartTooltips();
   await loadState();
   initRealtime();
 
@@ -655,140 +635,28 @@ function updateBadges() {
     const isActive = currentView==='project-'+p.id;
     html += `<div class="nav-proj-wrap" style="position:relative;display:flex;align-items:center">
       <button class="nav-item${isActive?' active':''}" style="flex:1;padding-right:28px" onclick="switchView('project-${p.id}')">
-        <i data-lucide="circle" class="nav-icon" style="width:10px;height:10px;color:${PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length]}"></i>
+        <span class="nav-icon" style="font-size:10px;color:${PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length]}">●</span>
         <span style="flex:1;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${p.name}</span>
         ${cnt?`<span class="nav-badge">${cnt}</span>`:''}
       </button>
-      <button class="nav-edit-btn" onclick="openEditProject('${p.id}')" title="编辑" style="position:absolute;right:4px;width:20px;height:20px;border-radius:4px;border:none;background:transparent;cursor:pointer;color:rgba(255,255,255,.45);font-size:12px;display:none;align-items:center;justify-content:center;flex-shrink:0;transition:color .12s" onmouseover="this.style.color='rgba(255,255,255,.8)'" onmouseout="this.style.color='rgba(255,255,255,.45)'"><i data-lucide="pencil" style="width:11px;height:11px"></i></button>
+      <button class="nav-edit-btn" onclick="openEditProject('${p.id}')" title="编辑" style="position:absolute;right:4px;width:20px;height:20px;border-radius:4px;border:none;background:transparent;cursor:pointer;color:rgba(255,255,255,.45);font-size:12px;display:none;align-items:center;justify-content:center;flex-shrink:0;transition:color .12s" onmouseover="this.style.color='rgba(255,255,255,.8)'" onmouseout="this.style.color='rgba(255,255,255,.45)'">✎</button>
     </div>`;
   });
   document.getElementById('sidebar-projects').innerHTML = html;
 }
 
-const TOAST_ICONS = { success:'check-circle', error:'x-circle', warning:'alert-triangle', info:'info' };
-function toast(msg, type) {
-  type = type || 'info';
-  const el = document.getElementById('toast');
-  el.className = 'toast toast-' + type;
-  const icon = TOAST_ICONS[type] || 'info';
-  el.innerHTML = `<i data-lucide="${icon}" class="toast-icon"></i> ${msg}`;
-  el.classList.add('show');
-  if (typeof lucide !== 'undefined') lucide.createIcons();
-  setTimeout(function() { el.classList.remove('show'); }, 2400);
+function toast(msg) {
+  const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2200);
 }
 
-// ─── A1: Staggered card entrance ──────────────────────────────────────
-function staggerEntrance() {
-  const cards = document.querySelectorAll('.stagger-in:not(.visible)');
-  cards.forEach((card, i) => {
-    card.style.animationDelay = (i * 0.04) + 's';
-    card.classList.add('visible');
-  });
-}
-
-// ─── A3: Number scroll animation on stat cards ────────────────────────
-function animateStatNumbers() {
-  document.querySelectorAll('.stat-val').forEach(el => {
-    const num = parseInt(el.textContent, 10);
-    if (isNaN(num) || num <= 0) return;
-    if (el._animNum === num) return;
-    el._animNum = num;
-    const duration = 500;
-    const start = performance.now();
-    function step(now) {
-      const elapsed = now - start;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      el.textContent = Math.round(num * eased);
-      if (progress < 1) requestAnimationFrame(step);
-      else { el.textContent = num; el._animNum = null; }
-    }
-    requestAnimationFrame(step);
-  });
-}
-
-// ─── A2: Button ripple effect ─────────────────────────────────────────
-function initRippleEffect() {
-  document.addEventListener('click', function(e) {
-    const btn = e.target.closest('.btn');
-    if (!btn) return;
-    const ripple = document.createElement('span');
-    ripple.className = 'ripple';
-    const rect = btn.getBoundingClientRect();
-    const size = Math.max(rect.width, rect.height);
-    ripple.style.width = ripple.style.height = size + 'px';
-    ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
-    ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
-    btn.appendChild(ripple);
-    ripple.addEventListener('animationend', function() { ripple.remove(); });
-  });
-}
-
-// ─── A4: Sidebar collapse ─────────────────────────────────────────────
-function toggleSidebarCollapse() {
-  const sidebar = document.getElementById('sidebar-pm');
-  if (!sidebar) return;
-  sidebar.classList.toggle('collapsed');
-  localStorage.setItem('pm_sidebar_collapsed', sidebar.classList.contains('collapsed'));
-  setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 300);
-}
-
-function restoreSidebarState() {
-  if (localStorage.getItem('pm_sidebar_collapsed') === 'true') {
-    const sidebar = document.getElementById('sidebar-pm');
-    if (sidebar) sidebar.classList.add('collapsed');
-  }
-}
-
-// ─── Theme toggle ──────────────────────────────────────────────
-function toggleTheme() {
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  applyTheme(isDark ? 'light' : 'dark');
-}
-
-function applyTheme(theme) {
-  document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem('pm_theme', theme);
-}
-
-function restoreTheme() {
-  const saved = localStorage.getItem('pm_theme');
-  if (saved) { applyTheme(saved); }
-  else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-    applyTheme('dark');
-  }
-}
-
-// ─── User dropdown ─────────────────────────────────────────────
-function toggleUserDropdown(e) {
-  e.stopPropagation();
-  const dd = document.getElementById('user-dropdown');
-  if (dd) dd.classList.toggle('open');
-}
-
-function closeUserDropdown() {
-  const dd = document.getElementById('user-dropdown');
-  if (dd) dd.classList.remove('open');
-}
-
-document.addEventListener('click', function(e) {
-  const dd = document.getElementById('user-dropdown');
-  if (dd && dd.classList.contains('open') && !dd.contains(e.target)) {
-    dd.classList.remove('open');
-  }
-});
-
-// ─── View slide transition + render ────────────────────────────
-window._viewHistory = [];
-
+// ─── Routing ──────────────────────────────────────────────────────────────────
+// --- 核心修复 2：安全切换视图，防止找不到 ID 报错 ---
 function switchView(v) {
-  if (currentView && currentView !== v) {
-    window._viewHistory.push(currentView);
-    if (window._viewHistory.length > 20) window._viewHistory.shift();
-  }
   currentView = v;
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-
+  
+  // 安全设置显示状态的助手函数
   const setDisplay = (id, val) => {
     const el = document.getElementById(id);
     if (el) el.style.display = val;
@@ -798,13 +666,14 @@ function switchView(v) {
   setDisplay('header-add-btn', (v === 'tasks' || v.startsWith('project-')) ? 'block' : 'none');
   setDisplay('header-add-proj-btn', v === 'projects' ? 'block' : 'none');
   setDisplay('header-export-btn', v === 'tasks' ? 'block' : 'none');
+  // 即使 HTML 里没写这个按钮，现在也不会报错崩溃了
   setDisplay('header-gantt-today-btn', v === 'gantt' ? 'block' : 'none');
 
   searchQuery = '';
-  const inp = document.getElementById('task-search-input');
+  const inp = document.getElementById('task-search-input'); 
   if (inp) inp.value = '';
-
-  updateBadges();
+  
+  updateBadges(); 
   render();
 }
 
@@ -818,161 +687,6 @@ function render() {
   else if (currentView==='gantt') renderGantt();
   else if (currentView.startsWith('project-')) renderProjectView(currentView.slice(8));
   else renderToday();
-  if (typeof lucide !== 'undefined') lucide.createIcons();
-  requestAnimationFrame(() => {
-    const pane = document.querySelector('.view-pane');
-    if (pane) {
-      pane.classList.remove('slide-in-left', 'slide-in-right');
-      const lastView = window._viewHistory[window._viewHistory.length-1];
-      const isBack = lastView && (
-        (currentView==='today' && ['tasks','projects','charts','gantt'].indexOf(lastView)>=0) ||
-        (currentView==='tasks' && ['projects','charts','gantt'].indexOf(lastView)>=0)
-      );
-      pane.classList.add(isBack ? 'slide-in-left' : 'slide-in-right');
-    }
-    staggerEntrance();
-    setupChartTipListeners();
-    if (currentView === 'today') animateStatNumbers();
-  });
-}
-
-// ─── Task completion celebration ────────────────────────────────
-function celebrateCompletion(x, y) {
-  const container = document.getElementById('confetti-container');
-  if (!container) return;
-  const colors = ['#27ae60','#3cc97a','#0ea57c','#22c99e','#5da0f0','#2e7dd1','#f0ede6','#ffd700'];
-  const count = 18;
-  for (let i = 0; i < count; i++) {
-    const particle = document.createElement('div');
-    particle.className = 'confetti-particle';
-    const angle = Math.random() * Math.PI * 2;
-    const distance = 40 + Math.random() * 70;
-    const cx = Math.cos(angle) * distance;
-    const cy = Math.sin(angle) * distance - 20;
-    const rot = (Math.random() - 0.5) * 540;
-    particle.style.cssText = 'left:' + x + 'px;top:' + y + 'px;background:' + colors[Math.floor(Math.random()*colors.length)]
-      + ';--cx:' + cx + 'px;--cy:' + cy + 'px;--rot:' + rot + 'deg;'
-      + 'width:' + (4+Math.random()*7) + 'px;height:' + (4+Math.random()*7) + 'px';
-    container.appendChild(particle);
-    particle.addEventListener('animationend', function() { particle.remove(); });
-  }
-}
-
-// ─── Keyboard shortcuts ────────────────────────────────────────
-function initKeyboardShortcuts() {
-  document.addEventListener('keydown', function(e) {
-    // 忽略在输入框中
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
-      if (e.key !== 'Escape') return;
-    }
-
-    // Ctrl+K / Cmd+K → 切换主题
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-      e.preventDefault();
-      toggleTheme();
-      return;
-    }
-
-    switch (e.key) {
-      case 'n': case 'N':
-        if (activeModule === 'pm') { e.preventDefault(); openAddTask(); }
-        break;
-      case '/':
-        if (activeModule === 'pm') {
-          e.preventDefault();
-          const search = document.getElementById('task-search-input');
-          if (search) { search.focus(); search.select(); }
-        }
-        break;
-      case '1':
-        if (activeModule === 'pm') { e.preventDefault(); switchView('today'); }
-        break;
-      case '2':
-        if (activeModule === 'pm') { e.preventDefault(); switchView('tasks'); }
-        break;
-      case '3':
-        if (activeModule === 'pm') { e.preventDefault(); switchView('projects'); }
-        break;
-      case '4':
-        if (activeModule === 'pm') { e.preventDefault(); switchView('charts'); }
-        break;
-      case '5':
-        if (activeModule === 'pm') { e.preventDefault(); switchView('gantt'); }
-        break;
-      case 'Escape':
-        closeModal();
-        closeUserDropdown();
-        closeShortcutsHelp();
-        break;
-      case '?':
-        if (!e.shiftKey) break;
-        e.preventDefault();
-        toggleShortcutsHelp();
-        break;
-    }
-  });
-}
-
-function toggleShortcutsHelp() {
-  const overlay = document.getElementById('shortcuts-overlay');
-  if (overlay) overlay.classList.toggle('open');
-  if (typeof lucide !== 'undefined') lucide.createIcons();
-}
-
-function closeShortcutsHelp() {
-  const overlay = document.getElementById('shortcuts-overlay');
-  if (overlay) overlay.classList.remove('open');
-}
-
-// ─── Chart tooltip system ──────────────────────────────────────
-function showChartTooltip(el, text) {
-  const tip = document.getElementById('chart-tooltip');
-  if (!tip) return;
-  tip.textContent = text;
-  tip.classList.add('show');
-}
-
-function hideChartTooltip() {
-  const tip = document.getElementById('chart-tooltip');
-  if (tip) tip.classList.remove('show');
-}
-
-function initChartTooltips() {
-  document.addEventListener('mousemove', function(e) {
-    const tip = document.getElementById('chart-tooltip');
-    if (!tip || !tip.classList.contains('show')) return;
-    tip.style.left = (e.clientX + 14) + 'px';
-    tip.style.top = (e.clientY - 30) + 'px';
-  });
-}
-
-function setupChartTipListeners() {
-  // Bar chart rows and SVG data points with data-tip attribute
-  document.querySelectorAll('[data-tip]').forEach(function(el) {
-    if (el._tipBound) return;
-    el._tipBound = true;
-    el.addEventListener('mouseenter', function() {
-      showChartTooltip(el, el.getAttribute('data-tip'));
-    });
-    el.addEventListener('mouseleave', hideChartTooltip);
-  });
-}
-
-function showConfirm(title, message, onConfirm, opts) {
-  opts = opts || {};
-  const danger = opts.danger || false;
-  const confirmLabel = opts.confirmLabel || '确认';
-  const html = modalHeader(title)
-    + '<div class="modal-body"><p style="font-size:13.5px;color:var(--text2);line-height:1.6;margin:0">' + message + '</p></div>'
-    + '<div class="modal-footer"><div></div><div style="display:flex;gap:8px">'
-    + '<button class="btn btn-ghost" onclick="closeModal()">取消</button>'
-    + '<button class="btn ' + (danger ? 'btn-danger' : 'btn-primary') + '" id="confirm-ok-btn">' + confirmLabel + '</button>'
-    + '</div></div>';
-  openModal(html);
-  document.getElementById('confirm-ok-btn').addEventListener('click', function() {
-    closeModal();
-    if (onConfirm) onConfirm();
-  });
 }
 
 // ─── Today ────────────────────────────────────────────────────────────────────

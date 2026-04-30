@@ -11,10 +11,10 @@ function taskCardHTML(t) {
   const tagPills = (t.tags||[]).map(tid=>tagHTML(tid)).join('');
   const subProg = subtaskProgress(t);
   const milestoneBadge = t.milestone ? '<span class="pill pill-amber" style="font-size:10px">◆ 里程碑</span>' : '';
-  const blockedBadge = blocked ? '<span class="dep-blocked-badge"><i data-lucide=\"alert-triangle\" style=\"width:10px;height:10px;margin-right:1px\"></i>等待前置</span>' : '';
+  const blockedBadge = blocked ? '<span class="dep-blocked-badge">⚠ 等待前置</span>' : '';
 
-  return `<div class="task-card stagger-in${t.done?' done':''}${blocked?' dep-blocked':''}" onclick="openEditTask('${t.id}')">
-    <div class="check-wrap" onclick="event.stopPropagation();if(!${t.done})celebrateCompletion(event.clientX,event.clientY);toggleDone('${t.id}')">
+  return `<div class="task-card${t.done?' done':''}${blocked?' dep-blocked':''}" onclick="openEditTask('${t.id}')">
+    <div class="check-wrap" onclick="event.stopPropagation();toggleDone('${t.id}')">
       <div class="check-btn${t.done?' checked':''}"></div>
     </div>
     <div class="task-body">
@@ -32,7 +32,7 @@ function taskCardHTML(t) {
     <div class="task-end" onclick="event.stopPropagation()">
       ${assigneeHTML}
       ${t.logs&&t.logs.length?`<span class="log-count">${t.logs.length}条</span>`:''}
-      <button class="icon-btn" onclick="openLog('${t.id}')" title="记录跟进"><i data-lucide="message-square-plus" style="width:13px;height:13px"></i></button>
+      <button class="icon-btn" onclick="openLog('${t.id}')" title="记录跟进">+</button>
     </div>
   </div>`;
 }
@@ -93,7 +93,7 @@ function buildSubtaskListHTML(subtasks, taskId) {
   return subtasks.map(s=>`<div class="subtask-item">
     <div class="subtask-check${s.done?' done':''}" onclick="toggleSubtask('${taskId}','${s.id}')"></div>
     <div class="subtask-text${s.done?' done':''}">${s.title}</div>
-    <button class="subtask-del" onclick="deleteSubtask('${taskId}','${s.id}')"><i data-lucide="x"></i></button>
+    <button class="subtask-del" onclick="deleteSubtask('${taskId}','${s.id}')">×</button>
   </div>`).join('');
 }
 
@@ -119,17 +119,14 @@ function deleteSubtask(taskId, subtaskId) {
 }
 
 // ─── Modal helpers ────────────────────────────────────────────────────────────
-function openModal(html, cls) {
-  const box = document.getElementById('modal-box');
-  box.className = 'modal' + (cls ? ' ' + cls : '');
-  box.innerHTML = html;
+function openModal(html) {
+  document.getElementById('modal-box').innerHTML=html;
   document.getElementById('modal-overlay').classList.add('open');
-  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
 function onOverlayClick(e) { if(e.target===document.getElementById('modal-overlay')) closeModal(); }
 function modalHeader(title) {
-  return `<div class="modal-header"><span class="modal-title">${title}</span><button class="modal-close" onclick="closeModal()"><i data-lucide="x"></i></button></div>`;
+  return `<div class="modal-header"><span class="modal-title">${title}</span><button class="modal-close" onclick="closeModal()">×</button></div>`;
 }
 
 // ─── Add Task ─────────────────────────────────────────────────────────────────
@@ -425,18 +422,17 @@ async function submitEditTask(id, btn) {
 }
 
 async function confirmDeleteTask(id) {
-  showConfirm('删除任务', '确认删除这个任务？该操作无法撤销', async function() {
-    const t = state.tasks.find(x => x.id === id);
-    const title = t ? t.title : id;
-    const success = await deleteFromCloud('tasks', id);
-    if (success) {
-      state.tasks = state.tasks.filter(x => x.id !== id);
-      closeModal();
-      render();
-      toast('任务已永久删除', 'success');
-      logAction('删除任务', `删除任务「${title}」`);
-    }
-  }, {danger: true, confirmLabel: '删除'});
+  if (!confirm('确认删除这个任务？该操作无法撤销')) return;
+  const t = state.tasks.find(x => x.id === id);
+  const title = t ? t.title : id;
+  const success = await deleteFromCloud('tasks', id);
+  if (success) {
+    state.tasks = state.tasks.filter(x => x.id !== id);
+    closeModal();
+    render();
+    toast('任务已永久删除');
+    logAction('删除任务', `删除任务「${title}」`);
+  }
 }
 // ─── Log ──────────────────────────────────────────────────────────────────────
 function openLog(id) {

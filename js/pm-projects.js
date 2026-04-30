@@ -211,20 +211,16 @@ async function submitEditProject(id) {
 }
 
 async function confirmDeleteProject(id) {
-  if (!confirm('删除项目后，所属任务将变为未分类。确认删除？')) return;
-
-  // 1. 从云端删除项目
-  const success = await deleteFromCloud('projects', id);
-  
-  if (success) {
-    // 2. 将本地该项目下的任务归类为“未分类” (可选：也可以在云端用任务关联更新)
-    state.tasks.forEach(t => { if (t.project_id === id) t.project_id = ''; });
-    state.projects = state.projects.filter(p => p.id !== id);
-    
-    const pName = state.projects.find(x => x.id === id)?.name || id;
-    closeModal();
-    switchView('today');
-    toast('项目已删除');
-    logAction('删除项目', `删除项目「${pName}」`);
-  }
+  showConfirm('删除项目', '删除项目后，所属任务将变为未分类。确认删除？', async function() {
+    const success = await deleteFromCloud('projects', id);
+    if (success) {
+      state.tasks.forEach(t => { if (t.project_id === id) t.project_id = ''; });
+      state.projects = state.projects.filter(p => p.id !== id);
+      const pName = state.projects.find(x => x.id === id)?.name || id;
+      closeModal();
+      switchView('today');
+      toast('项目已删除', 'success');
+      logAction('删除项目', `删除项目「${pName}」`);
+    }
+  }, {danger: true, confirmLabel: '删除'});
 }
