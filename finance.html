@@ -49,18 +49,11 @@
       <button class="sb-item" id="tab-dashboard" onclick="switchTab('dashboard')">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="9" width="4" height="6" rx="1"/><rect x="6" y="5" width="4" height="10" rx="1"/><rect x="11" y="1" width="4" height="14" rx="1"/></svg>资金看板
       </button>
-      <div class="sb-section" style="padding-top:8px">基础库</div>
-      <button class="sb-item" id="tab-contracts" onclick="switchTab('contracts')">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><line x1="5" y1="5.5" x2="11" y2="5.5"/><line x1="5" y1="8" x2="11" y2="8"/></svg>合同库
-      </button>
-      <button class="sb-item" id="tab-customers" onclick="switchTab('customers')">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 14c0-3 2.7-5 6-5s6 2 6 5"/></svg>客户库
-      </button>
-      <button class="sb-item" id="tab-suppliers" onclick="switchTab('suppliers')">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="6" width="10" height="8" rx="1"/><path d="M4 6V4a4 4 0 0 1 8 0v2"/></svg>供应商库
-      </button>
     </nav>
     <div class="sb-bottom">
+      <button class="sb-util" onclick="openBaseLibModal()">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><line x1="5" y1="5.5" x2="11" y2="5.5"/><line x1="5" y1="8" x2="11" y2="8"/></svg>基础库配置
+      </button>
       <button class="sb-util" onclick="openSettingsModal()">
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>系统配置
       </button>

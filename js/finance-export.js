@@ -120,7 +120,8 @@ function downloadContractTemplate(dir){
   const wb = XLSX.utils.book_new();
   if(dir==='up'){
     const headers=[['合同名称*','主合同编号','客户名称','签约日期(YYYY-MM-DD)','合同金额(元)','税率(如0.09)',
-      '目标利润率(如0.15)','已计量营收(元)','考核周期(年份如2026)','状态(active/settled)','备注']];
+      '目标利润率(如0.15)','已计量营收(元)','考核周期(年份如2026)',
+      '营收考核周期(年份如2026)','状态(active/settled)','备注']];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(headers), '对上合同导入模板');
   } else {
     const headers=[['合同名称*','供应商名称','合同金额(元)','关联对上合同名称(可空)','状态(active/settled)','备注']];
@@ -138,14 +139,14 @@ function exportContractsExcel(dir){
     const rows = state.contractsUp.filter(r=>!r.assessment_year||r.assessment_year===year);
     const head = ['合同名称','主合同编号','客户名称','合同金额(元)','不含税金额(元)','税率','目标利润率',
       '已计量营收(元)','年累计完成营收(元)','开累完成营收(元)','营收完成进度%','年完成毛利(元)',
-      '考核周期','状态','签约日期','备注'];
+      '考核周期(签约)','考核周期(营收)','状态','签约日期','备注'];
     const data = [head, ...rows.map(r=>{
       const rv = computeContractRevenue(r, year);
       return [r.name, r.main_contract_no||'', r.customer_name||'', r.amount||0,
         rv.exclTax?rv.exclTax.toFixed(2):'', r.tax_rate||'', r.target_profit_rate||'',
         r.measured_revenue||0, rv.yearCum.toFixed(2), rv.cumRev.toFixed(2),
         rv.exclTax?(rv.progress*100).toFixed(1)+'%':'',
-        rv.yearProfit.toFixed(2), r.assessment_year||'', r.status||'active',
+        rv.yearProfit.toFixed(2), r.assessment_year||'', r.revenue_assessment_year||'', r.status||'active',
         r.sign_date||'', r.remark||''];
     })];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), '对上合同');
@@ -212,7 +213,7 @@ async function importContractsExcel(event, dir){
         if(!name){ skipped++; continue; }
 
         if(dir==='up'){
-          const statusRaw = String(row[9]||'').trim().toLowerCase();
+          const statusRaw = String(row[10]||'').trim().toLowerCase();
           const record = {
             id: 'cu'+uid(),
             name,
@@ -224,8 +225,9 @@ async function importContractsExcel(event, dir){
             target_profit_rate:  row[6]!==''?parseFloat(row[6])||null:null,
             measured_revenue:    parseFloat(row[7])||0,
             assessment_year:     row[8]?String(Math.round(+row[8])||row[8]).trim():'',
+            revenue_assessment_year: row[9]?String(Math.round(+row[9])||row[9]).trim():'',
             status:              (statusRaw==='settled'||statusRaw==='已结算')?'settled':'active',
-            remark:              String(row[10]||'').trim(),
+            remark:              String(row[11]||'').trim(),
             created_at: new Date().toISOString()
           };
           ops.push(sb.from('contracts_upstream').insert(record));

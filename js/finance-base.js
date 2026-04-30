@@ -1,6 +1,29 @@
-/* ════════════════════════════════════════════════
+﻿/* ════════════════════════════════════════════════
  * finance-base.js  —  资金看板 / 合同库 / 客户库 / 供应商库 / deleteRow / logAction / modal utils
  * ════════════════════════════════════════════════ */
+
+//  基础库配置弹框
+function openBaseLibModal(){
+  openModal(`
+  <div class="modal-header">
+    <div class="modal-title">基础库配置</div>
+    <button class="modal-close" onclick="closeModal()">×</button>
+  </div>
+  <div class="modal-body" style="display:flex;flex-direction:column;gap:10px;padding:24px">
+    <button class="btn btn-ghost" style="padding:14px 20px;font-size:14px;justify-content:flex-start;display:flex;align-items:center;gap:10px;width:100%" onclick="closeModal();switchTab('contracts')">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><line x1="5" y1="5.5" x2="11" y2="5.5"/><line x1="5" y1="8" x2="11" y2="8"/></svg>合同库
+    </button>
+    <button class="btn btn-ghost" style="padding:14px 20px;font-size:14px;justify-content:flex-start;display:flex;align-items:center;gap:10px;width:100%" onclick="closeModal();switchTab('customers')">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 14c0-3 2.7-5 6-5s6 2 6 5"/></svg>客户库
+    </button>
+    <button class="btn btn-ghost" style="padding:14px 20px;font-size:14px;justify-content:flex-start;display:flex;align-items:center;gap:10px;width:100%" onclick="closeModal();switchTab('suppliers')">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="6" width="10" height="8" rx="1"/><path d="M4 6V4a4 4 0 0 1 8 0v2"/></svg>供应商库
+    </button>
+  </div>
+  <div class="modal-footer"><div></div>
+    <button class="btn btn-ghost" onclick="closeModal()">关闭</button>
+  </div>`);
+}
 
 function renderDashboard(){
   const c=computeTotals();
@@ -72,6 +95,7 @@ window._contractTab='up';
 // ── 合同库 ──────────────────────────────────────────────────────────────────
 window._contractTab  = 'up';
 window._contractYear = new Date().getFullYear().toString();
+window._revenueYear  = new Date().getFullYear().toString();
 
 // 计算对上合同的所有营收指标
 // 年累计 = actual_receipts 中 upstream_contract_id 匹配的当年收款汇总（自动，只读）
@@ -97,17 +121,28 @@ function renderContracts(){
   const tab   = window._contractTab || 'up';
   const isUp  = tab === 'up';
   const year  = window._contractYear || new Date().getFullYear().toString();
+  const revYear = window._revenueYear || new Date().getFullYear().toString();
 
-  // 考核周期年份下拉（取已存在年份 + 前后各2年）
+  // 签约维度年份下拉
   const existYears = [...new Set(state.contractsUp.map(r=>r.assessment_year||'').filter(Boolean))];
   const curY = new Date().getFullYear();
   for(let y=curY-2;y<=curY+2;y++) if(!existYears.includes(String(y))) existYears.push(String(y));
   existYears.sort();
   const yearOpts = existYears.map(y=>`<option value="${y}" ${y===year?'selected':''}>${y}年</option>`).join('');
 
-  // 对上合同：按考核周期筛选
+  // 营收确认维度年份下拉
+  const existRevYears = [...new Set(state.contractsUp.map(r=>r.revenue_assessment_year||'').filter(Boolean))];
+  for(let y=curY-2;y<=curY+2;y++) if(!existRevYears.includes(String(y))) existRevYears.push(String(y));
+  existRevYears.sort();
+  const revYearOpts = existRevYears.map(y=>`<option value="${y}" ${y===revYear?'selected':''}>${y}年</option>`).join('');
+
+  // 对上合同：按两个考核周期筛选
   const rawRows = isUp
-    ? state.contractsUp.filter(r => !r.assessment_year || r.assessment_year === year)
+    ? state.contractsUp.filter(r => {
+        const matchSign = !r.assessment_year || r.assessment_year === year;
+        const matchRev  = !r.revenue_assessment_year || r.revenue_assessment_year === revYear;
+        return matchSign && matchRev;
+      })
     : state.contractsDown;
 
   const tbody = rawRows.length ? rawRows.map((r,i)=>{
@@ -150,8 +185,12 @@ function renderContracts(){
     <button class="btn btn-sm ${isUp?'btn-primary':'btn-ghost'}" onclick="window._contractTab='up';renderContracts()">对上合同（${state.contractsUp.length}）</button>
     <button class="btn btn-sm ${!isUp?'btn-primary':'btn-ghost'}" onclick="window._contractTab='down';renderContracts()">对下合同（${state.contractsDown.length}）</button>
     ${isUp?`<div style="margin-left:12px;display:flex;align-items:center;gap:6px">
-      <span style="font-size:12px;color:var(--text3)">考核周期</span>
-      <select class="form-select" style="width:90px;height:28px;font-size:12px" onchange="window._contractYear=this.value;renderContracts()">${yearOpts}</select>
+      <span style="font-size:12px;color:var(--text3)">签约周期</span>
+      <select class="form-select" style="width:130px;height:42px;font-size:14px;padding-right:28px" onchange="window._contractYear=this.value;renderContracts()">${yearOpts}</select>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:12px;color:var(--text3)">营收周期</span>
+      <select class="form-select" style="width:130px;height:42px;font-size:14px;padding-right:28px" onchange="window._revenueYear=this.value;renderContracts()">${revYearOpts}</select>
     </div>`:''}
   </div>
   <div class="table-wrap">
@@ -167,22 +206,22 @@ function renderContracts(){
         <span style="font-size:11px;color:var(--text3)">点击行编辑</span>
       </div>
     </div>
-    <div class="table-scroll"><table>
+    <div class="table-scroll"><table style="width:auto;min-width:100%">
       <thead><tr>
         <th style="width:28px">#</th>
         <th style="min-width:150px">合同名称</th>
         ${isUp?'<th style="min-width:110px">主合同编号</th>':''}
         <th style="min-width:100px">${isUp?'客户名称':'供应商名称'}</th>
-        <th class="num">合同金额</th>
+        <th class="num" style="min-width:90px">合同金额</th>
         ${isUp?`
-        <th class="num">不含税金额</th>
-        <th class="num">目标利润率</th>
-        <th class="num">反算合同额</th>
-        <th class="num">已计量营收</th>
-        <th class="num">年累计完成营收</th>
-        <th class="num">开累完成营收</th>
-        <th class="num">营收完成进度</th>
-        <th class="num">年完成毛利</th>
+        <th class="num" style="min-width:90px">不含税金额</th>
+        <th class="num" style="min-width:90px">目标利润率</th>
+        <th class="num" style="min-width:90px">反算合同额</th>
+        <th class="num" style="min-width:90px">已计量营收</th>
+        <th class="num" style="min-width:90px">年累计完成营收</th>
+        <th class="num" style="min-width:90px">开累完成营收</th>
+        <th class="num" style="min-width:90px">营收完成进度</th>
+        <th class="num" style="min-width:90px">年完成毛利</th>
         <th style="width:70px">营收</th>
         `:`
         <th style="min-width:120px">关联对上合同</th>
@@ -208,6 +247,7 @@ function openEditContractModal(dir,id){
   // 年份下拉（考核周期）
   const curY = new Date().getFullYear();
   const yearSel = [curY-1,curY,curY+1].map(y=>`<option value="${y}" ${(r?r.assessment_year:String(curY))===String(y)?'selected':''}>${y}年</option>`).join('');
+  const revYearSel = [curY-1,curY,curY+1].map(y=>`<option value="${y}" ${(r?r.revenue_assessment_year:String(curY))===String(y)?'selected':''}>${y}年</option>`).join('');
 
   openModal(`
   <div class="modal-header">
@@ -262,12 +302,22 @@ function openEditContractModal(dir,id){
     <div class="form-divider">营收基础</div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">考核周期（自然年）</label>
+        <label class="form-label">签约考核周期</label>
         <select class="form-select" id="ct-year">${yearSel}</select>
       </div>
       <div class="form-group">
         <label class="form-label">已计量营收（历史累计）</label>
         <input class="form-input" id="ct-measured" type="number" step="0.01" value="${r?r.measured_revenue||0:0}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">营收考核周期</label>
+        <select class="form-select" id="ct-rev-year">${revYearSel}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">&nbsp;</label>
+        <div style="font-size:11px;color:var(--text3);padding:9px 0">营收确认维度</div>
       </div>
     </div>
     `:`
@@ -355,6 +405,7 @@ async function saveContract(dir,id,btn){
     data.customer_name = cuId?(state.customers.find(c=>c.id===cuId)||{}).name||q('ct-cu-txt'):q('ct-cu-txt');
     data.sign_date       = q('ct-date')||null;
     data.assessment_year = document.getElementById('ct-year')?.value||null;
+    data.revenue_assessment_year = document.getElementById('ct-rev-year')?.value||null;
     data.tax_rate          = +q('ct-taxrate')||null;
     data.target_profit_rate= +q('ct-profrate')||null;
     data.measured_revenue  = +q('ct-measured')||0;
@@ -388,67 +439,130 @@ function openRevenueModal(contractId){
   const rv   = computeContractRevenue(r, year);
 
   const months = Array.from({length:12},(_,i)=>`${year}-${String(i+1).padStart(2,'0')}`);
+  const revMap = {};
+  state.monthlyRevenues
+    .filter(m=>m.contract_id===contractId&&(m.year_month||'').startsWith(year+'-'))
+    .forEach(m=>{ revMap[m.year_month] = m; });
+
   const monthRows = months.map(ym=>{
-    const recs = state.actualReceipts.filter(m=>m.upstream_contract_id===contractId&&m.year_month===ym);
-    const amt  = recs.reduce((s,m)=>s+(+m.amount||0),0);
+    const d = revMap[ym] || {};
     return `<tr>
-      <td style="padding:7px 12px;color:var(--text2);font-size:12px;width:90px">${ym}</td>
-      <td style="padding:7px 12px;text-align:right;font-family:var(--mono);font-size:12px;color:${amt?'var(--green)':'var(--text3)'}">
-        ${amt ? fmt(amt)+' 元' : '—'}
-      </td>
-      <td style="padding:7px 12px;font-size:11px;color:var(--text3)">${recs.length ? recs.length+'条' : ''}</td>
-      <td style="padding:7px 12px;font-size:11px;color:var(--text3)">
-        ${recs.map(rec=>`${rec.receipt_date||ym} · ${fmt(rec.amount)}元`).join('<br>')||'—'}
-      </td>
+      <td style="padding:6px 10px;color:var(--text2);font-size:12px;width:85px;white-space:nowrap">${ym}</td>
+      <td style="padding:4px 8px"><input class="form-input rev-amt" data-ym="${ym}" type="number" step="0.01" value="${d.amount||''}" placeholder="金额" style="width:100%;padding:5px 8px;font-size:12px;text-align:right;font-family:var(--mono)"></td>
+      <td style="padding:4px 8px"><input class="form-input rev-cnt" data-ym="${ym}" type="number" step="1" value="${d.count||''}" placeholder="笔数" style="width:100%;padding:5px 8px;font-size:12px;text-align:center"></td>
+      <td style="padding:4px 8px"><input class="form-input rev-detail" data-ym="${ym}" value="${d.detail||''}" placeholder="收款明细" style="width:100%;padding:5px 8px;font-size:12px"></td>
     </tr>`;
   }).join('');
 
-  const totalActual = state.actualReceipts
-    .filter(m=>m.upstream_contract_id===contractId&&(m.year_month||'').startsWith(year+'-'))
-    .reduce((s,m)=>s+(+m.amount||0),0);
-  const totalCount = state.actualReceipts
-    .filter(m=>m.upstream_contract_id===contractId&&(m.year_month||'').startsWith(year+'-')).length;
+  const totalManual = Object.values(revMap).reduce((s,m)=>s+(+m.amount||0),0);
+  const totalMCount = Object.values(revMap).reduce((s,m)=>s+(+m.count||0),0);
 
   openModal(`
   <div class="modal-header">
-    <div class="modal-title">📊 收款情况 — ${r.name}</div>
+    <div class="modal-title">📊 营收管理 — ${r.name}</div>
     <button class="modal-close" onclick="closeModal()">×</button>
   </div>
   <div class="modal-body">
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;padding:12px;background:var(--surface2);border-radius:6px;font-size:12px">
       <div><div style="color:var(--text3)">不含税金额</div><div style="font-weight:600">${fmt(rv.exclTax)} 元</div></div>
       <div><div style="color:var(--text3)">已计量营收</div><div style="font-weight:600">${fmt(rv.measured)} 元</div></div>
-      <div><div style="color:var(--text3)">${year}年实际收款</div><div style="font-weight:600;color:var(--blue)">${fmt(totalActual)} 元</div></div>
+      <div><div style="color:var(--text3)">${year}年填报营收</div><div style="font-weight:600;color:var(--blue)" id="rev-total-display">${fmt(totalManual)} 元</div></div>
       <div><div style="color:var(--text3)">开累完成营收</div><div style="font-weight:600">${fmt(rv.cumRev)} 元</div></div>
       <div><div style="color:var(--text3)">剩余营收</div><div style="font-weight:600;color:${rv.remain<0?'var(--red)':'var(--text)'}">${fmt(rv.remain)} 元</div></div>
       <div><div style="color:var(--text3)">营收完成进度</div><div style="font-weight:600;color:${rv.progress>=1?'var(--red)':rv.progress>=0.8?'var(--amber)':'var(--green)'}">${rv.exclTax?(rv.progress*100).toFixed(1)+'%':'—'}</div></div>
       <div><div style="color:var(--text3)">年完成毛利</div><div style="font-weight:600;color:var(--green)">${fmt(rv.yearProfit)} 元</div></div>
     </div>
-    <div style="font-size:11px;color:var(--teal);margin-bottom:12px;padding:7px 10px;background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:6px">
-      ℹ 数据自动来源于表五「实际收款明细」中关联本合同的记录，如需录入请前往表五
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;padding:7px 10px;background:var(--surface2);border-radius:6px">
+      📝 以下数据为手工填报，修改后请点击「保存营收」按钮
     </div>
-    <table style="width:100%;border-collapse:collapse">
+    <table style="width:100%;border-collapse:collapse" id="rev-table">
       <thead><tr>
-        <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--text2);background:var(--surface2);border-bottom:1px solid var(--border)">月份</th>
-        <th style="padding:7px 12px;text-align:right;font-size:11px;color:var(--text2);background:var(--surface2);border-bottom:1px solid var(--border)">收款金额</th>
-        <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--text2);background:var(--surface2);border-bottom:1px solid var(--border)">笔数</th>
-        <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--text2);background:var(--surface2);border-bottom:1px solid var(--border)">收款明细</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--text2);background:var(--surface2);border-bottom:1px solid var(--border)">月份</th>
+        <th style="padding:6px 10px;text-align:right;font-size:11px;color:var(--text2);background:var(--surface2);border-bottom:1px solid var(--border)">收款金额</th>
+        <th style="padding:6px 10px;text-align:center;font-size:11px;color:var(--text2);background:var(--surface2);border-bottom:1px solid var(--border)">笔数</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--text2);background:var(--surface2);border-bottom:1px solid var(--border)">收款明细</th>
       </tr></thead>
       <tbody>${monthRows}</tbody>
-      <tfoot><tr style="background:var(--surface2)">
-        <td style="padding:8px 12px;font-weight:600;border-top:2px solid var(--border)">合计</td>
-        <td style="padding:8px 12px;text-align:right;font-weight:600;font-family:var(--mono);border-top:2px solid var(--border);color:var(--green)">${fmt(totalActual)} 元</td>
-        <td style="padding:8px 12px;border-top:2px solid var(--border);color:var(--text3);font-size:11px">${totalCount} 条</td>
-        <td style="border-top:2px solid var(--border)"></td>
-      </tr></tfoot>
     </table>
   </div>
   <div class="modal-footer"><div></div>
     <div class="modal-footer-right">
-      <button class="btn btn-ghost btn-sm" onclick="closeModal();switchTab('t5')">前往表五录入</button>
-      <button class="btn btn-ghost" onclick="closeModal()">关闭</button>
+      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveMonthlyRevenue('${contractId}','${year}',this)">💾 保存营收</button>
     </div>
   </div>`,'modal-lg');
+
+  // 监听金额变化实时更新合计
+  setTimeout(()=>{
+    document.getElementById('rev-table').addEventListener('input',()=>{
+      let total=0;
+      document.querySelectorAll('.rev-amt').forEach(el=>{ total += +el.value||0; });
+      const td = document.getElementById('rev-total-display');
+      if(td) td.textContent = fmt(total) + ' 元';
+    });
+  }, 50);
+}
+
+async function saveMonthlyRevenue(contractId, year, btn){
+  setLoading(btn, true);
+  const amts = document.querySelectorAll('.rev-amt');
+  const cnts = document.querySelectorAll('.rev-cnt');
+  const dtls = document.querySelectorAll('.rev-detail');
+
+  const ops = [];
+  const newRecords = [];
+  for(let i=0;i<amts.length;i++){
+    const ym   = amts[i].dataset.ym;
+    const amt  = +amts[i].value||0;
+    const cnt  = +cnts[i].value||0;
+    const dtl  = dtls[i].value.trim();
+    if(!amt && !cnt && !dtl) continue; // skip empty rows
+
+    const existing = state.monthlyRevenues.find(m=>m.contract_id===contractId&&m.year_month===ym);
+    const record = {
+      contract_id: contractId,
+      year_month: ym,
+      amount: amt,
+      count: cnt,
+      detail: dtl,
+      updated_at: new Date().toISOString()
+    };
+    if(existing){
+      record.id = existing.id;
+      ops.push(sb.from('contract_monthly_revenue').update(record).eq('id', existing.id));
+    } else {
+      record.id = 'mr'+uid();
+      record.created_at = new Date().toISOString();
+      ops.push(sb.from('contract_monthly_revenue').insert(record));
+    }
+    newRecords.push({existing, record});
+  }
+
+  if(!ops.length){
+    setLoading(btn, false);
+    toast('无数据需要保存');
+    return;
+  }
+
+  const results = await Promise.all(ops);
+  let ok=0, fail=0;
+  results.forEach((res, idx)=>{
+    if(res.error){ fail++; return; }
+    const {existing, record} = newRecords[idx];
+    if(existing){
+      const i = state.monthlyRevenues.findIndex(m=>m.id===existing.id);
+      if(i>=0) state.monthlyRevenues[i] = {...state.monthlyRevenues[i], ...record};
+    } else {
+      state.monthlyRevenues.push(record);
+    }
+    ok++;
+  });
+
+  setLoading(btn, false);
+  if(fail>0) toast(`⚠ 保存完成：${ok} 条成功，${fail} 条失败`);
+  else toast(`✓ 已保存 ${ok} 条月度营收`);
+  closeModal();
+  render();
 }
 
 
@@ -493,7 +607,7 @@ function renderCustomers(){
         <span style="font-size:11px;color:var(--text3)">点击「执行中」查看合同明细</span>
       </div>
     </div>
-    <div class="table-scroll"><table>
+    <div class="table-scroll"><table style="width:auto;min-width:100%">
       <thead><tr>
         <th style="width:32px">#</th>
         <th style="min-width:140px">客户名称</th>
@@ -535,9 +649,9 @@ function openCustomerContractsModal(customerId, customerName){
       <thead><tr>
         <th style="width:28px">#</th>
         <th>合同名称</th>
-        <th class="num">合同金额</th>
-        <th class="num">不含税金额</th>
-        <th class="num">营收完成进度</th>
+        <th class="num" style="min-width:90px">合同金额</th>
+        <th class="num" style="min-width:90px">不含税金额</th>
+        <th class="num" style="min-width:90px">营收完成进度</th>
         <th>签约日期</th>
       </tr></thead>
       <tbody>${rows||`<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">暂无数据</td></tr>`}</tbody>
@@ -632,7 +746,7 @@ function renderSuppliers(){
   document.getElementById('main-content').innerHTML=`
   <div class="table-wrap">
     <div class="table-toolbar"><div class="table-title">供应商库</div><div style="margin-left:auto;font-size:11px;color:var(--text3)">点击行编辑</div></div>
-    <div class="table-scroll"><table>
+    <div class="table-scroll"><table style="width:auto;min-width:100%">
       <thead><tr>
         <th style="width:32px">#</th><th style="min-width:160px">供应商名称</th>
         <th style="min-width:100px">简称</th><th style="min-width:100px">联系人</th>
@@ -721,3 +835,4 @@ async function updateContractStatus(dir, id, sel){
   toast(`✓ 状态已更新为「${status==='active'?'执行中':'已结算'}」`);
   logAction('更新合同状态', `合同 ${id} → ${status}`);
 }
+
