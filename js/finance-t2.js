@@ -3,7 +3,7 @@
  * ════════════════════════════════════════════════ */
 
 function renderReceipts(){
-  const rows=state.receipts;
+  const rows=finState.receipts;
   const tot={contract:0,output:0,prev:0,plan:0,cum:0};
   rows.forEach(r=>{
     tot.contract+=+r.contract_amount||0; tot.output+=+r.confirmed_output||0;
@@ -29,7 +29,7 @@ function renderReceipts(){
       </td>
       <td style="font-size:12px;color:var(--text3)">${r.remark||'—'}</td>
     </tr>`).join('')
-    :`<tr><td colspan="11"><div class="empty"><div class="empty-icon">📥</div>暂无数据，点击右上角新增</div></td></tr>`;
+    :`<tr><td colspan="11"><div class="empty"><i data-lucide="download" class="empty-icon"></i>暂无数据，点击右上角新增</div></td></tr>`;
 
   document.getElementById('main-content').innerHTML=`
   <div class="table-wrap">
@@ -69,20 +69,20 @@ function renderReceipts(){
 
 function openAddReceiptModal(){openEditReceiptModal(null);}
 function openEditReceiptModal(id){
-  const r=id?state.receipts.find(x=>x.id===id):null;
+  const r=id?finState.receipts.find(x=>x.id===id):null;
   const isEdit=!!r;
   const canE=!isEdit||canEdit(r);
-  const cuOpts=state.customers.map(c=>
+  const cuOpts=finState.customers.map(c=>
     `<option value="${c.id}" ${r&&r.customer_id===c.id?'selected':''}>${c.name}</option>`
   ).join('');
-  const upOpts=state.contractsUp.map(c=>
+  const upOpts=finState.contractsUp.map(c=>
     `<option value="${c.id}" ${r&&r.upstream_contract_id===c.id?'selected':''}>${c.name}（${c.customer_name||''}）</option>`
   ).join('');
 
   openModal(`
   <div class="modal-header">
     <div class="modal-title">${isEdit?'编辑收款记录':'新增收款记录'}</div>
-    <button class="modal-close" onclick="closeModal()">×</button>
+    <button class="modal-close" onclick="closeModal()"><i data-lucide="x"></i></button>
   </div>
   <div class="modal-body">
     <div class="form-divider">关联合同 / 客户</div>
@@ -134,7 +134,7 @@ function openEditReceiptModal(id){
 function onReceiptContractChange(){
   const sel=document.getElementById('r-cup');
   if(!sel.value)return;
-  const c=state.contractsUp.find(x=>x.id===sel.value);
+  const c=finState.contractsUp.find(x=>x.id===sel.value);
   if(!c)return;
   document.getElementById('r-cname').value=c.name;
   document.getElementById('r-total').value=c.amount||0;
@@ -146,7 +146,7 @@ async function saveReceipt(id,btn){
   if(!name){document.getElementById('r-cname').style.borderColor='var(--red)';return;}
   setLoading(btn,true);
   const custId=document.getElementById('r-cust').value;
-  const custName=custId?(state.customers.find(c=>c.id===custId)||{}).name||q('r-cust-txt'):q('r-cust-txt');
+  const custName=custId?(finState.customers.find(c=>c.id===custId)||{}).name||q('r-cust-txt'):q('r-cust-txt');
   const data={
     year_month:currentMonth, contract_name:name,
     customer_id:custId||null, customer_name:custName,
@@ -158,13 +158,13 @@ async function saveReceipt(id,btn){
   };
   if(id){
     await sb.from('receipt_records').update({...data,updated_at:new Date().toISOString()}).eq('id',id);
-    const i=state.receipts.findIndex(x=>x.id===id);
-    if(i>=0)state.receipts[i]={...state.receipts[i],...data};
+    const i=finState.receipts.findIndex(x=>x.id===id);
+    if(i>=0)finState.receipts[i]={...finState.receipts[i],...data};
   } else {
     const row={id:'rr'+uid(),...data,created_at:new Date().toISOString()};
     await sb.from('receipt_records').insert(row);
-    state.receipts.push(row);
+    finState.receipts.push(row);
   }
-  setLoading(btn,false);closeModal();render();toast(`✓ ${id?'已更新':'已添加'}`);
-  logAction(id?'更新收款记录':'新增收款记录', `${id?'更新':'新增'}收款「${name}」${data.plan_amount?'，本月计划 '+fmt(data.plan_amount)+' 元':''}`);
+  setLoading(btn,false);closeModal();finRender();toast(`✓ ${id?'已更新':'已添加'}`);
+  finLogAction(id?'更新收款记录':'新增收款记录', `${id?'更新':'新增'}收款「${name}」${data.plan_amount?'，本月计划 '+fmt(data.plan_amount)+' 元':''}`);
 }

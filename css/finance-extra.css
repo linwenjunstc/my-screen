@@ -1,0 +1,138 @@
+/* ════════════════════════════════════════════════
+ * finance-extra.css — 资金计划模块独有样式
+ * 加载于 pm.css 之后，仅包含 PM 中没有的选择器
+ * ════════════════════════════════════════════════ */
+
+/* ── Finance sidebar (class names differ from PM's .nav-*) ────── */
+.sidebar.fin-sidebar { width: 204px; }
+.sb-logo { padding: 16px 16px 12px; border-bottom: 1px solid var(--sb-border); }
+.sb-logo-text { font-size: 13px; font-weight: 600; color: #f0ede6; display: flex; align-items: center; gap: 8px; }
+.sb-logo-text::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 10px var(--teal),0 0 20px rgba(14,114,104,.3); flex-shrink: 0; }
+.sb-sub { font-size: 10px; color: var(--sb-text2); margin-top: 3px; font-family: var(--mono); }
+.sb-section { font-size: 9.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--sb-text2); padding: 12px 14px 4px; }
+.sb-nav { flex: 1; padding: 4px 8px; overflow-y: auto; }
+.sb-item { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: var(--radius-sm); cursor: pointer; font-size: 12.5px; color: var(--sb-text); transition: background .13s,color .13s,border-left-color .13s; margin-bottom: 1px; border: none; border-left: 2px solid transparent; background: transparent; width: 100%; text-align: left; }
+.sb-item:hover { background: var(--sb-hover); color: #f0ede6; border-left-color: rgba(255,255,255,.15); }
+.sb-item.active { background: var(--sb-active); color: #f0ede6; font-weight: 500; border-left-color: var(--teal); }
+.sb-item svg { width: 13px; height: 13px; opacity: .65; flex-shrink: 0; transition: opacity .13s; }
+.sb-item.active svg,.sb-item:hover svg { opacity: 1; }
+.sb-bottom { padding: 10px 8px; border-top: 1px solid var(--sb-border); display: flex; flex-direction: column; gap: 5px; }
+.sb-util { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: var(--radius-sm); font-size: 12px; color: var(--sb-text2); cursor: pointer; background: transparent; border: 1px solid var(--sb-border); width: 100%; transition: all .12s; font-family: var(--font); }
+.sb-util:hover { background: var(--sb-hover); color: var(--sb-text); border-color: rgba(255,255,255,.12); }
+.month-picker { padding: 8px 8px 4px; display: flex; flex-direction: column; gap: 4px; }
+.month-label { font-size: 9.5px; color: var(--sb-text2); font-family: var(--mono); text-transform: uppercase; letter-spacing: .08em; padding: 0 2px; }
+.month-select { background: rgba(255,255,255,.07); border: 1px solid var(--sb-border); border-radius: var(--radius-sm); color: var(--sb-text); font-family: var(--mono); font-size: 11px; padding: 5px 8px; outline: none; cursor: pointer; width: 100%; }
+.month-select option { background: #2a2926; color: var(--sb-text); }
+
+/* ── Finance main header ─────────────────────────────────────── */
+.main-sub { font-size: 11.5px; color: var(--text3); margin-top: 1px; }
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+/* ── Tables ──────────────────────────────────────────────────── */
+.table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); overflow: hidden; margin-bottom: 16px; }
+.table-toolbar { padding: 12px 18px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); flex-wrap: wrap; background: var(--surface2); }
+.table-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.table-scroll { overflow-x: auto; }
+thead th { position: sticky; top: 0; background: var(--surface2); padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text2); white-space: nowrap; border-bottom: 1px solid var(--border); z-index: 2; letter-spacing: .01em; }
+thead th.num { text-align: right; }
+tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--text); white-space: nowrap; vertical-align: middle; }
+tbody td.num { text-align: right; font-family: var(--mono); font-size: 12px; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr.clickable { transition: background .1s; }
+tbody tr.clickable:hover td { background: var(--surface2); cursor: pointer; }
+.tfoot-row td { background: var(--surface2); font-weight: 600; font-family: var(--mono); font-size: 12px; border-top: 2px solid var(--border); text-align: right; padding: 9px 12px; white-space: nowrap; }
+.tfoot-row td:first-child { text-align: left; }
+
+/* ── Ratio cell ──────────────────────────────────────────────── */
+.ratio-cell { display: flex; align-items: center; gap: 8px; min-width: 110px; }
+.ratio-bar-wrap { flex: 1; height: 5px; background: var(--surface3); border-radius: 3px; overflow: hidden; }
+.ratio-bar { height: 100%; border-radius: 3px; transition: width .5s cubic-bezier(.34,1.56,.64,1); }
+.ratio-text { font-family: var(--mono); font-size: 11px; min-width: 38px; text-align: right; font-weight: 500; }
+.ratio-green .ratio-text { color: var(--green); }
+.ratio-green .ratio-bar { background: linear-gradient(90deg,var(--teal),#26c4b5); }
+.ratio-amber .ratio-text { color: var(--amber); }
+.ratio-amber .ratio-bar { background: var(--amber); }
+.ratio-red .ratio-text { color: var(--red); }
+.ratio-red .ratio-bar { background: var(--red); }
+
+/* ── Tags / badges (finance) ─────────────────────────────────── */
+.tag { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 10.5px; font-weight: 500; border: 1px solid transparent; white-space: nowrap; }
+.tag-cash { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+.tag-supply { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+.tag-auto { background: var(--surface2); color: var(--text3); font-style: italic; font-size: 11px; }
+.tag-up { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+.tag-active { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+.tag-settled { background: var(--surface2); color: var(--text3); border-color: var(--border); }
+.unit { font-size: 10px; color: var(--text3); margin-left: 2px; }
+.linked-badge { font-size: 10px; padding: 1px 7px; border-radius: 20px; background: var(--teal-bg); color: var(--teal); border: 1px solid var(--teal-border); white-space: nowrap; }
+.sec-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+.sb-income { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+.sb-expense { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+.sb-fund { background: var(--blue-bg); color: var(--blue); border: 1px solid var(--blue-border); }
+
+/* ── Finance stat cards ──────────────────────────────────────── */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 12px; margin-bottom: 18px; }
+.stat-card.warning { border-color: var(--red-border); background: var(--red-bg); }
+.stat-card.warning::after { background: var(--red); }
+.stat-card.warning .stat-val { color: var(--red); }
+.stat-card.positive { border-color: var(--green-border); background: var(--green-bg); }
+.stat-card.positive::after { background: var(--green); }
+.stat-card.positive .stat-val { color: var(--green); }
+.stat-card.rtcf-card { border-color: var(--blue-border); background: var(--blue-bg); }
+.stat-card.rtcf-card::after { background: var(--blue); }
+.stat-hint { font-size: 11px; cursor: default; opacity: .6; font-style: normal; letter-spacing: 0; }
+.stat-sub { font-size: 11px; color: var(--text3); margin-top: 6px; }
+
+/* ── T1 summary card ─────────────────────────────────────────── */
+.sec-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); overflow: hidden; margin-bottom: 14px; }
+.sec-head { padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--surface2); }
+.sec-head-title { font-size: 12px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.t1-table { width: 100%; border-collapse: collapse; }
+.t1-table td { padding: 9px 18px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.t1-table tr:last-child td { border-bottom: none; }
+.t1-num { text-align: right; font-family: var(--mono); font-size: 12.5px; font-weight: 500; }
+.t1-auto { color: var(--text3); font-style: italic; font-size: 12px; }
+.t1-total td { background: var(--surface2); font-weight: 600; border-top: 2px solid var(--border) !important; }
+
+/* ── Comparison cells ────────────────────────────────────────── */
+.cmp-pos { color: var(--green); font-family: var(--mono); font-size: 12px; }
+.cmp-neg { color: var(--red); font-family: var(--mono); font-size: 12px; }
+
+/* ── Progress bars (finance dashboard) ───────────────────────── */
+.prog-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; box-shadow: var(--shadow); margin-bottom: 14px; }
+.prog-title { font-size: 11px; font-weight: 600; color: var(--text2); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; letter-spacing: .02em; }
+.prog-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.prog-row:last-child { border-bottom: none; }
+.prog-name { font-size: 12.5px; font-weight: 500; color: var(--text); flex: 0 0 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prog-meta { font-size: 11px; color: var(--text3); flex: 0 0 150px; text-align: right; font-family: var(--mono); }
+.prog-bar-wrap { flex: 1; height: 7px; background: var(--surface3); border-radius: 4px; overflow: hidden; }
+.prog-bar { height: 100%; border-radius: 4px; transition: width .6s cubic-bezier(.34,1.56,.64,1); }
+.prog-pct { font-family: var(--mono); font-size: 11px; font-weight: 500; min-width: 40px; text-align: right; }
+.ratio-green .prog-bar,.prog-bar.bar-green { background: linear-gradient(90deg,var(--teal),#26c4b5); }
+
+/* ── Finance buttons ─────────────────────────────────────────── */
+.btn-green { background: transparent; color: var(--green); border-color: var(--green-border); }
+.btn-green:hover { background: var(--green-bg); }
+
+/* ── Finance modal size overrides ────────────────────────────── */
+.modal.modal-lg { max-width: 700px; }
+.modal.modal-xl { max-width: 860px; }
+
+/* ── Finance forms ───────────────────────────────────────────── */
+.form-divider { font-size: 11px; font-weight: 600; color: var(--text2); padding: 8px 0 5px; border-bottom: 1px solid var(--border); margin-bottom: 12px; letter-spacing: .01em; }
+.readonly-val { font-size: 13px; padding: 9px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text2); font-style: italic; }
+
+/* ── Empty state (finance) ───────────────────────────────────── */
+.empty { text-align: center; padding: 60px 20px; color: var(--text3); }
+.empty-icon { font-size: 32px; opacity: .35; margin-bottom: 12px; display: block; }
+
+/* ── 合同状态内联下拉 ────────────────────────────────────────── */
+.status-inline { border: none; outline: none; cursor: pointer; padding: 2px 20px 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; font-family: var(--font); appearance: none; -webkit-appearance: none; background-repeat: no-repeat; background-position: right 5px center; background-size: 10px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23999'/%3E%3C/svg%3E"); }
+.status-inline.tag-active { background-color: var(--green-bg); color: var(--green); }
+.status-inline.tag-settled { background-color: var(--surface3); color: var(--text2); }
+.status-inline:hover { opacity: .85; }
+
+/* ── Sidebar nav scrollbar (finance) ─────────────────────────── */
+.sb-nav::-webkit-scrollbar { width: 4px; }
+.sb-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); }
+.sb-nav::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.2); }

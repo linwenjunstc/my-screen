@@ -4,7 +4,7 @@
 
 function renderT1(){
   const c=computeTotals();
-  const sm=state.summary;
+  const sm=finState.summary;
   const[yr,mn]=currentMonth.split('-');
   const pmLabel=fmtMon(prevMonthOf(currentMonth));
 
@@ -14,8 +14,8 @@ function renderT1(){
       <div style="font-size:14px;font-weight:600">月度资金计划</div>
       <div style="font-size:12px;color:var(--text3);margin-top:2px">
         ${yr}年${parseInt(mn)}月 &nbsp;·&nbsp;
-        ${state.config.company_name||'—'} &nbsp;·&nbsp;
-        ${state.config.dept_name||'—'} &nbsp;·&nbsp; 单位：万元
+        ${finState.config.company_name||'—'} &nbsp;·&nbsp;
+        ${finState.config.dept_name||'—'} &nbsp;·&nbsp; 单位：万元
       </div>
     </div>
     ${isAdmin()?`<button class="btn btn-ghost btn-sm" onclick="openT1EditModal()">✎ 编辑固定项</button>`:''}
@@ -64,7 +64,7 @@ function renderT1(){
       </tr>
       ${c.extraTot>0?`<tr>
         <td style="text-align:center;color:var(--text3)">+</td>
-        <td style="color:var(--text2)">其他支出 <span class="t1-auto">(${state.extras.length}项)</span></td>
+        <td style="color:var(--text2)">其他支出 <span class="t1-auto">(${finState.extras.length}项)</span></td>
         <td class="t1-num t1-auto">${fmt(c.extraTot)}</td>
         <td style="font-size:11px;color:var(--text3)">见资金看板</td>
       </tr>`:''}
@@ -151,12 +151,12 @@ function renderT1(){
 
 //  T1 编辑弹框 
 function openT1EditModal(section='expense'){
-  const sm=state.summary;
+  const sm=finState.summary;
   const isFund=section==='fund';
   openModal(`
   <div class="modal-header">
     <div class="modal-title">${isFund?'编辑资金筹集':'编辑固定支出项'}</div>
-    <button class="modal-close" onclick="closeModal()">×</button>
+    <button class="modal-close" onclick="closeModal()"><i data-lucide="x"></i></button>
   </div>
   <div class="modal-body">
     ${isFund?`
@@ -199,11 +199,11 @@ async function saveT1Fields(sec,btn){
       amortization:+q('t1-am')||0,company_lock:+q('t1-cl')||0,debt_service:+q('t1-ds')||0};
   }
   await upsertSummary(data);
-  setLoading(btn,false);closeModal();render();toast('✓ 已保存');
+  setLoading(btn,false);closeModal();finRender();toast('✓ 已保存');
 }
 async function upsertSummary(data,ym){
   ym=ym||currentMonth;
-  const sm=ym===currentMonth?state.summary:state.prevSummary;
+  const sm=ym===currentMonth?finState.summary:finState.prevSummary;
   const upd={...data,updated_at:new Date().toISOString()};
   if(sm.id){
     await sb.from('finance_summary').update(upd).eq('id',sm.id);
@@ -212,8 +212,8 @@ async function upsertSummary(data,ym){
     const row={id:'fs'+uid(),year_month:ym,...data,
       created_at:new Date().toISOString(),updated_at:new Date().toISOString()};
     await sb.from('finance_summary').insert(row);
-    if(ym===currentMonth)state.summary={...row};
-    else state.prevSummary={...row};
+    if(ym===currentMonth)finState.summary={...row};
+    else finState.prevSummary={...row};
   }
 }
 

@@ -5,12 +5,12 @@
 // ── 对下付款计划 T3 ───────────────────────────────────────────────────────────
 function getActualPaidForPayment(pay){
   if(!pay.downstream_contract_id) return +pay.actual_paid||0;
-  return state.actualPayments
+  return finState.actualPayments
     .filter(a=>a.downstream_contract_id===pay.downstream_contract_id)
     .reduce((s,a)=>s+(+a.amount||0),0);
 }
 function renderPayments(){
-  const rows=state.payments;
+  const rows=finState.payments;
   const tot={contract:0,plan_cash:0,plan_supply:0,plan_sub:0,actual:0,cum:0};
   rows.forEach(r=>{
     const act=getActualPaidForPayment(r);
@@ -46,7 +46,7 @@ function renderPayments(){
       <td style="font-size:12px;color:var(--text3)">${r.remark||'—'}</td>
     </tr>`;
   }).join('')
-  :`<tr><td colspan="13"><div class="empty"><div class="empty-icon">📤</div>暂无数据，点击右上角新增</div></td></tr>`;
+  :`<tr><td colspan="13"><div class="empty"><i data-lucide="send" class="empty-icon"></i>暂无数据，点击右上角新增</div></td></tr>`;
 
   document.getElementById('main-content').innerHTML=`
   <div class="table-wrap">
@@ -91,13 +91,13 @@ function renderPayments(){
 
 function openAddPaymentModal(){openEditPaymentModal(null);}
 function openEditPaymentModal(id){
-  const r=id?state.payments.find(x=>x.id===id):null;
+  const r=id?finState.payments.find(x=>x.id===id):null;
   const isEdit=!!r;
   const canE=!isEdit||canEdit(r);
-  const suOpts=state.suppliers.map(s=>
+  const suOpts=finState.suppliers.map(s=>
     `<option value="${s.id}" ${r&&r.supplier_id===s.id?'selected':''}>${s.name}</option>`
   ).join('');
-  const dnOpts=state.contractsDown.map(c=>
+  const dnOpts=finState.contractsDown.map(c=>
     `<option value="${c.id}" ${r&&r.downstream_contract_id===c.id?'selected':''}>${c.name}（${c.supplier_name||''}）</option>`
   ).join('');
   // 截至上期累计已收款 from linked upstream
@@ -108,7 +108,7 @@ function openEditPaymentModal(id){
   openModal(`
   <div class="modal-header">
     <div class="modal-title">${isEdit?'编辑付款明细':'新增付款明细'}</div>
-    <button class="modal-close" onclick="closeModal()">×</button>
+    <button class="modal-close" onclick="closeModal()"><i data-lucide="x"></i></button>
   </div>
   <div class="modal-body">
     <div class="form-divider">关联合同 / 供应商</div>
@@ -204,7 +204,7 @@ function onPaymentContractChange(){
     document.getElementById('p-prev-rec').textContent='— 关联对上合同后自动带入';
     return;
   }
-  const c=state.contractsDown.find(x=>x.id===sel.value);
+  const c=finState.contractsDown.find(x=>x.id===sel.value);
   if(!c)return;
   document.getElementById('p-cname').value=c.name||'';
   document.getElementById('p-total').value=c.amount||0;
@@ -212,7 +212,7 @@ function onPaymentContractChange(){
   if(c.supplier_name)document.getElementById('p-sup-txt').value=c.supplier_name;
   // 联动：找关联对上合同的 prev_received
   if(c.upstream_contract_id){
-    const upRec=state.receipts.find(r2=>r2.upstream_contract_id===c.upstream_contract_id);
+    const upRec=finState.receipts.find(r2=>r2.upstream_contract_id===c.upstream_contract_id);
     if(upRec)document.getElementById('p-prev-rec').textContent=fmt(upRec.prev_received||0)+' 元（来自对上合同）';
     else document.getElementById('p-prev-rec').textContent='— 本月未找到对应收款记录';
   }
@@ -238,7 +238,7 @@ async function savePayment(id,btn){
   if(!name){document.getElementById('p-cname').style.borderColor='var(--red)';return;}
   setLoading(btn,true);
   const supId=document.getElementById('p-sup').value;
-  const supName=supId?(state.suppliers.find(s=>s.id===supId)||{}).name||q('p-sup-txt'):q('p-sup-txt');
+  const supName=supId?(finState.suppliers.find(s=>s.id===supId)||{}).name||q('p-sup-txt'):q('p-sup-txt');
   const data={
     year_month:currentMonth, contract_name:name,
     supplier_id:supId||null, supplier_name:supName,
@@ -251,15 +251,15 @@ async function savePayment(id,btn){
   };
   if(id){
     await sb.from('payment_plans').update({...data,updated_at:new Date().toISOString()}).eq('id',id);
-    const i=state.payments.findIndex(x=>x.id===id);
-    if(i>=0)state.payments[i]={...state.payments[i],...data};
+    const i=finState.payments.findIndex(x=>x.id===id);
+    if(i>=0)finState.payments[i]={...finState.payments[i],...data};
   } else {
     const row={id:'pp'+uid(),...data,created_at:new Date().toISOString()};
     await sb.from('payment_plans').insert(row);
-    state.payments.push(row);
+    finState.payments.push(row);
   }
-  setLoading(btn,false);closeModal();render();toast(`✓ ${id?'已更新':'已添加'}`);
-  logAction(id?'更新付款明细':'新增付款明细', `${id?'更新':'新增'}付款「${name}」`);
+  setLoading(btn,false);closeModal();finRender();toast(`✓ ${id?'已更新':'已添加'}`);
+  finLogAction(id?'更新付款明细':'新增付款明细', `${id?'更新':'新增'}付款「${name}」`);
 }
 
 //  完成情况 T4 

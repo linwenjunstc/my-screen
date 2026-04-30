@@ -3,12 +3,12 @@
  * ════════════════════════════════════════════════ */
 
 function renderT4(){
-  const sm=state.summary;
+  const sm=finState.summary;
   const c=computeTotals();
   // 表五合计（收入实际）
-  const actRec=state.actualReceipts.reduce((s,r)=>s+(+r.amount||0),0);
+  const actRec=finState.actualReceipts.reduce((s,r)=>s+(+r.amount||0),0);
   // 表六合计（支出实际）
-  const actPay=state.actualPayments.reduce((s,r)=>s+(+r.amount||0),0);
+  const actPay=finState.actualPayments.reduce((s,r)=>s+(+r.amount||0),0);
   // 其他实际支出（来自 summary 的 actual_* 字段）
   const aLabor=+sm.actual_labor||0, aDept=+sm.actual_dept||0;
   const aAmort=+sm.actual_amortization||0, aLock=+sm.actual_company_lock||0;
@@ -58,7 +58,7 @@ function renderT4(){
           <td>项目回款</td>
           <td class="num">${fmt(c.planRec)}</td>
           <td colspan="2">${cmpCell(c.planRec,actRec)}</td>
-          <td style="font-size:11px;color:var(--text3)">表五：实际收款明细（${state.actualReceipts.length}条）</td>
+          <td style="font-size:11px;color:var(--text3)">表五：实际收款明细（${finState.actualReceipts.length}条）</td>
         </tr>
         <tr>
           <td style="color:var(--text3);text-align:center">2</td>
@@ -106,7 +106,7 @@ function renderT4(){
           <td>项目支出（对下付款）</td>
           <td class="num">${fmt(c.planPay)}</td>
           <td colspan="2">${cmpCell(c.planPay,actPay)}</td>
-          <td style="font-size:11px;color:var(--text3)">表六：实际支付明细（${state.actualPayments.length}条）</td>
+          <td style="font-size:11px;color:var(--text3)">表六：实际支付明细（${finState.actualPayments.length}条）</td>
         </tr>
         <tr>
           <td style="color:var(--text3);text-align:center">3</td>
@@ -171,11 +171,11 @@ function renderT4(){
 }
 
 function openT4ActualEditModal(){
-  const sm=state.summary;
+  const sm=finState.summary;
   openModal(`
   <div class="modal-header">
     <div class="modal-title">编辑其他实际支出项</div>
-    <button class="modal-close" onclick="closeModal()">×</button>
+    <button class="modal-close" onclick="closeModal()"><i data-lucide="x"></i></button>
   </div>
   <div class="modal-body">
     <div class="form-hint" style="margin-bottom:12px">项目支付实际 = 表六自动汇总；下方填写其他科目实际数（万元）</div>
@@ -202,8 +202,8 @@ async function saveT4Actuals(btn){
     actual_amortization:+q('t4-aa')||0, actual_company_lock:+q('t4-ac')||0,
     actual_debt_service:+q('t4-ab')||0};
   await upsertSummary(data);
-  setLoading(btn,false);closeModal();render();toast('✓ 完成情况已保存');
-  logAction('编辑完成情况', `更新${fmtMon(currentMonth)}完成情况实际数`);
+  setLoading(btn,false);closeModal();finRender();toast('✓ 完成情况已保存');
+  finLogAction('编辑完成情况', `更新${fmtMon(currentMonth)}完成情况实际数`);
 }
 
 //  实际收款明细 T5 

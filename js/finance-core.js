@@ -1,16 +1,14 @@
 /* ════════════════════════════════════════════════
- * finance-core.js  —  state / init / auth / loadAll / helpers / tab routing
+ * finance-core.js  —  finState / init / auth / loadAll / helpers / tab routing
  * ════════════════════════════════════════════════ */
 
-;(function(){const o=window.postMessage.bind(window);window.postMessage=function(d,t,x){try{o(d,t,x)}catch(e){if(e.name!=='DataCloneError')throw e};};})();
+// postMessage patch removed — PM already has it
 
 const SB_URL='https://rfjrkcclhvuldenpdlye.supabase.co';
 const SB_KEY='sb_publishable_a29IWCUpjugzMqx6VGnNhw_bpU9Grpi';
-const sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false,storage:{getItem:()=>null,setItem:()=>{},removeItem:()=>{}}}});
-const SESSION_MAX=8*3600*1000;
-
-let currentUser=null, currentTab='t1', currentMonth='';
-let state={
+// sb removed — using PM's shared client
+let currentTab='t1', currentMonth='';
+let finState={
   payments:[], receipts:[], extras:[], actualReceipts:[], actualPayments:[],
   summary:{}, prevSummary:{}, prevPayments:[], prevReceipts:[],
   prevActualReceipts:[], prevActualPayments:[],
@@ -20,26 +18,16 @@ let state={
 };
 
 //  Auth 
-async function init(){
-  const saved=localStorage.getItem('pm_session');
-  if(!saved){location.href='login.html';return;}
-  let s;
-  try{s=JSON.parse(saved);}catch(e){location.href='login.html';return;}
-  if(!s.id||(s.loginAt&&Date.now()-s.loginAt>SESSION_MAX)){
-    localStorage.removeItem('pm_session');location.href='login.html';return;
-  }
-  currentUser=s;
-  document.getElementById('user-label').textContent=s.name;
+async function initFinance(){
+  if (!currentUser) { location.href = 'login.html'; return; }
   initMonthPicker();
-  document.getElementById('page-loader').classList.add('fade-out');
-  setTimeout(()=>document.getElementById('page-loader').style.display='none',350);
-  document.getElementById('main-layout').style.display='flex';
+  document.getElementById('header-sub').textContent = '';
   await loadAll();
-  initRealtime();
+  finInitRealtime();
 }
-function isAdmin(){return currentUser&&(currentUser.role==='admin'||currentUser.role==='super_admin');}
+// isAdmin removed — using PM's
 function canEdit(row){return isAdmin()||(row&&row.creator_id===currentUser.id);}
-function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+// uid removed — using PM's
 function q(id){try{return(document.getElementById(id)||{}).value||'';}catch(e){return '';}}
 
 //  Month 
@@ -92,23 +80,23 @@ async function loadAll(){
     sb.from('contracts_downstream').select('*').order('created_at'),
     sb.from('contract_monthly_revenue').select('*').order('year_month')
   ]);
-  state.payments=p.data||[];       state.receipts=r.data||[];
-  state.extras=e.data||[];         state.actualReceipts=ar.data||[];
-  state.actualPayments=ap.data||[];state.summary=s.data||{};
-  state.prevSummary=ps.data||{};   state.prevPayments=pp.data||[];
-  state.prevReceipts=pr.data||[];  state.prevActualReceipts=par.data||[];
-  state.prevActualPayments=pap.data||[];
-  state.config=cfg.data||{company_name:'',dept_name:''};
-  state.customers=cu.data||[];     state.suppliers=su.data||[];
-  state.contractsUp=cup.data||[];  state.contractsDown=cdn.data||[];
-  state.monthlyRevenues=mr.data||[];
-  if(state.config.dept_name)
-    document.getElementById('sb-dept-name').textContent=state.config.dept_name;
+  finState.payments=p.data||[];       finState.receipts=r.data||[];
+  finState.extras=e.data||[];         finState.actualReceipts=ar.data||[];
+  finState.actualPayments=ap.data||[];finState.summary=s.data||{};
+  finState.prevSummary=ps.data||{};   finState.prevPayments=pp.data||[];
+  finState.prevReceipts=pr.data||[];  finState.prevActualReceipts=par.data||[];
+  finState.prevActualPayments=pap.data||[];
+  finState.config=cfg.data||{company_name:'',dept_name:''};
+  finState.customers=cu.data||[];     finState.suppliers=su.data||[];
+  finState.contractsUp=cup.data||[];  finState.contractsDown=cdn.data||[];
+  finState.monthlyRevenues=mr.data||[];
+  if(finState.config.dept_name)
+    document.getElementById('sb-dept-name').textContent=finState.config.dept_name;
   const[yr,mn]=currentMonth.split('-');
   document.getElementById('header-sub').textContent=`${yr}年${parseInt(mn)}月`;
-  render();
+  finRender();
 }
-function initRealtime(){
+function finInitRealtime(){
   sb.channel('fin-rt3')
     .on('postgres_changes',{event:'*',schema:'public',table:'payment_plans'},()=>loadAll())
     .on('postgres_changes',{event:'*',schema:'public',table:'receipt_records'},()=>loadAll())
@@ -123,44 +111,44 @@ function initRealtime(){
 function getLinkedPrevReceived(pay){
   // 对下付款的「截至上期累计已收款」= 关联对上合同的 prev_received
   if(!pay.downstream_contract_id)return null;
-  const cdn=state.contractsDown.find(c=>c.id===pay.downstream_contract_id);
+  const cdn=finState.contractsDown.find(c=>c.id===pay.downstream_contract_id);
   if(!cdn||!cdn.upstream_contract_id)return null;
-  const recRow=state.receipts.find(r=>r.upstream_contract_id===cdn.upstream_contract_id);
+  const recRow=finState.receipts.find(r=>r.upstream_contract_id===cdn.upstream_contract_id);
   return recRow!=null?+(recRow.prev_received||0):null;
 }
 function computePrevBalance(){
   // 优先用上月表五/表六实际数；无则退到计划数
-  const t5=state.prevActualReceipts.reduce((s,r)=>s+(+r.amount||0),0);
-  const t6=state.prevActualPayments.reduce((s,r)=>s+(+r.amount||0),0);
-  const ps=state.prevSummary;
+  const t5=finState.prevActualReceipts.reduce((s,r)=>s+(+r.amount||0),0);
+  const t6=finState.prevActualPayments.reduce((s,r)=>s+(+r.amount||0),0);
+  const ps=finState.prevSummary;
   if(t5>0||t6>0){
     const nonProj=(+ps.actual_labor||0)+(+ps.actual_dept||0)+(+ps.actual_amortization||0)+(+ps.actual_company_lock||0)+(+ps.actual_debt_service||0);
     return t5-(t6+nonProj);
   }
-  const prevPlanPay=state.prevPayments.reduce((s,r)=>s+(+r.plan_cash||0)+(+r.plan_supply_chain||0),0);
-  const prevPlanRec=state.prevReceipts.reduce((s,r)=>s+(+r.plan_amount||0),0);
+  const prevPlanPay=finState.prevPayments.reduce((s,r)=>s+(+r.plan_cash||0)+(+r.plan_supply_chain||0),0);
+  const prevPlanRec=finState.prevReceipts.reduce((s,r)=>s+(+r.plan_amount||0),0);
   const prevPlanExp=prevPlanPay+(+ps.labor_cost||0)+(+ps.dept_cost||0)+(+ps.amortization||0)+(+ps.company_lock||0)+(+ps.debt_service||0);
   return prevPlanRec-prevPlanExp;
 }
 // 实时现金流：上月完成净额 + 当月实际收款 - 当月实际支付
 // 仅当上月实际数据已录入时有效，否则返回 null（显示—）
 function computeRealTimeCashFlow(){
-  const prevT5=state.prevActualReceipts.reduce((s,r)=>s+(+r.amount||0),0);
-  const prevT6=state.prevActualPayments.reduce((s,r)=>s+(+r.amount||0),0);
+  const prevT5=finState.prevActualReceipts.reduce((s,r)=>s+(+r.amount||0),0);
+  const prevT6=finState.prevActualPayments.reduce((s,r)=>s+(+r.amount||0),0);
   if(prevT5===0&&prevT6===0) return null;  // 上月未录入，显示—
-  const ps=state.prevSummary;
+  const ps=finState.prevSummary;
   const prevNonProj=(+ps.actual_labor||0)+(+ps.actual_dept||0)+(+ps.actual_amortization||0)
                    +(+ps.actual_company_lock||0)+(+ps.actual_debt_service||0);
   const prevNet=prevT5-prevT6-prevNonProj;
-  const curRec=state.actualReceipts.reduce((s,r)=>s+(+r.amount||0),0);
-  const curPay=state.actualPayments.reduce((s,r)=>s+(+r.amount||0),0);
+  const curRec=finState.actualReceipts.reduce((s,r)=>s+(+r.amount||0),0);
+  const curPay=finState.actualPayments.reduce((s,r)=>s+(+r.amount||0),0);
   return prevNet+curRec-curPay;
 }
 function computeTotals(){
-  const sm=state.summary;
-  const planPay=state.payments.reduce((s,r)=>s+(+r.plan_cash||0)+(+r.plan_supply_chain||0),0);
-  const planRec=state.receipts.reduce((s,r)=>s+(+r.plan_amount||0),0);
-  const extraTot=state.extras.reduce((s,r)=>s+(+r.amount||0),0);
+  const sm=finState.summary;
+  const planPay=finState.payments.reduce((s,r)=>s+(+r.plan_cash||0)+(+r.plan_supply_chain||0),0);
+  const planRec=finState.receipts.reduce((s,r)=>s+(+r.plan_amount||0),0);
+  const extraTot=finState.extras.reduce((s,r)=>s+(+r.amount||0),0);
   const prevBal=computePrevBalance();
   const totalExp=planPay+(+sm.labor_cost||0)+(+sm.dept_cost||0)+(+sm.amortization||0)+(+sm.company_lock||0)+(+sm.debt_service||0)+extraTot;
   const totalInc=planRec+prevBal;
@@ -207,15 +195,15 @@ function switchTab(tab){
   // 基础库 Tab 隐藏导出按钮
   const exportBtn=document.getElementById('export-btn');
   if(exportBtn) exportBtn.style.display=['contracts','customers','suppliers'].includes(tab)?'none':'';
-  render();
+  finRender();
 }
-function render(){
+function finRender(){
   const fn={t1:renderT1,receipt:renderReceipts,payment:renderPayments,
     t4:renderT4,t5:renderT5,t6:renderT6,
     dashboard:renderDashboard,contracts:renderContracts,
     customers:renderCustomers,suppliers:renderSuppliers};
   (fn[currentTab]||renderT1)();
-  // 入场动画
+  if (typeof lucide !== 'undefined') lucide.createIcons();
   const mc=document.getElementById('main-content');
   if(mc){mc.classList.remove('view-pane');void mc.offsetWidth;mc.classList.add('view-pane');}
 }

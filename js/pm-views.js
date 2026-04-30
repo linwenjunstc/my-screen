@@ -16,10 +16,10 @@ function renderToday() {
 
   let html = `<div class="view-pane">
     <div class="stats-grid">
-      <div class="stat-card"><div class="stat-label">紧急 / 逾期</div><div class="stat-val${g0.length?' red':''}">${g0.length}</div></div>
-      <div class="stat-card"><div class="stat-label">3 天内到期</div><div class="stat-val${g1.length?' amber':''}">${g1.length}</div></div>
-      <div class="stat-card"><div class="stat-label">本周内</div><div class="stat-val">${g2.length}</div></div>
-      <div class="stat-card"><div class="stat-label">今日已完成</div><div class="stat-val${done.length?' green':''}">${done.length}</div></div>
+      <div class="stat-card" style="cursor:${g0.length?'pointer':'default'}" ${g0.length?`onclick="showDashboardTaskList('g0')"`:''}><div class="stat-label">紧急 / 逾期</div><div class="stat-val${g0.length?' red':''}">${g0.length}</div></div>
+      <div class="stat-card" style="cursor:${g1.length?'pointer':'default'}" ${g1.length?`onclick="showDashboardTaskList('g1')"`:''}><div class="stat-label">3 天内到期</div><div class="stat-val${g1.length?' amber':''}">${g1.length}</div></div>
+      <div class="stat-card" style="cursor:${g2.length?'pointer':'default'}" ${g2.length?`onclick="showDashboardTaskList('g2')"`:''}><div class="stat-label">本周内</div><div class="stat-val">${g2.length}</div></div>
+      <div class="stat-card" style="cursor:${done.length?'pointer':'default'}" ${done.length?`onclick="showDashboardTaskList('done')"`:''}><div class="stat-label">今日已完成</div><div class="stat-val${done.length?' green':''}">${done.length}</div></div>
     </div>`;
 
   // Project progress mini chart
@@ -91,9 +91,39 @@ function renderToday() {
     if (!g.tasks.length) return; anyTask = true;
     html += `<div class="task-group"><div class="group-header"><div class="group-dot" style="background:${g.dot}"></div><span class="group-title">${g.label}</span><span class="group-count">${g.tasks.length}</span></div>${g.tasks.map(t=>taskCardHTML(t)).join('')}</div>`;
   });
-  if (!anyTask) html += `<div class="empty-state"><div class="empty-icon">✓</div>今天没有待推进的任务<div class="empty-hint">点击左下角快速添加</div></div>`;
+  if (!anyTask) html += `<div class="empty-state"><i data-lucide="check" class="empty-icon"></i>今天没有待推进的任务<div class="empty-hint">点击左下角快速添加</div></div>`;
   html += '</div>';
   document.getElementById('main-content').innerHTML = html;
+
+  // Store groups for dashboard clickable metrics
+  window._dashboardGroups = { g0, g1, g2, done };
+}
+
+// ─── Dashboard clickable metrics ──────────────────────────────────────────────
+function showDashboardTaskList(groupKey) {
+  const groups = window._dashboardGroups || {};
+  const tasks = groups[groupKey] || [];
+  const labels = { g0: '紧急 / 逾期', g1: '3 天内到期', g2: '本周内', done: '今日已完成' };
+  const label = labels[groupKey] || '任务列表';
+
+  const rows = tasks.map(t => {
+    const di = dueInfo(t);
+    const si = statusInfo(t.status);
+    const pn = projName(t.projectId);
+    return `<div class="task-card" style="cursor:default" onclick="closeModal();openEditTask('${t.id}')">
+      <div class="task-body">
+        <div class="task-title">${t.title}</div>
+        <div class="task-meta">
+          <span class="pill pill-project">${pn}</span>
+          <span class="pill ${di.cls}">${di.text}</span>
+          <span class="pill ${si.cls}">${si.lbl}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  openModal(modalHeader(label) + `<div class="modal-body" style="max-height:60vh;overflow-y:auto">${rows||'<div class="empty-state">暂无任务</div>'}</div>
+    <div class="modal-footer"><div><span style="font-size:12px;color:var(--text3)">共 ${tasks.length} 个任务</span></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>`);
 }
 
 // ─── Task List ────────────────────────────────────────────────────────────────
@@ -123,7 +153,7 @@ function renderTaskList() {
     <div class="filter-bar"><span class="filter-chip${filterProject==='all'?' on':''}" onclick="filterProject='all';renderTaskList()">全部项目</span>${projChips}</div>
     <div class="filter-bar" style="margin-top:-12px">${statusChips}</div>
     <div class="filter-bar" style="margin-top:-12px"><span class="filter-chip${filterAssignee==='all'?' on':''}" onclick="filterAssignee='all';renderTaskList()">全部成员</span>${assigneeChips}</div>
-    ${tasks.length ? tasks.map(t=>taskCardHTML(t)).join('') : '<div class="empty-state"><div class="empty-icon">○</div>没有匹配的任务</div>'}
+    ${tasks.length ? tasks.map(t=>taskCardHTML(t)).join('') : '<div class="empty-state"><i data-lucide="circle" class="empty-icon"></i>没有匹配的任务</div>'}
   </div>`;
   document.getElementById('main-content').innerHTML = html;
 }
@@ -145,8 +175,8 @@ function renderProjects() {
       <div class="proj-header">
         <div><div class="proj-name" style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;background:${color};border-radius:50%;display:inline-block;flex-shrink:0"></span>${p.name}</div></div>
         <div class="proj-actions" onclick="event.stopPropagation()">
-          <button class="icon-btn" onclick="openEditProject('${p.id}')" title="编辑">✎</button>
-          <button class="icon-btn" onclick="confirmDeleteProject('${p.id}')" title="删除">✕</button>
+          <button class="icon-btn" onclick="openEditProject('${p.id}')" title="编辑"><i data-lucide="pencil" style="width:13px;height:13px"></i></button>
+          <button class="icon-btn" onclick="confirmDeleteProject('${p.id}')" title="删除"><i data-lucide="x" style="width:13px;height:13px"></i></button>
         </div>
       </div>
       <div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
@@ -163,7 +193,7 @@ function renderProjects() {
       ${memberAvatars?`<div style="display:flex;gap:4px;margin-top:12px">${memberAvatars}</div>`:''}
     </div>`;
   });
-  if (!state.projects.length) html += '<div class="empty-state"><div class="empty-icon">◻</div>还没有项目</div>';
+  if (!state.projects.length) html += '<div class="empty-state"><i data-lucide="square" class="empty-icon"></i>还没有项目</div>';
   html += '</div></div>';
   document.getElementById('main-content').innerHTML = html;
 }
@@ -201,7 +231,7 @@ function renderProjectView(pid) {
   const doneT = tasks.filter(t=>t.done);
   if (active.length) html += active.map(t=>taskCardHTML(t)).join('');
   if (doneT.length) html += `<div class="task-group" style="margin-top:20px"><div class="group-header"><div class="group-dot" style="background:#c0c0b8"></div><span class="group-title">已完成</span><span class="group-count">${doneT.length}</span></div>${doneT.map(t=>taskCardHTML(t)).join('')}</div>`;
-  if (!tasks.length) html += '<div class="empty-state"><div class="empty-icon">○</div>这个项目还没有任务<div class="empty-hint">点击右上角新建任务</div></div>';
+  if (!tasks.length) html += '<div class="empty-state"><i data-lucide="circle" class="empty-icon"></i>这个项目还没有任务<div class="empty-hint">点击右上角新建任务</div></div>';
   html += '</div>';
   document.getElementById('main-content').innerHTML = html;
 }

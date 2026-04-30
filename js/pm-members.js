@@ -49,7 +49,7 @@ function buildMembersListHTML() {
       </div>
       <button onclick="deleteMember('${m.id}')" 
               style="border:none; background:transparent; cursor:pointer; color:var(--text3); font-size:18px; padding: 0 10px;"
-              title="移除成员">×</button>
+              title="移除成员"><i data-lucide="x"></i></button>
     </div>`;
   }).join('');
 }
@@ -144,7 +144,7 @@ function buildMembersListHTML() {
     const roleHTML = `<span class="role-badge role-${role}" style="margin-right:4px">${ROLE_LABELS[role] || role}</span>`;
     const delBtn = !_isAdminUser ? '' : (hasTask
       ? `<button title="请先删除或转移该成员的 ${taskCnt} 个任务" style="width:20px;height:20px;border:none;background:transparent;cursor:not-allowed;color:var(--border2);font-size:14px;display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0" disabled>×</button>`
-      : `<button onclick="deleteMember('${m.id}')" title="删除成员" style="width:20px;height:20px;border:none;background:transparent;cursor:pointer;color:var(--text3);font-size:14px;display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0;transition:color .15s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">×</button>`);
+      : `<button onclick="deleteMember('${m.id}')" title="删除成员" style="width:20px;height:20px;border:none;background:transparent;cursor:pointer;color:var(--text3);font-size:14px;display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0;transition:color .15s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'"><i data-lucide="x"></i></button>`);
     return `<div class="subtask-item" style="${hasTask?'border-left:2px solid var(--border2);':''}">
       <div class="member-avatar" style="background:${MEMBER_COLORS[m.colorIdx%MEMBER_COLORS.length]}">${m.name.slice(0,1)}</div>
       <div style="flex:1;min-width:0">
@@ -213,7 +213,7 @@ function buildTagsListHTML() {
         <div style="font-size:11px;color:var(--text3);margin-top:2px">使用中：${usedCount} 个任务</div>
       </div>
       <button onclick="startEditTag('${tg.id}')" title="重命名" style="border:none;background:transparent;cursor:pointer;color:var(--text3);font-size:13px;padding:4px 6px;border-radius:4px;transition:color .15s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text3)'">✎</button>
-      <button onclick="deleteTag('${tg.id}')" title="删除标签" style="border:none;background:transparent;cursor:pointer;color:var(--text3);font-size:14px;padding:4px 6px;border-radius:4px;transition:color .15s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">×</button>
+      <button onclick="deleteTag('${tg.id}')" title="删除标签" style="border:none;background:transparent;cursor:pointer;color:var(--text3);font-size:14px;padding:4px 6px;border-radius:4px;transition:color .15s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'"><i data-lucide="x"></i></button>
     </div>`;
   }).join('');
 }

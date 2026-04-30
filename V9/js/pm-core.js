@@ -635,11 +635,11 @@ function updateBadges() {
     const isActive = currentView==='project-'+p.id;
     html += `<div class="nav-proj-wrap" style="position:relative;display:flex;align-items:center">
       <button class="nav-item${isActive?' active':''}" style="flex:1;padding-right:28px" onclick="switchView('project-${p.id}')">
-        <i data-lucide="circle" class="nav-icon" style="width:10px;height:10px;color:${PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length]}"></i>
+        <span class="nav-icon" style="font-size:10px;color:${PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length]}">●</span>
         <span style="flex:1;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${p.name}</span>
         ${cnt?`<span class="nav-badge">${cnt}</span>`:''}
       </button>
-      <button class="nav-edit-btn" onclick="openEditProject('${p.id}')" title="编辑" style="position:absolute;right:4px;width:20px;height:20px;border-radius:4px;border:none;background:transparent;cursor:pointer;color:rgba(255,255,255,.45);font-size:12px;display:none;align-items:center;justify-content:center;flex-shrink:0;transition:color .12s" onmouseover="this.style.color='rgba(255,255,255,.8)'" onmouseout="this.style.color='rgba(255,255,255,.45)'"><i data-lucide="pencil" style="width:11px;height:11px"></i></button>
+      <button class="nav-edit-btn" onclick="openEditProject('${p.id}')" title="编辑" style="position:absolute;right:4px;width:20px;height:20px;border-radius:4px;border:none;background:transparent;cursor:pointer;color:rgba(255,255,255,.45);font-size:12px;display:none;align-items:center;justify-content:center;flex-shrink:0;transition:color .12s" onmouseover="this.style.color='rgba(255,255,255,.8)'" onmouseout="this.style.color='rgba(255,255,255,.45)'">✎</button>
     </div>`;
   });
   document.getElementById('sidebar-projects').innerHTML = html;
@@ -687,7 +687,6 @@ function render() {
   else if (currentView==='gantt') renderGantt();
   else if (currentView.startsWith('project-')) renderProjectView(currentView.slice(8));
   else renderToday();
-  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 // ─── Today ────────────────────────────────────────────────────────────────────

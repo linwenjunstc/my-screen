@@ -15,7 +15,7 @@ function openAddProject() {
       return `<div class="subtask-item" style="display:flex;align-items:center;gap:8px;background:var(--surface2);padding:5px 10px;border-radius:6px;margin-bottom:5px">
         <div class="member-avatar" style="background:${memberColor(m.id)};width:20px;height:20px;font-size:10px">${memberInitial(m.id)}</div>
         <div style="flex:1">${m.name}</div>
-        <button class="subtask-del" onclick="removeNewProjMember('${m.id}')">×</button>
+        <button class="subtask-del" onclick="removeNewProjMember('${m.id}')"><i data-lucide="x"></i></button>
       </div>`;
     }).join('');
   }
@@ -117,7 +117,7 @@ function openEditProject(id) {
     return `<div class="subtask-item" style="display:flex; align-items:center; gap:8px; background:var(--surface2); padding:5px 10px; border-radius:6px; margin-bottom:5px;">
       <div class="member-avatar" style="background:${memberColor(m.id)}; width:20px; height:20px; font-size:10px;">${memberInitial(m.id)}</div>
       <div style="flex:1">${m.name}</div>
-      <button class="subtask-del" onclick="removeMemberFromProject('${id}','${m.id}')">×</button>
+      <button class="subtask-del" onclick="removeMemberFromProject('${id}','${m.id}')"><i data-lucide="x"></i></button>
     </div>`;
   }).join('');
 

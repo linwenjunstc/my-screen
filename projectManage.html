@@ -3,23 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PM Board — 协作看板</title>
-<!-- 外部依赖 -->
+<title>PM Board</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+	<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<!-- 样式 -->
 <link rel="stylesheet" href="css/pm.css">
+<link rel="stylesheet" href="css/finance-extra.css">
 </head>
 <body>
 
-<!-- 页面加载遮罩 -->
 <div id="page-loader">
   <div class="loader-ring"></div>
-  <div class="loader-text">AUTHENTICATING...</div>
+  <div class="loader-text">LOADING...</div>
 </div>
 
 <div class="layout" id="main-layout" style="display:none">
-  <aside class="sidebar">
+  <!-- ══════════ PM 侧栏 ══════════ -->
+  <aside class="sidebar" id="sidebar-pm">
     <div class="sidebar-logo">
       <div class="logo-text">PM Board</div>
       <div class="logo-sub" id="sidebar-date-label">加载中...</div>
@@ -27,23 +28,20 @@
     <div class="sidebar-date">导航</div>
     <nav class="sidebar-nav">
       <button class="nav-item active" data-view="today" data-menu-key="today" onclick="switchView('today')">
-        <span class="nav-icon">○</span> 今日看板
+        <i data-lucide="calendar-days" class="nav-icon"></i> 今日看板
         <span class="nav-badge" id="badge-today">0</span>
       </button>
       <button class="nav-item" data-view="tasks" data-menu-key="tasks" onclick="switchView('tasks')">
-        <span class="nav-icon">≡</span> 全部任务
+        <i data-lucide="list-checks" class="nav-icon"></i> 全部任务
         <span class="nav-badge" id="badge-tasks">0</span>
       </button>
       <div class="nav-section-label" data-menu-key="charts" style="padding-bottom:4px">分析</div>
       <button class="nav-item" data-view="charts" data-menu-key="charts" onclick="switchView('charts')">
-        <span class="nav-icon">◉</span> 数据统计
+        <i data-lucide="bar-chart-3" class="nav-icon"></i> 数据统计
       </button>
       <button class="nav-item" data-view="gantt" data-menu-key="gantt" onclick="switchView('gantt')">
-        <span class="nav-icon">▦</span> 甘特图
+        <i data-lucide="chart-no-axes-gantt" class="nav-icon"></i> 甘特图
       </button>
-      <a href="finance.html" class="nav-item" data-menu-key="finance" style="text-decoration:none">
-        <span class="nav-icon">💰</span> 资金计划
-      </a>
       <div data-menu-key="projects" style="display:flex;align-items:center;justify-content:space-between;padding-right:8px">
         <div class="nav-section-label" style="padding-right:0">项目</div>
         <button id="sidebar-add-proj-btn" onclick="openAddProject()" title="新建项目"
@@ -55,64 +53,265 @@
     </nav>
     <div class="sidebar-bottom">
       <button class="sidebar-add-btn" data-menu-key="add_task" onclick="openAddTask()">
-        <span style="font-size:16px;line-height:1">+</span> 快速添加任务
+        <i data-lucide="plus" style="width:16px;height:16px"></i> 快速添加任务
       </button>
-      <div id="admin-util-btns" style="display:flex;flex-direction:column;gap:5px">
-        <div style="display:flex;gap:5px">
-          <button class="sidebar-util-btn" data-menu-key="members" style="flex:1" onclick="openMembersModal()">👤 成员</button>
-          <button class="sidebar-util-btn" data-menu-key="tags"    style="flex:1" onclick="openTagsModal()">🏷 标签</button>
-        </div>
-        <div style="display:flex;gap:5px">
-          <button class="sidebar-util-btn" data-menu-key="roles" style="flex:1" onclick="openRoleManageModal()">🔐 角色权限</button>
-        </div>
-      </div>
-      <button class="sidebar-util-btn" data-menu-key="logs" style="width:100%;margin-top:5px" onclick="openLogsModal()">📋 操作日志</button>
     </div>
   </aside>
 
+  <!-- ══════════ 资金计划侧栏 ══════════ -->
+  <aside class="sidebar fin-sidebar" id="sidebar-finance" style="display:none">
+    <div class="sb-logo">
+      <div class="sb-logo-text">PM Board</div>
+      <div class="sb-sub" id="sb-dept-name">资金计划模块</div>
+    </div>
+    <div class="month-picker">
+      <div class="month-label">月份</div>
+      <select class="month-select" id="month-select" onchange="onMonthChange(this.value)"></select>
+    </div>
+    <div class="sb-section">计划报表</div>
+    <nav class="sb-nav">
+      <button class="sb-item active" id="tab-t1" onclick="switchTab('t1')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="14" height="14" rx="2"/><line x1="1" y1="5.5" x2="15" y2="5.5"/><line x1="1" y1="9.5" x2="15" y2="9.5"/></svg>月度资金计划
+      </button>
+      <button class="sb-item" id="tab-receipt" onclick="switchTab('receipt')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="1,12 5,7 8,10 11,6 15,3"/></svg>对上收款台账
+      </button>
+      <button class="sb-item" id="tab-payment" onclick="switchTab('payment')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="10" rx="2"/><line x1="1" y1="7" x2="15" y2="7"/></svg>对下付款计划
+      </button>
+      <button class="sb-item" id="tab-t4" onclick="switchTab('t4')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="2,12 5,8 8,10 11,5 14,3"/><line x1="2" y1="13" x2="14" y2="13"/></svg>完成情况
+      </button>
+      <button class="sb-item" id="tab-t5" onclick="switchTab('t5')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><polyline points="8,5 8,8 10,10"/></svg>实际收款明细
+      </button>
+      <button class="sb-item" id="tab-t6" onclick="switchTab('t6')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><polyline points="8,5 8,8 6,10"/></svg>实际支付明细
+      </button>
+      <button class="sb-item" id="tab-dashboard" onclick="switchTab('dashboard')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="9" width="4" height="6" rx="1"/><rect x="6" y="5" width="4" height="10" rx="1"/><rect x="11" y="1" width="4" height="14" rx="1"/></svg>资金看板
+      </button>
+    </nav>
+    <div class="sb-bottom">
+      <button class="sb-util" onclick="openBaseLibModal()">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><line x1="5" y1="5.5" x2="11" y2="5.5"/><line x1="5" y1="8" x2="11" y2="8"/></svg>基础库配置
+      </button>
+    </div>
+  </aside>
+
+  <!-- ══════════ 主内容区 ══════════ -->
   <main class="main">
+    <!-- Top tab bar -->
+    <div class="top-tab-bar" id="top-tab-bar">
+      <button class="top-tab active" id="top-tab-pm" onclick="switchModule('pm')">项目管理</button>
+      <button class="top-tab" id="top-tab-finance" onclick="switchModule('finance')">资金计划</button>
+      <div class="top-tab-right">
+        <div id="user-profile-header" style="display:flex;align-items:center;gap:8px">
+          <div id="user-avatar-top" class="member-avatar" style="width:28px;height:28px;font-size:12px;background:var(--accent);color:#fff">?</div>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span id="user-name-top" style="font-size:13px;font-weight:600;color:var(--text);line-height:1.2">加载中...</span>
+            <span id="user-role-badge" class="role-badge role-user">普通用户</span>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="openChangePasswordModal()" title="修改密码"><i data-lucide="key" style="width:14px;height:14px"></i></button>
+          <button class="btn btn-ghost btn-sm" onclick="handleLogout()" style="color:var(--red);border-color:var(--red-border)">退出</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="openSystemConfigModal()" style="margin-left:8px">⚙ <i data-lucide="settings" style="width:14px;height:14px;margin-right:3px"></i>系统配置</button>
+      </div>
+    </div>
+
     <header class="main-header">
+      <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="菜单"><i data-lucide="menu"></i></button>
       <div>
         <div class="main-title" id="header-title">今日看板</div>
         <div class="main-subtitle" id="header-sub"></div>
       </div>
       <div class="header-actions">
         <div class="header-search" id="task-search-wrap" style="display:none">
-          <span class="search-icon">⌕</span>
+          <i data-lucide="search" class="search-icon" style="width:14px;height:14px"></i>
           <input type="text" placeholder="搜索任务..." id="task-search-input" oninput="onSearch(this.value)">
         </div>
-        <button class="btn btn-ghost btn-sm" id="header-export-btn" onclick="exportCSV()" style="display:none">↓ 导出 CSV</button>
-        <button class="btn btn-primary btn-sm" id="header-add-btn" onclick="openAddTask()" style="display:none">+ 新建任务</button>
-        <button class="btn btn-primary btn-sm" id="header-add-proj-btn" onclick="openAddProject()" style="display:none">+ 新建项目</button>
+        <button class="btn btn-ghost btn-sm" id="header-export-btn" onclick="exportCSV()" style="display:none"><i data-lucide="download" style="width:13px;height:13px;margin-right:3px"></i>导出 CSV</button>
+        <button class="btn btn-primary btn-sm" id="header-add-btn" onclick="openAddTask()" style="display:none"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建任务</button>
+        <button class="btn btn-primary btn-sm" id="header-add-proj-btn" onclick="openAddProject()" style="display:none"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建项目</button>
         <button class="btn btn-ghost btn-sm" id="header-gantt-today-btn" onclick="ganttScrollToday()" style="display:none">今天</button>
-        <div id="user-profile-header" style="display:flex;align-items:center;gap:8px;margin-left:12px;padding-left:12px;border-left:1px solid var(--border)">
-          <div id="user-avatar-top" class="member-avatar" style="width:28px;height:28px;font-size:12px;background:var(--accent);color:#fff">?</div>
-          <div style="display:flex;flex-direction:column;gap:2px">
-            <span id="user-name-top" style="font-size:13px;font-weight:600;color:var(--text);line-height:1.2">加载中...</span>
-            <span id="user-role-badge" class="role-badge role-user">普通用户</span>
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="openChangePasswordModal()" title="修改密码" style="padding:4px 8px">🔑</button>
-          <button class="btn btn-ghost btn-sm" onclick="handleLogout()" style="color:var(--red);border-color:var(--red-border);padding:4px 8px">退出</button>
-        </div>
+        <!-- Finance header buttons -->
+        <button class="btn btn-green btn-sm" id="export-btn" onclick="exportXlsx()" style="display:none"><i data-lucide="download" style="width:13px;height:13px;margin-right:3px"></i>导出 Excel</button>
+        <button class="btn btn-primary btn-sm" id="add-btn" onclick="openAddModal()" style="display:none"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新增</button>
       </div>
     </header>
     <div class="main-content" id="main-content"></div>
   </main>
 </div>
 
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
 <div class="modal-overlay" id="modal-overlay" onclick="onOverlayClick(event)">
   <div class="modal" id="modal-box" onclick="event.stopPropagation()"></div>
 </div>
 <div class="toast" id="toast"></div>
 
-<!-- JS 模块（顺序不可调换） -->
-<script src="js/pm-core.js"></script>      <!-- 常量/状态/初始化/工具函数/路由 -->
-<script src="js/pm-views.js"></script>     <!-- 今日看板/任务列表/项目视图/图表/甘特图 -->
-<script src="js/pm-tasks.js"></script>     <!-- 任务增删改/子任务/依赖 -->
-<script src="js/pm-projects.js"></script>  <!-- 项目CRUD -->
-<script src="js/pm-members.js"></script>   <!-- 成员/标签/角色/菜单权限 -->
-<script src="js/pm-logs.js"></script>      <!-- 操作日志 -->
-<script src="js/pm-auth.js"></script>      <!-- 修改密码/键盘快捷键 -->
+<!-- JS 模块 -->
+<script src="js/pm-core.js"></script>
+<script src="js/pm-views.js"></script>
+<script src="js/pm-tasks.js"></script>
+<script src="js/pm-projects.js"></script>
+<script src="js/pm-members.js"></script>
+<script src="js/pm-logs.js"></script>
+<script src="js/pm-auth.js"></script>
+<!-- 资金模块 JS -->
+<script src="js/finance-core.js"></script>
+<script src="js/finance-t1.js"></script>
+<script src="js/finance-t2.js"></script>
+<script src="js/finance-t3.js"></script>
+<script src="js/finance-t4.js"></script>
+<script src="js/finance-t5t6.js"></script>
+<script src="js/finance-base.js"></script>
+<script src="js/finance-export.js"></script>
+
+<script>
+// Module switching
+let activeModule = 'pm';
+let financeInitialized = false;
+
+window.switchModule = function(mod) {
+  if (mod === activeModule) return;
+  activeModule = mod;
+  closeMobileSidebar();
+
+  const pmSidebar = document.getElementById('sidebar-pm');
+  const finSidebar = document.getElementById('sidebar-finance');
+  const topTabPM = document.getElementById('top-tab-pm');
+  const topTabFin = document.getElementById('top-tab-finance');
+
+  if (mod === 'pm') {
+    pmSidebar.style.display = 'flex';
+    finSidebar.style.display = 'none';
+    topTabPM.classList.add('active');
+    topTabFin.classList.remove('active');
+    // Show PM header buttons, hide finance buttons
+    updateHeaderForModule('pm');
+    // Render PM view
+    switchView('today');
+  } else {
+    pmSidebar.style.display = 'none';
+    finSidebar.style.display = 'flex';
+    topTabPM.classList.remove('active');
+    topTabFin.classList.add('active');
+    updateHeaderForModule('finance');
+    // Lazy init finance
+    if (!financeInitialized) {
+      financeInitialized = true;
+      initFinance().then(() => {
+        switchTab('t1');
+      });
+    } else {
+      switchTab(currentTab || 't1');
+    }
+  }
+};
+
+function updateHeaderForModule(mod) {
+  const finElements = ['export-btn', 'add-btn'];
+  finElements.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = mod === 'finance' ? '' : 'none';
+  });
+
+  // Reset header title
+  if (mod === 'finance') {
+    document.getElementById('header-title').textContent = '月度资金计划';
+  }
+}
+
+// System config modal — opens consolidated settings
+window.openSystemConfigModal = function() {
+  openModal(modalHeader('系统配置') + `<div class="modal-body">
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal();openMembersModal()"><i data-lucide="users" style="width:14px;height:14px;margin-right:4px"></i>成员管理</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal();openTagsModal()"><i data-lucide="tags" style="width:14px;height:14px;margin-right:4px"></i>标签管理</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal();openRoleManageModal()"><i data-lucide="shield-check" style="width:14px;height:14px;margin-right:4px"></i>角色权限</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal();openLogsModal()"><i data-lucide="scroll-text" style="width:14px;height:14px;margin-right:4px"></i>操作日志</button>
+    </div>
+    <div class="form-divider">基础设置</div>
+    <div class="form-group">
+      <label class="form-label">公司名称</label>
+      <input class="form-input" id="cfg-company" value="${(typeof finState !== 'undefined' && finState.config) ? finState.config.company_name || '' : ''}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">事业部名称</label>
+      <input class="form-input" id="cfg-dept" value="${(typeof finState !== 'undefined' && finState.config) ? finState.config.dept_name || '' : ''}">
+    </div>
+  </div>
+  <div class="modal-footer">
+    <div></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveSystemSettings(this)">保存</button>
+    </div>
+  </div>`);
+};
+
+// Save system settings
+window.saveSystemSettings = async function(btn) {
+  const company = document.getElementById('cfg-company')?.value || '';
+  const dept = document.getElementById('cfg-dept')?.value || '';
+  setLoading(btn, true);
+  await sb.from('finance_config').upsert({ id: 'default', company_name: company, dept_name: dept });
+  if (typeof finState !== 'undefined') {
+    finState.config.company_name = company;
+    finState.config.dept_name = dept;
+    const el = document.getElementById('sb-dept-name');
+    if (el) el.textContent = dept || '资金计划模块';
+  }
+  setLoading(btn, false);
+  closeModal();
+  toast('系统配置已保存');
+};
+
+// Mobile sidebar toggle
+window.toggleMobileSidebar = function() {
+  const sidebar = document.querySelector('.sidebar:not([style*=\"display: none\"])') ||
+                  document.getElementById('sidebar-pm');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  sidebar.classList.toggle('open');
+  if (backdrop) backdrop.classList.toggle('show', sidebar.classList.contains('open'));
+};
+window.closeMobileSidebar = function() {
+  const sidebars = document.querySelectorAll('.sidebar');
+  sidebars.forEach(s => s.classList.remove('open'));
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (backdrop) backdrop.classList.remove('show');
+};
+// Auto-close mobile sidebar on nav item clicks
+document.addEventListener('click', function(e) {
+  if (window.innerWidth > 768) return;
+  const navItem = e.target.closest('.nav-item, .sb-item, .sb-util, .sidebar-add-btn');
+  if (navItem) closeMobileSidebar();
+});
+
+// Top tab bar styles (injected here since they're unique to the merged page)
+const tabStyles = document.createElement('style');
+tabStyles.textContent = `
+  .top-tab-bar {
+    height: 44px; flex-shrink: 0;
+    background: var(--sb-bg);
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--sb-border);
+  }
+  .top-tab {
+    padding: 8px 16px; border-radius: var(--radius-sm);
+    background: transparent; color: var(--sb-text2);
+    border: none; font-family: var(--font); font-size: 13px;
+    cursor: pointer; transition: all .13s; font-weight: 500;
+  }
+  .top-tab:hover { background: var(--sb-hover); color: var(--sb-text); }
+  .top-tab.active { background: var(--sb-active); color: #f0ede6; }
+  .top-tab-right {
+    margin-left: auto; display: flex; align-items: center; gap: 8px;
+  }
+`;
+document.head.appendChild(tabStyles);
+</script>
 
 </body>
 </html>

@@ -12,15 +12,15 @@ async function renderT5(){
 
   el.innerHTML = '<div style="color:var(--text3);padding:32px 16px;text-align:center">⏳ 正在加载 ' + fmtMon(prevMon) + ' 收款数据…</div>';
 
-  const prevReceipts = state.prevReceipts || [];
-  const prevActuals  = state.prevActualReceipts || [];
+  const prevReceipts = finState.prevReceipts || [];
+  const prevActuals  = finState.prevActualReceipts || [];
 
   const vRes = await sb.from('receipt_variance').select('*').eq('year_month', prevMon);
   const varMap = {};
   (vRes.data || []).forEach(function(v){ varMap[v.receipt_record_id] = v; });
 
   if(!prevReceipts.length){
-    el.innerHTML = '<div class="table-wrap"><div class="table-toolbar"><div class="table-title">收款偏差分析（表五）</div><div style="margin-left:auto;font-size:11px;color:var(--text3)">分析上月：' + fmtMon(prevMon) + '</div></div><div class="empty"><div class="empty-icon">📋</div><div>' + fmtMon(prevMon) + ' 暂无对上收款计划数据</div><div style="font-size:12px;color:var(--text3);margin-top:6px">请先在「对上收款台账（T2）」中录入 ' + fmtMon(prevMon) + ' 的数据</div></div></div>';
+    el.innerHTML = '<div class="table-wrap"><div class="table-toolbar"><div class="table-title">收款偏差分析（表五）</div><div style="margin-left:auto;font-size:11px;color:var(--text3)">分析上月：' + fmtMon(prevMon) + '</div></div><div class="empty"><div class="empty-icon"><i data-lucide="clipboard-list" class="empty-icon"></i></div><div>' + fmtMon(prevMon) + ' 暂无对上收款计划数据</div><div style="font-size:12px;color:var(--text3);margin-top:6px">请先在「对上收款台账（T2）」中录入 ' + fmtMon(prevMon) + ' 的数据</div></div></div>';
     return;
   }
 
@@ -128,7 +128,7 @@ async function saveT5Variances(btn){
   setLoading(btn, false);
   if(errs.length){ toast('✗ 保存失败：' + errs[0].error.message); return; }
   toast('✓ 差异原因已保存');
-  logAction('保存收款偏差分析', fmtMon(prevMon) + ' 收款偏差分析已保存');
+  finLogAction('保存收款偏差分析', fmtMon(prevMon) + ' 收款偏差分析已保存');
   renderT5();
 }
 
@@ -142,14 +142,14 @@ async function renderT6(){
 
   el.innerHTML = '<div style="color:var(--text3);padding:32px 16px;text-align:center">⏳ 正在加载 ' + fmtMon(prevMon) + ' 付款数据…</div>';
 
-  var prevPayments = state.prevPayments || [];
+  var prevPayments = finState.prevPayments || [];
 
   var vRes = await sb.from('payment_variance').select('*').eq('year_month', prevMon);
   var varMap = {};
   (vRes.data || []).forEach(function(v){ varMap[v.payment_plan_id] = v; });
 
   if(!prevPayments.length){
-    el.innerHTML = '<div class="table-wrap"><div class="table-toolbar"><div class="table-title">付款偏差分析（表六）</div><div style="margin-left:auto;font-size:11px;color:var(--text3)">分析上月：' + fmtMon(prevMon) + '</div></div><div class="empty"><div class="empty-icon">📋</div><div>' + fmtMon(prevMon) + ' 暂无对下付款计划数据</div><div style="font-size:12px;color:var(--text3);margin-top:6px">请先在「对下付款计划（T3）」中录入 ' + fmtMon(prevMon) + ' 的数据</div></div></div>';
+    el.innerHTML = '<div class="table-wrap"><div class="table-toolbar"><div class="table-title">付款偏差分析（表六）</div><div style="margin-left:auto;font-size:11px;color:var(--text3)">分析上月：' + fmtMon(prevMon) + '</div></div><div class="empty"><div class="empty-icon"><i data-lucide="clipboard-list" class="empty-icon"></i></div><div>' + fmtMon(prevMon) + ' 暂无对下付款计划数据</div><div style="font-size:12px;color:var(--text3);margin-top:6px">请先在「对下付款计划（T3）」中录入 ' + fmtMon(prevMon) + ' 的数据</div></div></div>';
     return;
   }
 
@@ -325,6 +325,6 @@ async function saveT6Variances(btn){
   setLoading(btn, false);
   if(errs.length){ toast('✗ 保存失败：' + errs[0].error.message); return; }
   toast('✓ 已保存');
-  logAction('保存付款偏差分析', fmtMon(prevMon) + ' 付款偏差分析已保存');
+  finLogAction('保存付款偏差分析', fmtMon(prevMon) + ' 付款偏差分析已保存');
   renderT6();
 }

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PM Board — 协作看板</title>
+<!-- 外部依赖 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- 样式 -->
+<link rel="stylesheet" href="css/pm.css">
+</head>
+<body>
+
+<!-- 页面加载遮罩 -->
+<div id="page-loader">
+  <div class="loader-ring"></div>
+  <div class="loader-text">AUTHENTICATING...</div>
+</div>
+
+<div class="layout" id="main-layout" style="display:none">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-text">PM Board</div>
+      <div class="logo-sub" id="sidebar-date-label">加载中...</div>
+    </div>
+    <div class="sidebar-date">导航</div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-view="today" data-menu-key="today" onclick="switchView('today')">
+        <span class="nav-icon">○</span> 今日看板
+        <span class="nav-badge" id="badge-today">0</span>
+      </button>
+      <button class="nav-item" data-view="tasks" data-menu-key="tasks" onclick="switchView('tasks')">
+        <span class="nav-icon">≡</span> 全部任务
+        <span class="nav-badge" id="badge-tasks">0</span>
+      </button>
+      <div class="nav-section-label" data-menu-key="charts" style="padding-bottom:4px">分析</div>
+      <button class="nav-item" data-view="charts" data-menu-key="charts" onclick="switchView('charts')">
+        <span class="nav-icon">◉</span> 数据统计
+      </button>
+      <button class="nav-item" data-view="gantt" data-menu-key="gantt" onclick="switchView('gantt')">
+        <span class="nav-icon">▦</span> 甘特图
+      </button>
+      <a href="finance.html" class="nav-item" data-menu-key="finance" style="text-decoration:none">
+        <span class="nav-icon">💰</span> 资金计划
+      </a>
+      <div data-menu-key="projects" style="display:flex;align-items:center;justify-content:space-between;padding-right:8px">
+        <div class="nav-section-label" style="padding-right:0">项目</div>
+        <button id="sidebar-add-proj-btn" onclick="openAddProject()" title="新建项目"
+          style="width:20px;height:20px;border-radius:4px;border:1px solid rgba(255,255,255,.12);background:transparent;cursor:pointer;color:var(--sb-text2);font-size:15px;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s"
+          onmouseover="this.style.background='var(--sb-hover)';this.style.color='var(--sb-text)'"
+          onmouseout="this.style.background='transparent';this.style.color='var(--sb-text2)'">+</button>
+      </div>
+      <div id="sidebar-projects" data-menu-key="projects"></div>
+    </nav>
+    <div class="sidebar-bottom">
+      <button class="sidebar-add-btn" data-menu-key="add_task" onclick="openAddTask()">
+        <span style="font-size:16px;line-height:1">+</span> 快速添加任务
+      </button>
+      <div id="admin-util-btns" style="display:flex;flex-direction:column;gap:5px">
+        <div style="display:flex;gap:5px">
+          <button class="sidebar-util-btn" data-menu-key="members" style="flex:1" onclick="openMembersModal()">👤 成员</button>
+          <button class="sidebar-util-btn" data-menu-key="tags"    style="flex:1" onclick="openTagsModal()">🏷 标签</button>
+        </div>
+        <div style="display:flex;gap:5px">
+          <button class="sidebar-util-btn" data-menu-key="roles" style="flex:1" onclick="openRoleManageModal()">🔐 角色权限</button>
+        </div>
+      </div>
+      <button class="sidebar-util-btn" data-menu-key="logs" style="width:100%;margin-top:5px" onclick="openLogsModal()">📋 操作日志</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="main-header">
+      <div>
+        <div class="main-title" id="header-title">今日看板</div>
+        <div class="main-subtitle" id="header-sub"></div>
+      </div>
+      <div class="header-actions">
+        <div class="header-search" id="task-search-wrap" style="display:none">
+          <span class="search-icon">⌕</span>
+          <input type="text" placeholder="搜索任务..." id="task-search-input" oninput="onSearch(this.value)">
+        </div>
+        <button class="btn btn-ghost btn-sm" id="header-export-btn" onclick="exportCSV()" style="display:none">↓ 导出 CSV</button>
+        <button class="btn btn-primary btn-sm" id="header-add-btn" onclick="openAddTask()" style="display:none">+ 新建任务</button>
+        <button class="btn btn-primary btn-sm" id="header-add-proj-btn" onclick="openAddProject()" style="display:none">+ 新建项目</button>
+        <button class="btn btn-ghost btn-sm" id="header-gantt-today-btn" onclick="ganttScrollToday()" style="display:none">今天</button>
+        <div id="user-profile-header" style="display:flex;align-items:center;gap:8px;margin-left:12px;padding-left:12px;border-left:1px solid var(--border)">
+          <div id="user-avatar-top" class="member-avatar" style="width:28px;height:28px;font-size:12px;background:var(--accent);color:#fff">?</div>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span id="user-name-top" style="font-size:13px;font-weight:600;color:var(--text);line-height:1.2">加载中...</span>
+            <span id="user-role-badge" class="role-badge role-user">普通用户</span>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="openChangePasswordModal()" title="修改密码" style="padding:4px 8px">🔑</button>
+          <button class="btn btn-ghost btn-sm" onclick="handleLogout()" style="color:var(--red);border-color:var(--red-border);padding:4px 8px">退出</button>
+        </div>
+      </div>
+    </header>
+    <div class="main-content" id="main-content"></div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="modal-overlay" onclick="onOverlayClick(event)">
+  <div class="modal" id="modal-box" onclick="event.stopPropagation()"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- JS 模块（顺序不可调换） -->
+<script src="js/pm-core.js"></script>      <!-- 常量/状态/初始化/工具函数/路由 -->
+<script src="js/pm-views.js"></script>     <!-- 今日看板/任务列表/项目视图/图表/甘特图 -->
+<script src="js/pm-tasks.js"></script>     <!-- 任务增删改/子任务/依赖 -->
+<script src="js/pm-projects.js"></script>  <!-- 项目CRUD -->
+<script src="js/pm-members.js"></script>   <!-- 成员/标签/角色/菜单权限 -->
+<script src="js/pm-logs.js"></script>      <!-- 操作日志 -->
+<script src="js/pm-auth.js"></script>      <!-- 修改密码/键盘快捷键 -->
+
+</body>
+</html>
