@@ -89,7 +89,12 @@ const PROJ_COLORS = ['#2e7dd1','#27ae60','#d4842a','#e74c3c','#8b4de8','#0ea57c'
 
 
 // 【读取】从云端获取最新数据
+let _loadingState = false;
+let _lastLoadTime = 0;
 async function loadState() {
+  if (_loadingState) return;
+  if (Date.now() - _lastLoadTime < 800) return;
+  _loadingState = true;
   try {
     const [tasksRes, projsRes, memsRes, tagsRes] = await Promise.all([
       sb.from('tasks').select('*'),
@@ -151,10 +156,13 @@ async function loadState() {
     }
 
     updateBadges();
-    render();
+    if (!window._ganttSaving) render();
   } catch (err) {
     console.error(err);
     toast("获取数据失败");
+  } finally {
+    _loadingState = false;
+    _lastLoadTime = Date.now();
   }
 }
 
@@ -575,6 +583,7 @@ async function init() {
   initKeyboardShortcuts();
   initChartTooltips();
   await loadState();
+  recordBurndownSnapshot();
   initRealtime();
 
   // 后台静默同步角色（不影响页面正常使用）
@@ -649,8 +658,16 @@ function updateBadges() {
   document.getElementById('badge-tasks').textContent = state.tasks.length;
   const now = new Date();
   document.getElementById('sidebar-date-label').textContent = now.toLocaleDateString('zh-CN',{month:'long',day:'numeric',weekday:'short'});
+
+  const SIDEBAR_FOLD_LIMIT = 5;
+  const isExpanded = localStorage.getItem('pm_sidebar_proj_expanded') === 'true';
+  const visibleProjects = (isExpanded || state.projects.length <= SIDEBAR_FOLD_LIMIT)
+    ? state.projects
+    : state.projects.slice(0, SIDEBAR_FOLD_LIMIT);
+  const hiddenCount = state.projects.length - SIDEBAR_FOLD_LIMIT;
+
   let html = '';
-  state.projects.forEach(p => {
+  visibleProjects.forEach(p => {
     const cnt = state.tasks.filter(t=>t.projectId===p.id&&!t.done).length;
     const isActive = currentView==='project-'+p.id;
     html += `<div class="nav-proj-wrap" style="position:relative;display:flex;align-items:center">
@@ -662,19 +679,46 @@ function updateBadges() {
       <button class="nav-edit-btn" onclick="openEditProject('${p.id}')" title="编辑" style="position:absolute;right:4px;width:20px;height:20px;border-radius:4px;border:none;background:transparent;cursor:pointer;color:rgba(255,255,255,.45);font-size:12px;display:none;align-items:center;justify-content:center;flex-shrink:0;transition:color .12s" onmouseover="this.style.color='rgba(255,255,255,.8)'" onmouseout="this.style.color='rgba(255,255,255,.45)'"><i data-lucide="pencil" style="width:11px;height:11px"></i></button>
     </div>`;
   });
+
+  if (state.projects.length > SIDEBAR_FOLD_LIMIT) {
+    if (!isExpanded) {
+      html += `<button class="nav-item" style="font-size:11px;color:rgba(255,255,255,.4);padding-left:16px"
+        onclick="localStorage.setItem('pm_sidebar_proj_expanded','true');updateBadges();if(typeof lucide!=='undefined')lucide.createIcons()">
+        ＋ 展开另外 ${hiddenCount} 个项目
+      </button>`;
+    } else {
+      html += `<button class="nav-item" style="font-size:11px;color:rgba(255,255,255,.4);padding-left:16px"
+        onclick="localStorage.setItem('pm_sidebar_proj_expanded','false');updateBadges();if(typeof lucide!=='undefined')lucide.createIcons()">
+        ↑ 收起
+      </button>`;
+    }
+  }
+
   document.getElementById('sidebar-projects').innerHTML = html;
 }
 
 const TOAST_ICONS = { success:'check-circle', error:'x-circle', warning:'alert-triangle', info:'info' };
+const _toastQueue = [];
+let _toastActive = false;
 function toast(msg, type) {
   type = type || 'info';
+  _toastQueue.push({msg, type});
+  if (!_toastActive) _processToastQueue();
+}
+function _processToastQueue() {
+  if (!_toastQueue.length) { _toastActive = false; return; }
+  _toastActive = true;
+  const {msg, type} = _toastQueue.shift();
   const el = document.getElementById('toast');
   el.className = 'toast toast-' + type;
   const icon = TOAST_ICONS[type] || 'info';
   el.innerHTML = `<i data-lucide="${icon}" class="toast-icon"></i> ${msg}`;
   el.classList.add('show');
   if (typeof lucide !== 'undefined') lucide.createIcons();
-  setTimeout(function() { el.classList.remove('show'); }, 2400);
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(_processToastQueue, 280);
+  }, 3000);
 }
 
 // ─── A1: Staggered card entrance ──────────────────────────────────────
@@ -803,6 +847,16 @@ function switchView(v) {
   searchQuery = '';
   const inp = document.getElementById('task-search-input');
   if (inp) inp.value = '';
+
+  // 筛选条件持久化：切进 tasks 视图时恢复
+  if (v === 'tasks') {
+    try {
+      const saved = JSON.parse(localStorage.getItem('pm_task_filters') || '{}');
+      if (saved.filterProject)  filterProject  = saved.filterProject;
+      if (saved.filterStatus)   filterStatus   = saved.filterStatus;
+      if (saved.filterAssignee) filterAssignee = saved.filterAssignee;
+    } catch(e) {}
+  }
 
   updateBadges();
   render();

@@ -64,7 +64,7 @@ function exportXlsx(){
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(t6Data),'实际支付明细');
 
   XLSX.writeFile(wb,`资金计划_${currentMonth}.xlsx`);
-  toast('✓ 已导出 Excel（6张 Sheet）');
+  toast('✓ 已导出 Excel（6张 Sheet）', 'success');
   finLogAction('导出资金报表', `导出 ${fmtMon(currentMonth)} 资金计划 Excel`);
 }
 function openSettingsModal(){
@@ -83,7 +83,7 @@ async function saveSettings(btn){
   const d={id:'default',company_name:q('cfg-company'),dept_name:q('cfg-dept'),updated_at:new Date().toISOString()};
   await sb.from('finance_config').upsert(d);
   finState.config=d;document.getElementById('sb-dept-name').textContent=d.dept_name||'资金计划模块';
-  setLoading(btn,false);closeModal();toast('✓ 配置已保存');
+  setLoading(btn,false);closeModal();toast('✓ 配置已保存', 'success');
 }
 //  操作日志（写入 projectManage 共用的 logs 表）
 async function finLogAction(action, detail) {
@@ -115,7 +115,7 @@ function downloadContractTemplate(dir){
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(headers), '对下合同导入模板');
   }
   XLSX.writeFile(wb, `合同导入模板_${dir==='up'?'对上':'对下'}.xlsx`);
-  toast('✓ 模板已下载');
+  toast('✓ 模板已下载', 'success');
 }
 
 // ── 合同库导出（当前筛选）────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ function exportContractsExcel(dir){
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), '对下合同');
   }
   XLSX.writeFile(wb, `合同库_${dir==='up'?'对上':'对下'}_${year}.xlsx`);
-  toast('✓ 已导出');
+  toast('✓ 已导出', 'success');
   finLogAction('导出资金报表', `导出${dir==='up'?'对上':'对下'}合同库 Excel`);
 }
 
@@ -261,7 +261,7 @@ async function importContractsExcel(event, dir){
         toast(`✓ 导入完成：${added} 条成功${skipped?'，'+skipped+' 条跳过':''}`);
       finLogAction('新增'+(dir==='up'?'对上合同':'对下合同'), `批量导入 ${added} 条成功${failed?'，'+failed+' 失败':''}`);
     } catch(err){
-      toast('✗ 导入失败：' + err.message);
+      toast('✗ 导入失败：' + err.message, 'error');
     }
   };
   reader.readAsArrayBuffer(file);
@@ -273,7 +273,7 @@ function downloadCustomerTemplate(){
   const headers=[['客户名称*','简称','联系人','联系电话','备注']];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(headers), '客户库导入模板');
   XLSX.writeFile(wb, '客户库导入模板.xlsx');
-  toast('✓ 模板已下载');
+  toast('✓ 模板已下载', 'success');
 }
 
 // ── 客户库导出 ────────────────────────────────────────────────────────────────
@@ -288,7 +288,7 @@ function exportCustomersExcel(){
   })];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), '客户库');
   XLSX.writeFile(wb, `客户库_${new Date().toISOString().slice(0,10)}.xlsx`);
-  toast('✓ 已导出客户库');
+  toast('✓ 已导出客户库', 'success');
   finLogAction('导出客户库', `共 ${finState.customers.length} 条`);
 }
 
@@ -358,7 +358,7 @@ async function importCustomersExcel(event){
         toast(`✓ 导入完成：${upserted} 条（含覆盖更新）${skipped?'，'+skipped+' 跳过':''}`);
       finLogAction('导入客户库', `批量导入/更新 ${upserted} 条`);
     } catch(err){
-      toast('✗ 导入失败：' + err.message);
+      toast('✗ 导入失败：' + err.message, 'error');
     }
   };
   reader.readAsArrayBuffer(file);

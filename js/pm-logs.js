@@ -24,6 +24,8 @@ function getLogBadgeColor(action) {
     return { bg: 'var(--purple-bg)', text: 'var(--purple)', border: 'var(--purple-border)' };
   if (['设置前置条件','移除前置条件'].includes(action))
     return { bg: 'var(--amber-bg)', text: 'var(--amber)', border: 'var(--amber-border)' };
+  if (['甘特图调整'].includes(action))
+    return { bg: 'var(--orange-bg,#fef3e2)', text: 'var(--orange,#e67e22)', border: 'var(--orange-border,#f5c98e)' };
   // 资金模块
   if (['新增收款记录','更新收款记录','新增付款明细','更新付款明细',
        '新增实际收款','更新实际收款','新增实际支付','更新实际支付',
@@ -60,6 +62,7 @@ async function openLogsModal() {
         {k:'all',  label:'全部'},
         {k:'task', label:'📋 任务'},
         {k:'project',label:'📁 项目'},
+        {k:'gantt', label:'📊 甘特图'},
         {k:'finance',label:'💰 资金'},
         {k:'member', label:'👤 成员'},
       ].map(t=>`<button
@@ -76,8 +79,8 @@ async function openLogsModal() {
           ${state.members.map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('')}
         </select>` : '<div style="flex:1;font-size:12px;color:var(--text3);display:flex;align-items:center;padding:0 4px">📋 我的操作记录</div>'}
         <select class="form-select" id="log-filter-days" onchange="refreshLogsList()" style="width:110px">
-          <option value="1">今天</option>
-          <option value="7" selected>最近 7 天</option>
+          <option value="1" selected>今天</option>
+          <option value="7">最近 7 天</option>
           <option value="30">最近 30 天</option>
           <option value="0">全部</option>
         </select>
@@ -114,6 +117,7 @@ async function refreshLogsList() {
            '设置前置条件','移除前置条件'],
     project: ['添加项目','编辑项目','删除项目',
               '添加标签','编辑标签','删除标签'],
+    gantt: ['甘特图调整','gantt_adjust'],
     finance: ['新增收款记录','更新收款记录','删除收款记录',
               '新增付款明细','更新付款明细','删除付款明细',
               '新增实际收款','更新实际收款','删除实际收款',
@@ -131,7 +135,7 @@ async function refreshLogsList() {
   const filterUserId = _isAdminUser
     ? (document.getElementById('log-filter-user')?.value || '')
     : (currentUser?.id || '');
-  const days = parseInt(document.getElementById('log-filter-days')?.value || '7');
+  const days = parseInt(document.getElementById('log-filter-days')?.value || '1');
   const catFilter = LOG_CATS[window._logTab || 'all'];
 
   let query = sb.from('logs').select('*').order('created_at', { ascending: false }).limit(500);
@@ -156,7 +160,7 @@ async function refreshLogsList() {
   const filtered = catFilter ? (data||[]).filter(l => catFilter.includes(l.action)) : (data||[]);
 
   if (!filtered.length) {
-    const tabLabel = {all:'',task:'任务',project:'项目',finance:'资金',member:'成员'}[window._logTab||'all'];
+    const tabLabel = {all:'',task:'任务',project:'项目',gantt:'甘特图',finance:'资金',member:'成员'}[window._logTab||'all'];
     listEl.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">暂无${tabLabel}日志记录</div>`;
     if (countEl) countEl.textContent = '共 0 条';
     return;
@@ -173,6 +177,7 @@ async function refreshLogsList() {
     '添加标签':'🏷', '编辑标签':'🏷', '删除标签':'🏷',
     '添加成员':'👤', '删除成员':'👤',
     '修改角色':'🔐', '重置密码':'🔑', '修改密码':'🔑',
+    '甘特图调整':'📊',
     // 资金模块
     '新增收款记录':'💰', '更新收款记录':'✏️', '删除收款记录':'🗑',
     '新增付款明细':'📤', '更新付款明细':'✏️', '删除付款明细':'🗑',
@@ -184,6 +189,23 @@ async function refreshLogsList() {
     '新增供应商':'🏢', '更新供应商':'🏢', '删除供应商':'🗑',
     '导出资金报表':'📊', '编辑月度计划':'📊', '编辑完成情况':'📊',
   };
+
+  // 格式化日志详情
+  function formatLogDetail(log) {
+    if (log.action === '甘特图调整' || log.action === 'gantt_adjust') {
+      try {
+        var d = typeof log.detail === 'string' ? JSON.parse(log.detail) : log.detail;
+        var modeLabel = d.mode === 'move' ? '平移时间条' : '调整截止日期';
+        var parts = [];
+        if (d.taskTitle) parts.push('任务：' + d.taskTitle);
+        parts.push('方式：' + modeLabel);
+        if (d.oldDue) parts.push('原截止：' + d.oldDue);
+        if (d.newDue) parts.push('新截止：' + d.newDue);
+        return parts.join('  ·  ');
+      } catch(e) { return log.detail; }
+    }
+    return log.detail;
+  }
 
   // 按日期分组
   const groups = {};
@@ -204,6 +226,7 @@ async function refreshLogsList() {
       const time = new Date(log.created_at).toLocaleTimeString('zh', { hour: '2-digit', minute: '2-digit' });
       const icon = ACTION_ICONS[log.action] || '▸';
       const color = memberColors[log.user_id] || 'var(--text3)';
+      const detailText = formatLogDetail(log);
       return `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
         <div style="width:28px;height:28px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;flex-shrink:0;margin-top:1px">${(log.user_name||'?').slice(0,1)}</div>
         <div style="flex:1;min-width:0">
@@ -212,7 +235,7 @@ async function refreshLogsList() {
             <span style="font-size:11px;padding:1px 7px;background:${getLogBadgeColor(log.action).bg};border-radius:10px;color:${getLogBadgeColor(log.action).text};border:1px solid ${getLogBadgeColor(log.action).border}">${icon} ${log.action}</span>
             <span style="font-size:11px;color:var(--text3);margin-left:auto">${time}</span>
           </div>
-          ${log.detail ? `<div style="font-size:12px;color:var(--text2);margin-top:3px">${log.detail}</div>` : ''}
+          ${detailText ? `<div style="font-size:12px;color:var(--text2);margin-top:3px">${detailText}</div>` : ''}
         </div>
       </div>`;
     }).join('');
@@ -222,4 +245,3 @@ async function refreshLogsList() {
     </div>`;
   }).join('');
 }
-

@@ -62,12 +62,23 @@ async function renderT5(){
       + '</tr>';
   }).join('');
 
+  var t5Banner = buildSummaryBanner({
+    label: '本期收款概况',
+    items: [
+      { label: '计划回款', value: fmt(planTotal), color: 'var(--amber)' },
+      { label: '实际回款', value: fmt(actualTotal), color: 'var(--green)' },
+      { label: '偏差金额', value: fmt(actualTotal - planTotal), color: (actualTotal-planTotal)>=0?'var(--green)':'var(--red)' },
+      { label: '总偏差率', value: totalDevStr, color: totalDevNum===null?'var(--text3)':totalDevNum>=0?'var(--green)':'var(--red)', big: true },
+    ]
+  });
+
   el.innerHTML = '<div class="table-wrap">'
     + '<div class="table-toolbar"><div class="table-title">收款偏差分析（表五）</div>'
     + '<div style="margin-left:auto;display:flex;gap:8px;align-items:center">'
     + '<span style="font-size:11px;color:var(--text3)">分析上月：' + fmtMon(prevMon) + ' · 差异原因填完后点保存</span>'
     + '<button class="btn btn-primary btn-sm" onclick="saveT5Variances(this)">💾 保存差异原因</button>'
     + '</div></div>'
+    + t5Banner
     + '<div style="font-size:11px;color:var(--teal);margin:0 0 10px;padding:7px 12px;background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:6px">'
     + 'ℹ 计划数来自 ' + fmtMon(prevMon) + ' 对上收款台账（T2）；实际回款来自 actual_receipts 按合同汇总</div>'
     + '<div class="table-scroll"><table>'
@@ -126,8 +137,8 @@ async function saveT5Variances(btn){
   var results = await Promise.all(ops);
   var errs = results.filter(function(r){ return r.error; });
   setLoading(btn, false);
-  if(errs.length){ toast('✗ 保存失败：' + errs[0].error.message); return; }
-  toast('✓ 差异原因已保存');
+  if(errs.length){ toast('✗ 保存失败：' + errs[0].error.message, 'error'); return; }
+  toast('✓ 差异原因已保存', 'success');
   finLogAction('保存收款偏差分析', fmtMon(prevMon) + ' 收款偏差分析已保存');
   renderT5();
 }
@@ -196,12 +207,23 @@ async function renderT6(){
       + '</tr>';
   }).join('');
 
+  var t6Banner = buildSummaryBanner({
+    label: '本期付款概况',
+    items: [
+      { label: '计划小计', value: fmt(planTotal), color: 'var(--amber)' },
+      { label: '实际小计', value: fmt(actTotal), color: 'var(--green)' },
+      { label: '偏差金额', value: fmt(actTotal - planTotal), color: (actTotal-planTotal)<=0?'var(--green)':'var(--red)' },
+      { label: '总偏差率', value: totalDevStr, color: totalDevNum===null?'var(--text3)':totalDevNum<=0?'var(--green)':'var(--red)', big: true },
+    ]
+  });
+
   el.innerHTML = '<div class="table-wrap">'
     + '<div class="table-toolbar"><div class="table-title">付款偏差分析（表六）</div>'
     + '<div style="margin-left:auto;display:flex;gap:8px;align-items:center">'
     + '<span style="font-size:11px;color:var(--text3)">分析上月：' + fmtMon(prevMon) + ' · 填写实际金额及差异原因后保存</span>'
     + '<button class="btn btn-primary btn-sm" onclick="saveT6Variances(this)">💾 保存</button>'
     + '</div></div>'
+    + t6Banner
     + '<div style="font-size:11px;color:var(--teal);margin:0 0 10px;padding:7px 12px;background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:6px">'
     + 'ℹ 计划数来自 ' + fmtMon(prevMon) + ' 对下付款计划（T3）；实际支付现金 / 供应链请手动填写</div>'
     + '<div class="table-scroll"><table>'
@@ -323,8 +345,28 @@ async function saveT6Variances(btn){
   var results = await Promise.all(ops);
   var errs = results.filter(function(r){ return r.error; });
   setLoading(btn, false);
-  if(errs.length){ toast('✗ 保存失败：' + errs[0].error.message); return; }
-  toast('✓ 已保存');
+  if(errs.length){ toast('✗ 保存失败：' + errs[0].error.message, 'error'); return; }
+  toast('✓ 已保存', 'success');
   finLogAction('保存付款偏差分析', fmtMon(prevMon) + ' 付款偏差分析已保存');
   renderT6();
+}
+
+function buildSummaryBanner({ label, items }) {
+  const cells = items.map(item => `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 20px;
+                flex:1;border-right:1px solid var(--border2)">
+      <div style="font-size:11px;color:var(--text3)">${item.label}</div>
+      <div style="font-size:${item.big?'22px':'16px'};font-weight:700;
+                  font-family:var(--mono);color:${item.color};line-height:1">${item.value}</div>
+    </div>`).join('');
+  return `
+    <div style="display:flex;background:var(--surface);border:1px solid var(--border);
+                border-radius:var(--radius);margin-bottom:14px;overflow:hidden">
+      <div style="display:flex;align-items:center;padding:12px 16px;
+                  background:var(--surface2);font-size:12px;font-weight:600;
+                  color:var(--text2);white-space:nowrap;border-right:1px solid var(--border)">
+        ${label}
+      </div>
+      ${cells}
+    </div>`;
 }

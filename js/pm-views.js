@@ -1,4 +1,4 @@
-/* ════════════════════════════════════════════════
+﻿/* ════════════════════════════════════════════════
  * pm-views.js  —  今日看板 / 任务列表 / 项目视图 / 图表 / 甘特图
  * ════════════════════════════════════════════════ */
 
@@ -7,8 +7,14 @@ function renderToday() {
   const now = new Date();
   document.getElementById('header-sub').textContent = now.toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
 
+  const todayStr = new Date().toISOString().slice(0,10);
   const active = state.tasks.filter(t=>!t.done);
-  const done = state.tasks.filter(t=>t.done);
+  const done = state.tasks.filter(t => {
+    if (!t.done) return false;
+    if (t.completedAt) return t.completedAt.slice(0,10) === todayStr;
+    if (t.updated_at) return t.updated_at.slice(0,10) === todayStr;
+    return false;
+  });
   const g0 = active.filter(t=>urgencyOf(t)===0).sort((a,b)=>priorityOrder(a.priority)-priorityOrder(b.priority));
   const g1 = active.filter(t=>urgencyOf(t)===1).sort((a,b)=>priorityOrder(a.priority)-priorityOrder(b.priority));
   const g2 = active.filter(t=>urgencyOf(t)===2).sort((a,b)=>priorityOrder(a.priority)-priorityOrder(b.priority));
@@ -19,7 +25,7 @@ function renderToday() {
       <div class="stat-card" style="cursor:${g0.length?'pointer':'default'}" ${g0.length?`onclick="showDashboardTaskList('g0')"`:''}><div class="stat-label">紧急 / 逾期</div><div class="stat-val${g0.length?' red':''}">${g0.length}</div></div>
       <div class="stat-card" style="cursor:${g1.length?'pointer':'default'}" ${g1.length?`onclick="showDashboardTaskList('g1')"`:''}><div class="stat-label">3 天内到期</div><div class="stat-val${g1.length?' amber':''}">${g1.length}</div></div>
       <div class="stat-card" style="cursor:${g2.length?'pointer':'default'}" ${g2.length?`onclick="showDashboardTaskList('g2')"`:''}><div class="stat-label">本周内</div><div class="stat-val">${g2.length}</div></div>
-      <div class="stat-card" style="cursor:${done.length?'pointer':'default'}" ${done.length?`onclick="showDashboardTaskList('done')"`:''}><div class="stat-label">今日已完成</div><div class="stat-val${done.length?' green':''}">${done.length}</div></div>
+      <div class="stat-card" style="cursor:${done.length?'pointer':'default'}" ${done.length?`onclick="showDashboardTaskList('done')"`:''}><div class="stat-label">今日已完成</div><div class="stat-val${done.length?' green':''}">${done.length}</div><div class="stat-sub" style="font-size:10px">今天标记完成的任务</div></div>
     </div>`;
 
   // Project progress mini chart
@@ -131,6 +137,13 @@ function renderTaskList() {
   document.getElementById('header-title').textContent = '全部任务';
   document.getElementById('header-sub').textContent = `共 ${state.tasks.length} 个任务`;
 
+  // 持久化当前筛选条件
+  try {
+    localStorage.setItem('pm_task_filters', JSON.stringify({
+      filterProject, filterStatus, filterAssignee
+    }));
+  } catch(e) {}
+
   let tasks = state.tasks.filter(t => {
     if (filterProject!=='all' && t.projectId!==filterProject) return false;
     if (filterStatus!=='all' && t.status!==filterStatus) return false;
@@ -153,6 +166,7 @@ function renderTaskList() {
     <div class="filter-bar"><span class="filter-chip${filterProject==='all'?' on':''}" onclick="filterProject='all';renderTaskList()">全部项目</span>${projChips}</div>
     <div class="filter-bar" style="margin-top:-12px">${statusChips}</div>
     <div class="filter-bar" style="margin-top:-12px"><span class="filter-chip${filterAssignee==='all'?' on':''}" onclick="filterAssignee='all';renderTaskList()">全部成员</span>${assigneeChips}</div>
+    ${(filterProject!=='all' || filterStatus!=='all' || filterAssignee!=='all') ? `<div style="margin-top:-8px;margin-bottom:4px"><button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--text3)" onclick="filterProject='all';filterStatus='all';filterAssignee='all';localStorage.removeItem('pm_task_filters');renderTaskList()">✕ 清除所有筛选</button></div>` : ''}
     ${tasks.length ? tasks.map(t=>taskCardHTML(t)).join('') : '<div class="empty-state"><i data-lucide="search" class="empty-icon"></i>没有匹配的任务<div class="empty-hint">试试调整筛选条件</div></div>'}
   </div>`;
   document.getElementById('main-content').innerHTML = html;
@@ -202,21 +216,36 @@ function renderProjects() {
 function renderProjectView(pid) {
   const proj = state.projects.find(p=>p.id===pid);
   if (!proj) { switchView('today'); return; }
-  document.getElementById('header-title').textContent = proj.name;
   const tasks = state.tasks.filter(t=>t.projectId===pid);
-  const done = tasks.filter(t=>t.done).length;
-  const pct = tasks.length?Math.round(done/tasks.length*100):0;
-  document.getElementById('header-sub').textContent = `${tasks.length} 个任务 · 完成 ${pct}%`;
+  const mode = projectViewMode[pid] || 'list';
+  const color = PROJ_COLORS[(proj.colorIdx||0)%PROJ_COLORS.length];
+  const doneCnt = tasks.filter(t=>t.done).length;
+  const pct = tasks.length ? Math.round(doneCnt/tasks.length*100) : 0;
+
+  document.getElementById('header-title').textContent = '项目详情';
+  document.getElementById('header-sub').textContent = `${proj.name} · ${tasks.length} 个任务 · ${pct}% 完成`;
   document.getElementById('header-add-btn').style.display = 'block';
 
-  const color = PROJ_COLORS[(proj.colorIdx||0)%PROJ_COLORS.length];
   const memberAvatars = (proj.members||[]).map(mid=>`<div class="member-avatar" style="background:${memberColor(mid)}" title="${memberName(mid)}">${memberInitial(mid)}</div>`).join('');
 
-  let html = `<div class="view-pane">
+  const viewToggle = `
+    <div style="display:flex;gap:6px;margin-bottom:16px;align-items:center">
+      <button class="btn btn-sm ${mode==='list'?'btn-primary':'btn-ghost'}"
+        onclick="projectViewMode['${pid}']='list';renderProjectView('${pid}')">
+        ☰ 列表
+      </button>
+      <button class="btn btn-sm ${mode==='kanban'?'btn-primary':'btn-ghost'}"
+        onclick="projectViewMode['${pid}']='kanban';renderProjectView('${pid}')">
+        ⬛ 看板
+      </button>
+    </div>`;
+
+  // Progress bar (visible in both modes)
+  const progressBar = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 22px;margin-bottom:22px;box-shadow:var(--shadow)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div style="display:flex;align-items:center;gap:10px">
-          <div style="font-size:13px;color:var(--text2)">完成进度 · ${done} / ${tasks.length}</div>
+          <div style="font-size:13px;color:var(--text2)">完成进度 · ${doneCnt} / ${tasks.length}</div>
           ${memberAvatars?`<div style="display:flex;gap:4px;margin-left:8px">${memberAvatars}</div>`:''}
         </div>
         <div style="display:flex;gap:6px">
@@ -227,13 +256,56 @@ function renderProjectView(pid) {
       <div class="progress-track" style="height:7px"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
     </div>`;
 
-  const active = tasks.filter(t=>!t.done).sort((a,b)=>urgencyOf(a)-urgencyOf(b)||priorityOrder(a.priority)-priorityOrder(b.priority));
-  const doneT = tasks.filter(t=>t.done);
-  if (active.length) html += active.map(t=>taskCardHTML(t)).join('');
-  if (doneT.length) html += `<div class="task-group" style="margin-top:20px"><div class="group-header"><div class="group-dot" style="background:#b8b5ae"></div><span class="group-title">已完成</span><span class="group-count">${doneT.length}</span></div>${doneT.map(t=>taskCardHTML(t)).join('')}</div>`;
-  if (!tasks.length) html += '<div class="empty-state"><i data-lucide="clipboard-list" class="empty-icon"></i>这个项目还没有任务<div class="empty-hint">开始规划第一个任务吧</div><div class="empty-action"><button class="btn btn-primary btn-sm" onclick="openAddTask()"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建任务</button></div></div>';
-  html += '</div>';
-  document.getElementById('main-content').innerHTML = html;
+  let contentHTML = '';
+
+  if (mode === 'kanban') {
+    const COLS = [
+      { key:'todo',    label:'待启动', color:'var(--text3)' },
+      { key:'doing',   label:'进行中', color:'var(--blue)' },
+      { key:'waiting', label:'待反馈', color:'var(--amber)' },
+      { key:'done',    label:'已完成', color:'var(--green)' },
+    ];
+    const colsHTML = COLS.map(col => {
+      const colTasks = tasks.filter(t => {
+        const s = t.status || 'todo';
+        if (col.key === 'done') return s === 'done' || t.done;
+        return s === col.key && !t.done;
+      });
+      const cards = colTasks.map(t => taskCardHTML(t)).join('');
+      return `
+        <div style="flex:1;min-width:220px;max-width:320px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;
+                      padding:8px 12px;background:var(--surface);border-radius:var(--radius-sm)">
+            <span style="width:8px;height:8px;border-radius:50%;background:${col.color};flex-shrink:0"></span>
+            <span style="font-size:13px;font-weight:600;color:var(--text)">${col.label}</span>
+            <span style="font-size:11px;color:var(--text3);margin-left:auto;
+                         background:var(--surface2);padding:1px 7px;border-radius:10px">${colTasks.length}</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${cards || '<div style="font-size:12px;color:var(--text3);padding:12px;text-align:center">暂无任务</div>'}
+          </div>
+        </div>`;
+    }).join('');
+    contentHTML = `
+      <div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:12px;align-items:flex-start">
+        ${colsHTML}
+      </div>`;
+  } else {
+    const active = tasks.filter(t=>!t.done).sort((a,b)=>urgencyOf(a)-urgencyOf(b)||priorityOrder(a.priority)-priorityOrder(b.priority));
+    const doneT = tasks.filter(t=>t.done);
+    if (active.length) contentHTML += active.map(t=>taskCardHTML(t)).join('');
+    if (doneT.length) contentHTML += `<div class="task-group" style="margin-top:20px"><div class="group-header"><div class="group-dot" style="background:#b8b5ae"></div><span class="group-title">已完成</span><span class="group-count">${doneT.length}</span></div>${doneT.map(t=>taskCardHTML(t)).join('')}</div>`;
+    if (!tasks.length) contentHTML += '<div class="empty-state"><i data-lucide="clipboard-list" class="empty-icon"></i>这个项目还没有任务<div class="empty-hint">开始规划第一个任务吧</div><div class="empty-action"><button class="btn btn-primary btn-sm" onclick="openAddTask()"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建任务</button></div></div>';
+  }
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="view-pane">
+      ${viewToggle}
+      ${progressBar}
+      ${contentHTML}
+    </div>`;
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  requestAnimationFrame(() => staggerEntrance());
 }
 
 // ─── Charts ───────────────────────────────────────────────────────────────────
@@ -359,7 +431,7 @@ function renderCharts() {
 
       <div class="chart-card full">
         <div class="chart-title">
-          项目燃尽图
+          燃尽图 <span id="burndown-pts-hint" style="font-size:10px;font-weight:400;color:var(--text3)"></span>
           <select class="burndown-select" id="burndown-proj-select" onchange="updateBurndownChart(this.value)">${burndownOpts}</select>
         </div>
         <div id="burndown-chart-area">${buildBurndownSVG('all')}</div>
@@ -371,6 +443,11 @@ function renderCharts() {
 
 function updateBurndownChart(projId) {
   document.getElementById('burndown-chart-area').innerHTML = buildBurndownSVG(projId);
+  var hint = document.getElementById('burndown-pts-hint');
+  if (hint) {
+    var log = state.burndownLog[projId === 'all' ? 'all' : projId] || [];
+    hint.textContent = '· ' + log.length + ' 个数据点';
+  }
 }
 
 function buildDonutSVG(data, total) {
@@ -404,11 +481,14 @@ function buildBurndownSVG(projId) {
   const chartW=W-padL-padR, chartH=H-padT-padB;
 
   if (log.length < 2) {
-    // Not enough data - show placeholder
-    let totalTasks = projId==='all' ? state.tasks.filter(t=>!t.done).length : state.tasks.filter(t=>t.projectId===projId&&!t.done).length;
-    return `<div style="display:flex;align-items:center;justify-content:center;height:120px;color:var(--text3);font-size:13px;flex-direction:column;gap:6px">
-      <div>当前剩余任务：<strong style="color:var(--text);font-family:var(--mono)">${totalTasks}</strong> 个</div>
-      <div style="font-size:11px">数据将在多日使用后逐渐积累并展示趋势图</div>
+    return `<div style="padding:28px 16px;text-align:center;color:var(--text3)">
+      <div style="font-size:32px;margin-bottom:12px">📈</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px">数据积累中</div>
+      <div style="font-size:12px;line-height:1.6">
+        燃尽图需要至少 2 天的历史数据<br>
+        系统每次打开时自动记录一个快照<br>
+        <span style="color:var(--text2)">当前已有 ${log.length} 个数据点</span>
+      </div>
     </div>`;
   }
 
@@ -531,9 +611,10 @@ function buildMonthlyTrendSVG() {
 }
 
 // ─── Gantt ────────────────────────────────────────────────────────────────────
-let ganttDayW = 30;
+let ganttDayW = 42;
+let projectViewMode = {}; // { [pid]: 'list' | 'kanban' }
 
-function renderGantt() {
+async function renderGantt() {
   document.getElementById('header-title').textContent = '甘特图';
   document.getElementById('header-sub').textContent = '任务时间线视图';
 
@@ -546,9 +627,14 @@ function renderGantt() {
   state.tasks.forEach(t => {
     if (t.due) { const d=new Date(t.due); if(d>maxDate) maxDate=new Date(d); }
     if (t.createdAt) { const d=new Date(t.createdAt); if(d<minDate) minDate=new Date(d); }
+    if (t.startDate) { const d=new Date(t.startDate); if(d<minDate) minDate=new Date(d); }
   });
   maxDate.setDate(maxDate.getDate()+7);
   minDate.setDate(minDate.getDate()-3);
+
+  // Store for drag calculations
+  window._ganttMinDate = new Date(minDate);
+  window._ganttDayW = ganttDayW;
 
   const totalDays = Math.round((maxDate-minDate)/86400000)+1;
   const chartWidth = totalDays * ganttDayW;
@@ -565,19 +651,17 @@ function renderGantt() {
       dateHeaderHTML += `<div style="position:absolute;left:${i*ganttDayW}px;top:0;bottom:0;display:flex;align-items:center;padding-left:6px;font-size:10px;color:var(--text3);font-weight:600;white-space:nowrap;pointer-events:none">${m}</div>`;
       prev=m;
     }
-    // Day number every 7 days
-    if (i%7===0) {
-      dateHeaderHTML += `<div style="position:absolute;left:${i*ganttDayW+2}px;top:20px;font-size:9px;color:var(--text3);white-space:nowrap">${d.getDate()}</div>`;
-    }
+    // Day number every day
+      dateHeaderHTML += `<div style="position:absolute;left:${i*ganttDayW+3}px;top:20px;font-size:11px;color:var(--text);font-weight:600;white-space:nowrap">${d.getDate()}</div>`;
   }
   // Today marker
   dateHeaderHTML += `<div style="position:absolute;left:${todayOffset*ganttDayW}px;top:0;width:${ganttDayW}px;bottom:-9999px;background:rgba(37,99,168,.07);pointer-events:none"></div>`;
   dateHeaderHTML += `<div style="position:absolute;left:${todayOffset*ganttDayW+ganttDayW/2}px;top:0;bottom:-9999px;border-left:2px dashed #2e7dd1;pointer-events:none"></div>`;
   dateHeaderHTML += `<div style="position:absolute;left:${todayOffset*ganttDayW+1}px;top:2px;background:#2e7dd1;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;white-space:nowrap">今</div>`;
 
-  // Grid lines every 7 days
-  for (let i=0; i<totalDays; i+=7) {
-    dateHeaderHTML += `<div style="position:absolute;left:${i*ganttDayW}px;top:0;bottom:-9999px;border-left:1px solid var(--border);pointer-events:none"></div>`;
+  // Grid lines — thick every 7 days, thin every day
+  for (let i=0; i<totalDays; i++) {
+    dateHeaderHTML += `<div style="position:absolute;left:${i*ganttDayW}px;top:0;bottom:-9999px;border-left:1px solid var(--border);opacity:${i%7===0?1:.35};pointer-events:none"></div>`;
   }
 
   // Build rows grouped by project
@@ -595,21 +679,25 @@ function renderGantt() {
     rightHTML += `<div class="gantt-group-header-right" style="width:${chartWidth}px"></div>`;
 
     g.tasks.forEach(t => {
-      const startD = t.createdAt ? new Date(t.createdAt) : (() => { const d=new Date(t.due); d.setDate(d.getDate()-5); return d; })();
+      const startD = (t.startDate || t.createdAt) ? new Date(t.startDate || t.createdAt) : (() => { const d=new Date(t.due); d.setDate(d.getDate()-5); return d; })();
       const endD = new Date(t.due);
       startD.setHours(0,0,0,0); endD.setHours(0,0,0,0);
+      const startStr = startD.getFullYear()+'-'+String(startD.getMonth()+1).padStart(2,'0')+'-'+String(startD.getDate()).padStart(2,'0');
+      const endStr = endD.getFullYear()+'-'+String(endD.getMonth()+1).padStart(2,'0')+'-'+String(endD.getDate()).padStart(2,'0');
       const startOffset = Math.round((startD-minDate)/86400000);
       const durDays = Math.max(1, Math.round((endD-startD)/86400000)+1);
       const left = Math.max(0, startOffset)*ganttDayW;
-      const width = Math.max(ganttDayW-4, durDays*ganttDayW-4);
+      const width = Math.max(ganttDayW-2, durDays*ganttDayW-2);
       const barColor = t.done ? '#b8b5ae' : color;
       const isOverdue = !t.done && new Date(t.due)<today;
       const blocked = isBlocked(t);
 
-      leftHTML += `<div class="gantt-row-name${t.done?' done-row':''}${t.milestone?' milestone-row':''}" onclick="openEditTask('${t.id}')" title="${t.title}">${t.milestone?'◆ ':''}${blocked?'⚠ ':''}${t.title}</div>`;
+      const canDrag = canAdjustGantt(t);
+      leftHTML += `<div class="gantt-row-name${t.done?' done-row':''}${t.milestone?' milestone-row':''}" onclick="openEditTask('${t.id}')" title="${t.title}  |  ${startStr} ~ ${endStr}">${t.milestone?'◆ ':''}${blocked?'⚠ ':''}${t.title}</div>`;
       rightHTML += `<div style="position:relative;height:44px;border-bottom:1px solid var(--border);width:${chartWidth}px;background:${t.done?'transparent':'var(--surface)'}">
-        <div title="${t.title}" onclick="openEditTask('${t.id}')" style="position:absolute;top:10px;left:${left}px;width:${width}px;height:24px;background:${barColor};opacity:${t.done?.5:1};border-radius:${t.milestone?'3px':'5px'};cursor:pointer;display:flex;align-items:center;padding:0 8px;overflow:hidden;transition:opacity .15s;${isOverdue?'outline:1.5px solid var(--red);':''}${t.milestone?'outline:2px solid '+barColor+';outline-offset:2px;':''} " onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='${t.done?.5:1}'">
-          <span style="font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500">${t.milestone?'◆ ':''}${t.title}</span>
+        <div class="gantt-bar" data-task-id="${t.id}" data-start-offset="${startOffset}" data-dur-days="${durDays}" title="${t.title}  |  ${startStr} ~ ${endStr}" ondblclick="openEditTask('${t.id}')" style="position:absolute;top:10px;left:${left}px;width:${width}px;height:24px;background:${barColor};opacity:${t.done?.5:1};border-radius:${t.milestone?'3px':'5px'};cursor:${canDrag?'grab':'default'};display:flex;align-items:center;padding:0 8px;overflow:hidden;transition:none;${isOverdue?'outline:1.5px solid var(--red);':''}${t.milestone?'outline:2px solid '+barColor+';outline-offset:2px;':''}" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='${t.done?.5:1}'">
+          <span style="font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;pointer-events:none">${t.milestone?'◆ ':''}${t.title}</span>
+          ${canDrag?`<div class="gantt-resize-handle" data-task-id="${t.id}" style="position:absolute;right:0;top:0;width:8px;height:100%;cursor:ew-resize;background:rgba(255,255,255,.25);border-radius:0 5px 5px 0" title="拖动调整截止日期"></div>`:''}
         </div>
         ${t.milestone?`<div style="position:absolute;left:${left+width}px;top:50%;transform:translate(-50%,-50%) rotate(45deg);width:12px;height:12px;background:var(--amber);border:2px solid #fff;box-shadow:0 0 0 1.5px var(--amber);pointer-events:none;z-index:2"></div>`:''}
         ${t.due===todayStr?`<div style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--red);font-weight:600">今</div>`:''}
@@ -621,12 +709,78 @@ function renderGantt() {
     leftHTML += '<div class="empty-state" style="padding:40px 16px">暂无任务</div>';
   }
 
+  // ── Load adjustment history from Supabase BEFORE setting innerHTML ──
+  var adjRecords = [];
+  var adjProjects = [];
+  try {
+    var logRes = await sb.from('logs')
+      .select('*')
+      .in('action', ['甘特图调整','gantt_adjust'])
+      .order('created_at', { ascending: false })
+      .limit(200);
+    var projSet = {};
+    adjRecords = (logRes.data || []).map(function(row) {
+      try {
+        var d = JSON.parse(row.detail || '{}');
+        var pid = d.projectId || '';
+        var pname = projName(pid);
+        if (pid && pname) projSet[pid] = pname;
+        return {
+          taskId: d.taskId || '',
+          taskTitle: d.taskTitle || '—',
+          projectId: pid,
+          projectName: pname || '—',
+          mode: d.mode || 'resize',
+          newDue: d.newDue || '',
+          oldDue: d.oldDue || '',
+          operator: row.user_name || '—',
+          time: new Date(row.created_at).toLocaleString('zh-CN', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}),
+          rawDate: row.created_at
+        };
+      } catch(e) { return null; }
+    }).filter(Boolean);
+    adjProjects = Object.entries(projSet).map(function(e) { return {id: e[0], name: e[1]}; });
+  } catch(e) { /* ignore */ }
+
+  // Build filter bar HTML
+  var projOpts = adjProjects.map(function(p) {
+    return '<option value="' + p.id + '">' + p.name + '</option>';
+  }).join('');
+
+  var adjHistoryHTML = '';
+  if (adjRecords.length > 0) {
+    adjHistoryHTML = `
+      <div style="margin-top:16px" id="gantt-adj-section">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+          <div style="font-size:12px;font-weight:600;color:var(--text2)">📋 调整记录</div>
+          <select id="gantt-adj-filter-proj" onchange="filterGanttHistory()" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text2)">
+            <option value="">全部项目</option>${projOpts}
+          </select>
+          <input id="gantt-adj-filter-task" oninput="filterGanttHistory()" placeholder="搜索任务…" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text2);width:130px">
+          <input type="date" id="gantt-adj-filter-from" onchange="filterGanttHistory()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text2);width:115px" title="开始日期">
+          <span style="font-size:11px;color:var(--text3)">至</span>
+          <input type="date" id="gantt-adj-filter-to" onchange="filterGanttHistory()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text2);width:115px" title="结束日期">
+          <span style="font-size:10px;color:var(--text3);margin-left:auto">共 ${adjRecords.length} 条</span>
+        </div>
+        <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm)" id="gantt-adj-table-wrap">
+          ${buildGanttHistoryTable(adjRecords)}
+        </div>
+      </div>`;
+  }
+
+  // Store records for client-side filtering
+  window._ganttAdjRecords = adjRecords;
+
   const html = `<div class="view-pane">
-    <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
+    <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="font-size:12px;color:var(--text3)">缩放：</span>
       <button class="btn btn-ghost btn-sm" onclick="setGanttZoom(20)">小</button>
       <button class="btn btn-ghost btn-sm" onclick="setGanttZoom(30)">中</button>
       <button class="btn btn-ghost btn-sm" onclick="setGanttZoom(44)">大</button>
+      <span style="font-size:11px;color:var(--text3);margin-left:12px;display:flex;align-items:center;gap:4px">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text3)" stroke-width="1.5"><path d="M5 3v10M11 3v10M3 8h10"/></svg>
+        拖动时间条或右边缘可调整日期
+      </span>
     </div>
     <div class="gantt-wrap" id="gantt-wrap">
       <div class="gantt-inner">
@@ -636,9 +790,11 @@ function renderGantt() {
         </div>
       </div>
     </div>
+    ${adjHistoryHTML}
   </div>`;
   document.getElementById('main-content').innerHTML = html;
   ganttScrollToday();
+  initGanttDrag();
 }
 
 function setGanttZoom(w) {
@@ -666,3 +822,266 @@ function ganttScrollToday() {
 }
 
 // ─── Task Card ────────────────────────────────────────────────────────────────
+
+// ─── Gantt drag-to-resize/move ─────────────────────────────────
+let _ganttDragging = null;
+let _ganttMousedown = null;
+let _ganttMousemove = null;
+let _ganttMouseup = null;
+
+function initGanttDrag() {
+  if (_ganttMousedown) document.removeEventListener('mousedown', _ganttMousedown);
+  if (_ganttMousemove) document.removeEventListener('mousemove', _ganttMousemove);
+  if (_ganttMouseup) document.removeEventListener('mouseup', _ganttMouseup);
+
+  // Ensure tooltip element exists
+  var tip = document.getElementById('gantt-drag-tip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'gantt-drag-tip';
+    tip.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;background:#1e1e2e;color:#e0e0e0;padding:7px 12px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.35);white-space:nowrap;display:none;border:1px solid rgba(255,255,255,.12);letter-spacing:0.02em';
+    document.body.appendChild(tip);
+  }
+
+  function fmtGanttDate(dateStr) {
+    if (!dateStr) return '';
+    var d = new Date(dateStr + 'T00:00:00');
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  function showTip(e, html) {
+    tip.innerHTML = html;
+    tip.style.display = '';
+    var tx = e.clientX + 16;
+    var ty = e.clientY - 44;
+    if (tx + 200 > window.innerWidth) tx = e.clientX - 200;
+    if (ty < 10) ty = e.clientY + 20;
+    tip.style.left = tx + 'px';
+    tip.style.top = ty + 'px';
+  }
+
+  function hideTip() {
+    tip.style.display = 'none';
+  }
+
+  _ganttMousedown = function(e) {
+    var ganttCol = document.getElementById('gantt-right-col');
+    if (!ganttCol) return;
+    var handle = e.target.closest('.gantt-resize-handle');
+    var bar = e.target.closest('.gantt-bar');
+    if (!handle && !bar) return;
+
+    var taskId = (handle || bar).getAttribute('data-task-id');
+    var task = state.tasks.find(function(t) { return t.id === taskId; });
+    if (!task || !canAdjustGantt(task)) return;
+
+    if (handle && handle.closest('.gantt-bar') === bar) {
+      _ganttDragging = {
+        taskId: taskId, mode: 'resize',
+        startX: e.clientX,
+        origWidth: parseInt(bar.style.width),
+        origLeft: parseInt(bar.style.left),
+        origStartOffset: parseInt(bar.getAttribute('data-start-offset')),
+        origDurDays: parseInt(bar.getAttribute('data-dur-days')),
+        dayW: ganttDayW,
+        barEl: bar
+      };
+      e.preventDefault();
+      showTip(e, '<span style="font-size:11px;opacity:.7">截止</span> ' + fmtGanttDate(task.due));
+    } else if (bar && !handle) {
+      _ganttDragging = {
+        taskId: taskId, mode: 'move',
+        startX: e.clientX,
+        origLeft: parseInt(bar.style.left),
+        origWidth: parseInt(bar.style.width),
+        origStartOffset: parseInt(bar.getAttribute('data-start-offset')),
+        origDurDays: parseInt(bar.getAttribute('data-dur-days')),
+        dayW: ganttDayW,
+        barEl: bar
+      };
+      bar.style.cursor = 'grabbing';
+      e.preventDefault();
+      var sd = task.startDate || task.createdAt;
+      showTip(e, fmtGanttDate(sd) + ' <span style="opacity:.5">~</span> ' + fmtGanttDate(task.due));
+    }
+  };
+
+  _ganttMousemove = function(e) {
+    if (!_ganttDragging) return;
+    var dx = e.clientX - _ganttDragging.startX;
+    var days = Math.round(dx / _ganttDragging.dayW);
+    var minDate = window._ganttMinDate;
+    if (!minDate) return;
+
+    if (_ganttDragging.mode === 'resize') {
+      var newWidth = Math.max(_ganttDragging.dayW, _ganttDragging.origWidth + days * _ganttDragging.dayW);
+      _ganttDragging.barEl.style.width = newWidth + 'px';
+      // Calculate new end date for tooltip
+      var newDurDays = Math.max(1, _ganttDragging.origDurDays + days);
+      var tipDate = new Date(minDate);
+      tipDate.setDate(tipDate.getDate() + _ganttDragging.origStartOffset + newDurDays - 1);
+      var tipStr = tipDate.getFullYear() + '-' + String(tipDate.getMonth()+1).padStart(2,'0') + '-' + String(tipDate.getDate()).padStart(2,'0');
+      showTip(e, '<span style="font-size:11px;opacity:.7">截止</span> <span style="color:#7ec8e3">' + tipStr + '</span>' + (days !== 0 ? ' <span style="font-size:10px;opacity:.5">' + (days > 0 ? '+' : '') + days + '天</span>' : ''));
+    } else {
+      var newLeft = _ganttDragging.origLeft + days * _ganttDragging.dayW;
+      _ganttDragging.barEl.style.left = Math.max(0, newLeft) + 'px';
+      // Calculate new start/end for tooltip
+      var newStartOffset = Math.max(0, _ganttDragging.origStartOffset + days);
+      var tipStart = new Date(minDate);
+      tipStart.setDate(tipStart.getDate() + newStartOffset);
+      var tipEnd = new Date(tipStart);
+      tipEnd.setDate(tipEnd.getDate() + _ganttDragging.origDurDays - 1);
+      var ts = tipStart.getFullYear() + '-' + String(tipStart.getMonth()+1).padStart(2,'0') + '-' + String(tipStart.getDate()).padStart(2,'0');
+      var te = tipEnd.getFullYear() + '-' + String(tipEnd.getMonth()+1).padStart(2,'0') + '-' + String(tipEnd.getDate()).padStart(2,'0');
+      var dayLabel = days !== 0 ? ' <span style="font-size:10px;opacity:.5">' + (days > 0 ? '+' : '') + days + '天</span>' : '';
+      showTip(e, '<span style="color:#f0c060">' + ts + '</span> <span style="opacity:.5">~</span> <span style="color:#7ec8e3">' + te + '</span>' + dayLabel);
+    }
+  };
+
+  _ganttMouseup = function(e) {
+    hideTip();
+    if (!_ganttDragging) return;
+    var dx = e.clientX - _ganttDragging.startX;
+    var days = Math.round(dx / _ganttDragging.dayW);
+    var taskId = _ganttDragging.taskId;
+    var mode = _ganttDragging.mode;
+    var origStartOffset = _ganttDragging.origStartOffset;
+    var origDurDays = _ganttDragging.origDurDays;
+    _ganttDragging.barEl.style.cursor = mode === 'move' ? 'grab' : '';
+    _ganttDragging = null;
+
+    if (days === 0) return;
+
+    var task = state.tasks.find(function(t) { return t.id === taskId; });
+    if (!task) return;
+
+    var minDate = window._ganttMinDate;
+    if (!minDate) { minDate = new Date(); minDate.setDate(minDate.getDate() - 14); }
+
+    var oldDue = task.due;
+    var oldStartDate = task.startDate;
+    if (mode === 'resize') {
+      var newDurDays = Math.max(1, origDurDays + days);
+      var newEndDate = new Date(minDate);
+      newEndDate.setDate(newEndDate.getDate() + origStartOffset + newDurDays - 1);
+      task.due = newEndDate.getFullYear() + '-' + String(newEndDate.getMonth()+1).padStart(2,'0') + '-' + String(newEndDate.getDate()).padStart(2,'0');
+    } else {
+      var newStartOffset = Math.max(0, origStartOffset + days);
+      var newStartDate = new Date(minDate);
+      newStartDate.setDate(newStartDate.getDate() + newStartOffset);
+      var newEndDate = new Date(newStartDate);
+      newEndDate.setDate(newEndDate.getDate() + origDurDays - 1);
+      task.startDate = newStartDate.getFullYear() + '-' + String(newStartDate.getMonth()+1).padStart(2,'0') + '-' + String(newStartDate.getDate()).padStart(2,'0');
+      task.due = newEndDate.getFullYear() + '-' + String(newEndDate.getMonth()+1).padStart(2,'0') + '-' + String(newEndDate.getDate()).padStart(2,'0');
+    }
+
+    window._ganttSaving = true;
+    saveGanttAdjustment(task, mode, oldDue).then(function(ok) {
+      if (!ok) { task.due = oldDue; task.startDate = oldStartDate; }
+      renderGantt();
+      setTimeout(function() { window._ganttSaving = false; }, 1500);
+    });
+  };
+
+  document.addEventListener('mousedown', _ganttMousedown);
+  document.addEventListener('mousemove', _ganttMousemove);
+  document.addEventListener('mouseup', _ganttMouseup);
+}
+
+
+async function saveGanttAdjustment(task, mode, oldDue) {
+  try {
+    var payload = { due: task.due };
+    if (task.startDate) payload.start_date = task.startDate;
+    var ret = await sb.from('tasks').update(payload).eq('id', task.id);
+    if (ret.error) { toast('保存失败：' + ret.error.message, 'error'); return false; }
+    toast('时间已更新', 'success');
+
+    // Persist to logs table
+    var detail = JSON.stringify({
+      taskId: task.id,
+      taskTitle: task.title,
+      projectId: task.projectId || '',
+      mode: mode || 'resize',
+      newDue: task.due,
+      oldDue: oldDue || ''
+    });
+	    try {
+      await sb.from('logs').insert({
+        id: 'gl' + uid(),
+        user_id: currentUser ? currentUser.id : '',
+        user_name: currentUser ? currentUser.name : '',
+        action: '甘特图调整',
+        detail: detail,
+        created_at: new Date().toISOString()
+      });
+    } catch(e) { /* ignore */ }
+
+    if (typeof addTimelineEntry === 'function') {
+      addTimelineEntry(task, '调整时间', '截止日期更新为 ' + task.due);
+    }
+    return true;
+  } catch(err) {
+    toast('保存异常', 'error');
+    return false;
+  }
+}
+
+// ─── Gantt permission check ────────────────────────────────
+function canAdjustGantt(task) {
+  if (!currentUser) return false;
+  if (typeof isAdmin === 'function' && isAdmin()) return true;
+  // 项目负责人：用户在项目成员列表中
+  if (task.projectId) {
+    var proj = state.projects.find(function(p) { return p.id === task.projectId; });
+    if (proj && (proj.members || []).indexOf(currentUser.id) >= 0) return true;
+  }
+  // 任务负责人
+  if (task.assignee === currentUser.id) return true;
+  return false;
+}
+
+// ─── Gantt history filters ─────────────────────────────────
+function filterGanttHistory() {
+  var records = window._ganttAdjRecords || [];
+  var projFilter = (document.getElementById('gantt-adj-filter-proj') || {}).value || '';
+  var taskFilter = ((document.getElementById('gantt-adj-filter-task') || {}).value || '').toLowerCase();
+  var fromFilter = (document.getElementById('gantt-adj-filter-from') || {}).value || '';
+  var toFilter = (document.getElementById('gantt-adj-filter-to') || {}).value || '';
+
+  var filtered = records.filter(function(r) {
+    if (projFilter && r.projectId !== projFilter) return false;
+    if (taskFilter && r.taskTitle.toLowerCase().indexOf(taskFilter) === -1) return false;
+    if (fromFilter && r.rawDate < fromFilter) return false;
+    if (toFilter && r.rawDate > toFilter + 'T23:59:59') return false;
+    return true;
+  });
+
+  var wrap = document.getElementById('gantt-adj-table-wrap');
+  if (wrap) wrap.innerHTML = buildGanttHistoryTable(filtered);
+}
+
+function buildGanttHistoryTable(records) {
+  if (!records.length) {
+    return '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px">无匹配记录</div>';
+  }
+  return '<table style="width:100%;border-collapse:collapse;font-size:11px">'
+    + '<thead><tr style="background:var(--surface2)">'
+    + '<th style="padding:6px 10px;text-align:left;color:var(--text3);border-bottom:1px solid var(--border)">项目</th>'
+    + '<th style="padding:6px 10px;text-align:left;color:var(--text3);border-bottom:1px solid var(--border)">任务</th>'
+    + '<th style="padding:6px 10px;text-align:left;color:var(--text3);border-bottom:1px solid var(--border)">调整方式</th>'
+    + '<th style="padding:6px 10px;text-align:left;color:var(--text3);border-bottom:1px solid var(--border)">截止日期</th>'
+    + '<th style="padding:6px 10px;text-align:left;color:var(--text3);border-bottom:1px solid var(--border)">操作人</th>'
+    + '<th style="padding:6px 10px;text-align:left;color:var(--text3);border-bottom:1px solid var(--border)">时间</th>'
+    + '</tr></thead>'
+    + '<tbody>' + records.map(function(a) { return ''
+    + '<tr>'
+    + '<td style="padding:5px 10px;color:var(--text2);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + a.projectName + '</td>'
+    + '<td style="padding:5px 10px;color:var(--text)">' + a.taskTitle + '</td>'
+    + '<td style="padding:5px 10px;color:' + (a.mode==='resize'?'var(--blue)':'var(--amber)') + '">' + (a.mode==='resize'?'调整截止':'平移时间') + '</td>'
+    + '<td style="padding:5px 10px;color:var(--text2);font-family:var(--mono)">' + a.newDue + '</td>'
+    + '<td style="padding:5px 10px;color:var(--text2)">' + a.operator + '</td>'
+    + '<td style="padding:5px 10px;color:var(--text3)">' + a.time + '</td>'
+    + '</tr>'; }).join('') + '</tbody>'
+    + '</table>';
+}

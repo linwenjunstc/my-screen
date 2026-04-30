@@ -102,7 +102,7 @@ async function submitAddProject(btn) {
   setLoading(btn, false);
   closeModal();
   switchView('project-' + p.id);
-  toast('项目已创建并同步');
+  toast('项目已创建并同步', 'success');
   logAction('添加项目', `新建项目「${name}」`);
 }
 
@@ -177,7 +177,7 @@ async function addMemberToProject(projId) {
     await syncProject(p); 
     // 重新打开弹窗以刷新显示
     openEditProject(projId); 
-    toast('成员已加入项目并同步');
+    toast('成员已加入项目并同步', 'success');
   }
 }
 
@@ -190,7 +190,7 @@ async function removeMemberFromProject(projId, memberId) {
   // 【关键】同步修改到云端
   await syncProject(p); 
   openEditProject(projId); 
-  toast('成员已移除');
+  toast('成员已移除', 'success');
 }
 
 
@@ -206,7 +206,7 @@ async function submitEditProject(id) {
   await syncProject(p);
   closeModal();
   render();
-  toast('项目更新成功');
+  toast('项目更新成功', 'success');
   logAction('编辑项目', `更新项目「${name}」`);
 }
 

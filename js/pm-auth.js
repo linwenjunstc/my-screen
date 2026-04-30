@@ -54,14 +54,31 @@ async function submitChangePassword(btn) {
   currentUser.password = newPwd;
   localStorage.setItem('pm_session', JSON.stringify(currentUser));
   closeModal();
-  toast('✓ 密码已成功修改');
+  toast('✓ 密码已成功修改', 'success');
   logAction('修改密码', '修改了登录密码');
 }
 
 // ─── Keyboard ─────────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
-  if (e.key==='Escape') closeModal();
-  if ((e.metaKey||e.ctrlKey)&&e.key==='k') { e.preventDefault(); openAddTask(); }
+  if (e.key === 'Escape') {
+    closeModal();
+    return;
+  }
+  if ((e.metaKey||e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    openAddTask();
+    return;
+  }
+  // Cmd/Ctrl+Enter：保存当前弹框
+  if ((e.metaKey||e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    const modal = document.getElementById('modal-overlay');
+    if (modal && modal.classList.contains('open')) {
+      const saveBtn = document.querySelector('.modal-footer .btn-primary');
+      if (saveBtn && !saveBtn.disabled) saveBtn.click();
+    }
+    return;
+  }
 });
 
 

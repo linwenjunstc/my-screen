@@ -202,7 +202,7 @@ async function saveT4Actuals(btn){
     actual_amortization:+q('t4-aa')||0, actual_company_lock:+q('t4-ac')||0,
     actual_debt_service:+q('t4-ab')||0};
   await upsertSummary(data);
-  setLoading(btn,false);closeModal();finRender();toast('✓ 完成情况已保存');
+  setLoading(btn,false);closeModal();finRender();toast('✓ 完成情况已保存', 'success');
   finLogAction('编辑完成情况', `更新${fmtMon(currentMonth)}完成情况实际数`);
 }
 

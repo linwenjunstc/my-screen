@@ -125,6 +125,11 @@ function openModal(html, cls) {
   box.innerHTML = html;
   document.getElementById('modal-overlay').classList.add('open');
   if (typeof lucide !== 'undefined') lucide.createIcons();
+  // 自动聚焦第一个可见输入框
+  requestAnimationFrame(() => {
+    const firstInput = document.querySelector('#modal-box input:not([type=checkbox]):not([type=hidden]), #modal-box select, #modal-box textarea');
+    if (firstInput) firstInput.focus();
+  });
 }
 function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
 function onOverlayClick(e) { if(e.target===document.getElementById('modal-overlay')) closeModal(); }
@@ -206,7 +211,7 @@ async function submitAddTask(btn) {
   setLoading(btn, false);
   closeModal();
   await loadState();
-  toast('任务已同步至云端');
+  toast('任务已同步至云端', 'success');
   logAction('添加任务', `新建任务「${title}」`);
 }
 
@@ -253,6 +258,7 @@ function openEditTask(id) {
       <button class="modal-tab" id="tab-sub" onclick="switchTaskTab('sub','${id}')">子任务 ${t.subtasks&&t.subtasks.length?`(${t.subtasks.filter(s=>s.done).length}/${t.subtasks.length})`:''}</button>
       <button class="modal-tab" id="tab-dep" onclick="switchTaskTab('dep','${id}')">依赖 ${t.dependencies&&t.dependencies.length?`(${t.dependencies.length})`:''}</button>
       <button class="modal-tab" id="tab-log" onclick="switchTaskTab('log','${id}')">记录 ${t.logs&&t.logs.length?`(${t.logs.length})`:''}</button>
+      <button class="modal-tab" id="tab-gantt" onclick="switchTaskTab('gantt','${id}')">甘特图调整</button>
     </div>
 
     <div class="modal-body" id="task-tab-content">
@@ -293,6 +299,9 @@ function openEditTask(id) {
         ${logsHTML}
         <button class="btn btn-ghost" style="width:100%;margin-top:6px;font-size:12px" onclick="closeModal();openLog('${t.id}')">+ 记录新跟进</button>
       </div>
+      <div id="tab-pane-gantt" style="display:none">
+        <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">加载中...</div>
+      </div>
     </div>
 
     <div class="modal-footer">
@@ -305,13 +314,84 @@ function openEditTask(id) {
 }
 
 function switchTaskTab(tab, taskId) {
-  ['basic','sub','dep','log'].forEach(t => {
+  ['basic','sub','dep','log','gantt'].forEach(t => {
     const btn=document.getElementById('tab-'+t);
     const pane=document.getElementById('tab-pane-'+t);
     if (btn) btn.classList.toggle('active', t===tab);
     if (pane) pane.style.display = t===tab?'block':'none';
   });
   activeTaskTab = tab;
+  if (tab === 'gantt') loadTaskGanttHistory(taskId);
+}
+
+async function loadTaskGanttHistory(taskId) {
+  const pane = document.getElementById('tab-pane-gantt');
+  if (!pane) return;
+  pane.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">加载中...</div>';
+
+  try {
+    const { data, error } = await sb.from('logs')
+      .select('*')
+      .in('action', ['甘特图调整','gantt_adjust'])
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (error) {
+      pane.innerHTML = '<div style="color:var(--red);font-size:12px;padding:12px">加载失败：' + error.message + '</div>';
+      return;
+    }
+
+    const records = (data || []).filter(row => {
+      try {
+        const d = JSON.parse(row.detail || '{}');
+        return d.taskId === taskId;
+      } catch(e) { return false; }
+    }).map(row => {
+      try {
+        const d = JSON.parse(row.detail || '{}');
+        return {
+          mode: d.mode || 'resize',
+          oldDue: d.oldDue || '',
+          newDue: d.newDue || '',
+          operator: row.user_name || '—',
+          time: new Date(row.created_at).toLocaleString('zh-CN', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}),
+          rawDate: row.created_at
+        };
+      } catch(e) { return null; }
+    }).filter(Boolean);
+
+    if (!records.length) {
+      pane.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">暂无甘特图调整记录</div>';
+      return;
+    }
+
+    const rows = records.map((r, i) => {
+      const modeLabel = r.mode === 'move' ? '平移时间条' : '调整截止日期';
+      const modeColor = r.mode === 'move' ? 'var(--amber)' : 'var(--blue)';
+      return `<tr>
+        <td style="padding:6px 10px;color:var(--text3);text-align:center">${i + 1}</td>
+        <td style="padding:6px 10px;color:${modeColor};font-weight:500">${modeLabel}</td>
+        <td style="padding:6px 10px;font-family:var(--mono);font-size:12px;color:var(--text2)">${r.oldDue || '—'}</td>
+        <td style="padding:6px 10px;font-family:var(--mono);font-size:12px;color:var(--text)">${r.newDue || '—'}</td>
+        <td style="padding:6px 10px;color:var(--text2)">${r.operator}</td>
+        <td style="padding:6px 10px;color:var(--text3);font-size:11px">${r.time}</td>
+      </tr>`;
+    }).join('');
+
+    pane.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:var(--surface2)">
+        <th style="padding:6px 10px;text-align:center;color:var(--text3);border-bottom:1px solid var(--border);width:32px">#</th>
+        <th style="padding:6px 10px;text-align:left;color:var(--text3);border-bottom:1px solid var(--border)">调整方式</th>
+        <th style="padding:6px 10px;text-align:left;color:var(--text3);border-bottom:1px solid var(--border)">原截止</th>
+        <th style="padding:6px 10px;text-align:left;color:var(--text3);border-bottom:1px solid var(--border)">新截止</th>
+        <th style="padding:6px 10px;text-align:left;color:var(--text3);border-bottom:1px solid var(--border)">操作人</th>
+        <th style="padding:6px 10px;text-align:left;color:var(--text3);border-bottom:1px solid var(--border)">时间</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  } catch(err) {
+    pane.innerHTML = '<div style="color:var(--red);font-size:12px;padding:12px">加载异常</div>';
+  }
 }
 
 async function saveState(idOrType) {
@@ -420,7 +500,7 @@ async function submitEditTask(id, btn) {
   setLoading(btn, false);
   closeModal();
   render();
-  toast('更改已同步至云端');
+  toast('更改已同步至云端', 'success');
   logAction('编辑任务', `更新任务「${t.title}」`);
 }
 
@@ -490,7 +570,7 @@ function submitLog(id) {
     const si = (s) => ({todo:'待启动',doing:'进行中',waiting:'待反馈',done:'已完成'}[s]||s);
     addTimelineEntry(t, '状态变更', `从「${si(oldStatus)}」改为「${si(status)}」（通过备注）`);
   }
-  saveState(); closeModal(); render(); toast('备注已记录');
+  saveState(); closeModal(); render(); toast('备注已记录', 'success');
 }
 
 // ─── Projects CRUD ────────────────────────────────────────────────────────────

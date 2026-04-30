@@ -93,7 +93,7 @@ async function submitAddMember() {
 
   if (error) {
     console.error(error);
-    toast("成员同步失败，请检查数据库权限");
+    toast('成员同步失败，请检查数据库权限', 'error');
   } else {
     state.members.push(newMember);
     nameInp.value = '';
@@ -113,7 +113,7 @@ async function deleteMember(id) {
   // 安全检查：如果成员还有任务，不建议直接删除
   const taskCnt = state.tasks.filter(t => t.assignee === id).length;
   if (taskCnt > 0) {
-    toast(`无法删除：${m.name} 还有 ${taskCnt} 个任务未处理`);
+    toast(`无法删除：${m.name} 还有 ${taskCnt} 个任务未处理`, 'warning');
     return;
   }
 
@@ -335,14 +335,14 @@ async function applyRoleChange(memberId) {
 
   // 权限检查
   if (!canManageRole(currentUser.role, newRole)) {
-    toast('无权限设置此角色'); return;
+    toast('无权限设置此角色', 'warning'); return;
   }
 
   const { error } = await sb.from('members').update({ role: newRole }).eq('id', memberId);
-  if (error) { toast('更新失败：' + error.message); return; }
+  if (error) { toast('更新失败：' + error.message, 'error'); return; }
   m.role = newRole;
   document.getElementById('role-manage-list').innerHTML = buildRoleManageListHTML();
-  toast(`✓ 已将「${m.name}」设为${ROLE_LABELS[newRole]}`);
+  toast(`✓ 已将「${m.name}」设为${ROLE_LABELS[newRole]}`, 'success');
   logAction('修改角色', `将「${m.name}」设为${ROLE_LABELS[newRole]}`);
 }
 
@@ -453,7 +453,7 @@ async function saveMenuPerms(memberId, btn) {
   const { error } = await sb.from('members').update({ menu_perms: finalPerms }).eq('id', memberId);
   setLoading(btn, false);
 
-  if (error) { toast('保存失败：' + error.message); return; }
+  if (error) { toast('保存失败：' + error.message, 'error'); return; }
 
   m.menuPerms = finalPerms;
   // 如果改的是自己，立即生效
@@ -463,7 +463,7 @@ async function saveMenuPerms(memberId, btn) {
     applyMenuPerms();
   }
 
-  toast(`✓ 已更新「${m.name}」的菜单权限`);
+  toast(`✓ 已更新「${m.name}」的菜单权限`, 'success');
   logAction('配置菜单权限', `为「${m.name}」配置了 ${finalPerms.length} 项菜单权限`);
   openRoleManageModal();
 }

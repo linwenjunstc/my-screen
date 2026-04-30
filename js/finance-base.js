@@ -25,7 +25,7 @@ function openBaseLibModal(){
   </div>`);
 }
 
-function renderDashboard(){
+async function renderDashboard(){
   const c=computeTotals();
   const actRec=finState.actualReceipts.reduce((s,r)=>s+(+r.amount||0),0);
   const actPay=finState.actualPayments.reduce((s,r)=>s+(+r.amount||0),0);
@@ -145,8 +145,25 @@ function renderDashboard(){
         <div class="prog-pct ${cls}">${planSub?(ratio*100).toFixed(1)+'%':'—'}</div>
       </div>`;
     }).join('')||'<div style="color:var(--text3);font-size:12px;padding:8px 0">暂无付款计划</div>'}
-  </div>`;
+  </div>
+  <div id="trend-chart-placeholder"></div>
+  <div id="trend-chart-area" style="display:none"></div>`;
   setTimeout(() => { if (typeof setupChartTipListeners === 'function') setupChartTipListeners(); }, 50);
+
+  // 异步加载近6月趋势图（不阻塞主渲染）
+  var trendMonths = [];
+  for (var i = 5; i >= 0; i--) {
+    var d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - i);
+    trendMonths.push(d.toISOString().slice(0, 7));
+  }
+  buildTrendSVGData(trendMonths).then(function(data) {
+    var ph = document.getElementById('trend-chart-placeholder');
+    if (ph) {
+      ph.innerHTML = buildTrendSVGStatic(trendMonths, data.recByMonth, data.payByMonth);
+    }
+  });
 }
 
 //  合同库
@@ -440,6 +457,19 @@ window.resetSupplierFilter = function() {
   renderSuppliers();
 };
 
+// ── 客户筛选 查询/重置 ──
+window.applyCustomerFilters = function() {
+  window._filters = window._filters || {};
+  window._filters.cust_name = (document.getElementById('f-cust-name')||{}).value || '';
+  renderCustomers();
+};
+
+window.resetCustomerFilters = function() {
+  window._filters = window._filters || {};
+  window._filters.cust_name = '';
+  renderCustomers();
+};
+
 function openAddContractModal(){openEditContractModal(window._contractTab||'up',null);}
 function openEditContractModal(dir,id){
   const isUp = dir==='up';
@@ -641,16 +671,99 @@ async function saveContract(dir,id,btn){
 function openRevenueModal(contractId){
   const r   = finState.contractsUp.find(x=>x.id===contractId);
   if(!r) return;
+
+  // ── 回款进度数据 ──
+  const allReceipts = finState.actualReceipts.filter(x => x.upstream_contract_id === contractId);
+  const byMonth = {};
+  allReceipts.forEach(rec => {
+    byMonth[rec.year_month] = (byMonth[rec.year_month]||0) + (+rec.amount||0);
+  });
+  const totalReceived = allReceipts.reduce((s,x)=>s+(+x.amount||0), 0);
+  const contractAmt   = +r.amount || 0;
+  const remaining     = contractAmt - totalReceived;
+  const pct           = contractAmt > 0 ? Math.min(100, (totalReceived/contractAmt*100)) : 0;
+
+  const monthRows = Object.entries(byMonth)
+    .sort((a,b)=>a[0]>b[0]?1:-1)
+    .map(([ym,amt]) => `
+      <tr>
+        <td style="padding:6px 10px;font-size:12px;color:var(--text2)">${ym.replace('-','年').replace(/(\d+)$/,'$1月')}</td>
+        <td style="padding:6px 10px;font-size:12px;text-align:right;color:var(--green);font-family:var(--mono)">${fmt(amt)}</td>
+      </tr>`).join('');
+
+  // ── 营收管理 tab 内容 ──
+  const revenueTabContent = buildRevenueTabContent(r);
+
+  openModal(`${modalHeader('合同详情 · ' + r.name)}
+    <div class="modal-tabs">
+      <button class="modal-tab active" id="rev-tab-progress" onclick="switchRevTab('progress')">回款进度</button>
+      <button class="modal-tab" id="rev-tab-revenue" onclick="switchRevTab('revenue')">营收管理</button>
+    </div>
+    <div class="modal-body">
+      <div id="rev-pane-progress">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+          <div class="stat-card">
+            <div class="stat-label">合同金额</div>
+            <div class="stat-val" style="font-size:18px">${fmt(contractAmt)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">累计已收</div>
+            <div class="stat-val" style="font-size:18px;color:var(--green)">${fmt(totalReceived)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">未收余额</div>
+            <div class="stat-val" style="font-size:18px;color:${remaining>0?'var(--amber)':'var(--green)'}">${fmt(remaining)}</div>
+          </div>
+        </div>
+        <div style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text3);margin-bottom:6px">
+            <span>回款进度</span><span style="color:var(--green);font-weight:600">${pct.toFixed(1)}%</span>
+          </div>
+          <div style="height:10px;background:var(--surface2);border-radius:5px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${pct>=100?'var(--green)':'var(--blue)'};border-radius:5px;transition:width .4s"></div>
+          </div>
+        </div>
+        ${monthRows ? `
+        <div style="font-size:12px;color:var(--text3);margin-bottom:8px;font-weight:600">月度回款明细</div>
+        <div style="max-height:200px;overflow-y:auto">
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr>
+              <th style="padding:6px 10px;font-size:11px;text-align:left;color:var(--text3);border-bottom:1px solid var(--border)">月份</th>
+              <th style="padding:6px 10px;font-size:11px;text-align:right;color:var(--text3);border-bottom:1px solid var(--border)">实收金额（元）</th>
+            </tr></thead>
+            <tbody>${monthRows}</tbody>
+          </table>
+        </div>` : `<div style="text-align:center;color:var(--text3);padding:20px;font-size:12px">暂无回款记录</div>`}
+      </div>
+      <div id="rev-pane-revenue" style="display:none">
+        ${revenueTabContent}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">关闭</button>
+    </div>`);
+}
+
+function switchRevTab(tab) {
+  ['progress','revenue'].forEach(t => {
+    const btn  = document.getElementById('rev-tab-'+t);
+    const pane = document.getElementById('rev-pane-'+t);
+    if (btn)  btn.classList.toggle('active', t===tab);
+    if (pane) pane.style.display = t===tab?'block':'none';
+  });
+}
+
+function buildRevenueTabContent(r) {
   const year = window._contractYear || new Date().getFullYear().toString();
   const rv   = computeContractRevenue(r, year);
 
   const months = Array.from({length:12},(_,i)=>`${year}-${String(i+1).padStart(2,'0')}`);
   const revMap = {};
   finState.monthlyRevenues
-    .filter(m=>m.contract_id===contractId&&(m.year_month||'').startsWith(year+'-'))
+    .filter(m=>m.contract_id===r.id&&(m.year_month||'').startsWith(year+'-'))
     .forEach(m=>{ revMap[m.year_month] = m; });
 
-  const monthRows = months.map(ym=>{
+  const mRows = months.map(ym=>{
     const d = revMap[ym] || {};
     return `<tr>
       <td style="padding:6px 10px;color:var(--text2);font-size:12px;width:85px;white-space:nowrap">${ym}</td>
@@ -661,14 +774,8 @@ function openRevenueModal(contractId){
   }).join('');
 
   const totalManual = Object.values(revMap).reduce((s,m)=>s+(+m.amount||0),0);
-  const totalMCount = Object.values(revMap).reduce((s,m)=>s+(+m.count||0),0);
 
-  openModal(`
-  <div class="modal-header">
-    <div class="modal-title"><i data-lucide="bar-chart-3" style="width:14px;height:14px;margin-right:4px"></i>营收管理 — ${r.name}</div>
-    <button class="modal-close" onclick="closeModal()"><i data-lucide="x"></i></button>
-  </div>
-  <div class="modal-body">
+  return `
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;padding:12px;background:var(--surface2);border-radius:6px;font-size:12px">
       <div><div style="color:var(--text3)">不含税金额</div><div style="font-weight:600">${fmt(rv.exclTax)} 元</div></div>
       <div><div style="color:var(--text3)">已计量营收</div><div style="font-weight:600">${fmt(rv.measured)} 元</div></div>
@@ -688,25 +795,11 @@ function openRevenueModal(contractId){
         <th style="padding:6px 10px;text-align:center;font-size:11px;color:var(--text2);background:var(--surface2);border-bottom:1px solid var(--border)">笔数</th>
         <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--text2);background:var(--surface2);border-bottom:1px solid var(--border)">收款明细</th>
       </tr></thead>
-      <tbody>${monthRows}</tbody>
+      <tbody>${mRows}</tbody>
     </table>
-  </div>
-  <div class="modal-footer"><div></div>
-    <div class="modal-footer-right">
-      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
-      <button class="btn btn-primary" onclick="saveMonthlyRevenue('${contractId}','${year}',this)">💾 保存营收</button>
-    </div>
-  </div>`,'modal-lg');
-
-  // 监听金额变化实时更新合计
-  setTimeout(()=>{
-    document.getElementById('rev-table').addEventListener('input',()=>{
-      let total=0;
-      document.querySelectorAll('.rev-amt').forEach(el=>{ total += +el.value||0; });
-      const td = document.getElementById('rev-total-display');
-      if(td) td.textContent = fmt(total) + ' 元';
-    });
-  }, 50);
+    <div style="margin-top:12px;text-align:right">
+      <button class="btn btn-primary" onclick="saveMonthlyRevenue('${r.id}','${year}',this)">💾 保存营收</button>
+    </div>`;
 }
 
 async function saveMonthlyRevenue(contractId, year, btn){
@@ -765,41 +858,58 @@ async function saveMonthlyRevenue(contractId, year, btn){
   });
 
   setLoading(btn, false);
-  if(fail>0) toast(`⚠ 保存完成：${ok} 条成功，${fail} 条失败`);
-  else toast(`✓ 已保存 ${ok} 条月度营收`);
+  if(fail>0) toast(`⚠ 保存完成：${ok} 条成功，${fail} 条失败`, 'warning');
+  else toast(`✓ 已保存 ${ok} 条月度营收`, 'success');
   closeModal();
   finRender();
 }
 
 
 function renderCustomers(){
-  const rows=finState.customers;
-  const tbody=rows.length?rows.map((r,i)=>{
-    // 实时从合同库计算三个统计字段
-    const allContracts    = finState.contractsUp.filter(c=>c.customer_id===r.id);
-    const activeContracts = allContracts.filter(c=>c.status==='active');
-    const totalAmt        = allContracts.reduce((s,c)=>s+(+c.amount||0),0);
+  // 初始化筛选状态
+  window._filters = window._filters || {};
+  const f = window._filters;
+  const custName = (f.cust_name || '').toLowerCase();
+
+  let rows = finState.customers;
+  if (custName) {
+    rows = rows.filter(r => r.name.toLowerCase().includes(custName) || (r.short_name || '').toLowerCase().includes(custName));
+  }
+
+  const tbody = rows.length ? rows.map((r, i) => {
+    const allContracts    = finState.contractsUp.filter(c => c.customer_id === r.id);
+    const activeContracts = allContracts.filter(c => c.status === 'active');
+    const totalAmt        = allContracts.reduce((s, c) => s + (+c.amount || 0), 0);
     const activeCount     = activeContracts.length;
     return `<tr class="clickable" onclick="openEditCustomerModal('${r.id}')">
-      <td style="color:var(--text3);width:32px;text-align:center">${i+1}</td>
+      <td style="color:var(--text3);width:32px;text-align:center">${i + 1}</td>
       <td style="font-weight:500">${r.name}</td>
-      <td style="color:var(--text2)">${r.short_name||'—'}</td>
-      <td>${r.contact||'—'}</td>
-      <td style="font-family:var(--mono);font-size:12px">${r.phone||'—'}</td>
-      <td class="num">${allContracts.length||'—'}</td>
-      <td class="num">${totalAmt?fmt(totalAmt)+' <span class="unit">元</span>':'—'}</td>
+      <td style="color:var(--text2)">${r.short_name || '—'}</td>
+      <td>${r.contact || '—'}</td>
+      <td style="font-family:var(--mono);font-size:12px">${r.phone || '—'}</td>
+      <td class="num">${allContracts.length || '—'}</td>
+      <td class="num">${totalAmt ? fmt(totalAmt) + ' <span class="unit">元</span>' : '—'}</td>
       <td style="text-align:center">
-        ${activeCount>0
-          ?`<button class="btn btn-ghost btn-xs" style="color:var(--blue)"
-              onclick="event.stopPropagation();openCustomerContractsModal('${r.id}','${r.name.replace(/'/g,'\\\'')}')">${activeCount} 个</button>`
-          :`<span style="color:var(--text3)">—</span>`}
+        ${activeCount > 0
+          ? `<button class="btn btn-ghost btn-xs" style="color:var(--blue)"
+              onclick="event.stopPropagation();openCustomerContractsModal('${r.id}','${r.name.replace(/'/g, '\\\'')}')">${activeCount} 个</button>`
+          : `<span style="color:var(--text3)">—</span>`}
       </td>
-      <td style="font-size:12px;color:var(--text3)">${r.remark||'—'}</td>
+      <td style="font-size:12px;color:var(--text3)">${r.remark || '—'}</td>
     </tr>`;
   }).join('')
-  :`<tr><td colspan="9"><div class="empty"><i data-lucide="users" class="empty-icon"></i>暂无客户，点击右上角新增</div></td></tr>`;
+  : `<tr><td colspan="9"><div class="empty"><i data-lucide="users" class="empty-icon"></i>${custName ? '无匹配客户' : '暂无客户，点击右上角新增'}</div></td></tr>`;
 
-  document.getElementById('main-content').innerHTML=`
+  // 筛选行
+  const filterHTML = `<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+    <input class="form-input" id="f-cust-name" placeholder="客户名称或简称..." style="width:200px;padding:5px 10px;font-size:12px" value="${f.cust_name || ''}">
+    <button class="btn btn-sm btn-primary" onclick="applyCustomerFilters()">查询</button>
+    <button class="btn btn-sm btn-ghost" onclick="resetCustomerFilters()">重置</button>
+    <span style="font-size:11px;color:var(--text3);margin-left:4px">${rows.length} 条结果</span>
+  </div>`;
+
+  document.getElementById('main-content').innerHTML = `
+  ${filterHTML}
   <div class="table-wrap">
     <div class="table-toolbar">
       <div class="table-title">客户库</div>
@@ -1050,10 +1160,93 @@ async function updateContractStatus(dir, id, sel){
   sel.className = `status-inline ${status==='active'?'tag-active':'tag-settled'}`;
   const {error} = await sb.from(tbl)
     .update({status, updated_at: new Date().toISOString()}).eq('id', id);
-  if(error){ toast('✗ 状态更新失败'); return; }
+  if(error){ toast('✗ 状态更新失败', 'error'); return; }
   const item = arr.find(x=>x.id===id);
   if(item) item.status = status;
   toast(`✓ 状态已更新为「${status==='active'?'执行中':'已结算'}」`);
   finLogAction('更新合同状态', `合同 ${id} → ${status}`);
 }
 
+
+// ─── 近6月收付趋势图 ──────────────────────────────────────────
+async function buildTrendSVGData(months) {
+  var recRes, payRes;
+  try {
+    var results = await Promise.all([
+      sb.from('actual_receipts').select('year_month,amount').in('year_month', months),
+      sb.from('actual_payments').select('year_month,amount').in('year_month', months)
+    ]);
+    recRes = results[0];
+    payRes = results[1];
+  } catch(e) {
+    recRes = { data: [] };
+    payRes = { data: [] };
+  }
+  var recByMonth = {};
+  var payByMonth = {};
+  months.forEach(function(m) { recByMonth[m] = 0; payByMonth[m] = 0; });
+  (recRes.data || []).forEach(function(r) { recByMonth[r.year_month] = (recByMonth[r.year_month]||0) + (+r.amount||0); });
+  (payRes.data || []).forEach(function(r) { payByMonth[r.year_month] = (payByMonth[r.year_month]||0) + (+r.amount||0); });
+  return { recByMonth: recByMonth, payByMonth: payByMonth };
+}
+
+function buildTrendSVGStatic(months, recByMonth, payByMonth) {
+  var W = 560, H = 160;
+  var PAD = { l: 50, r: 20, t: 16, b: 28 };
+  var innerW = W - PAD.l - PAD.r;
+  var innerH = H - PAD.t - PAD.b;
+  var allVals = [];
+  Object.keys(recByMonth).forEach(function(k) { allVals.push(recByMonth[k]); });
+  Object.keys(payByMonth).forEach(function(k) { allVals.push(payByMonth[k]); });
+  var maxVal = Math.max.apply(null, allVals.concat([1]));
+
+  var xStep = innerW / (months.length - 1);
+  function scaleY(v) { return PAD.t + innerH - (v / maxVal) * innerH; }
+  function scaleX(i) { return PAD.l + i * xStep; }
+
+  var recPoints = months.map(function(m, i) { return scaleX(i) + ',' + scaleY(recByMonth[m]); }).join(' ');
+  var payPoints = months.map(function(m, i) { return scaleX(i) + ',' + scaleY(payByMonth[m]); }).join(' ');
+
+  var xLabels = months.map(function(m, i) {
+    var mon = parseInt(m.split('-')[1]);
+    return '<text x="' + scaleX(i) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10" fill="var(--text3)">' + mon + '月</text>';
+  }).join('');
+
+  var yMax = (maxVal / 10000).toFixed(1);
+  var yMid = (maxVal / 10000 / 2).toFixed(1);
+
+  var dots = function(points, color) {
+    var pts = points.split(' ');
+    return pts.map(function(p) {
+      var parts = p.split(',');
+      return '<circle cx="' + parts[0] + '" cy="' + parts[1] + '" r="3.5" fill="' + color + '" stroke="var(--bg)" stroke-width="1.5"/>';
+    }).join('');
+  };
+
+  return '<div class="chart-card" style="padding:16px 18px;margin-top:14px">' +
+    '<div class="chart-title" style="margin-bottom:12px">近 6 月收付趋势' +
+      '<span style="font-size:11px;font-weight:400;color:var(--text3)"> 万元</span>' +
+      '<span style="float:right;display:flex;gap:12px;font-size:11px;font-weight:400">' +
+        '<span style="display:flex;align-items:center;gap:4px">' +
+          '<span style="width:12px;height:2px;background:#27ae60;display:inline-block;border-radius:1px"></span>实际收款' +
+        '</span>' +
+        '<span style="display:flex;align-items:center;gap:4px">' +
+          '<span style="width:12px;height:2px;background:#2e7dd1;display:inline-block;border-radius:1px"></span>实际支付' +
+        '</span>' +
+      '</span>' +
+    '</div>' +
+    '<svg width="100%" viewBox="0 0 ' + W + ' ' + H + '" style="overflow:visible">' +
+      '<line x1="' + PAD.l + '" y1="' + PAD.t + '" x2="' + PAD.l + '" y2="' + (PAD.t + innerH) + '" stroke="var(--border)" stroke-width="1"/>' +
+      '<line x1="' + PAD.l + '" y1="' + (PAD.t + innerH) + '" x2="' + (PAD.l + innerW) + '" y2="' + (PAD.t + innerH) + '" stroke="var(--border)" stroke-width="1"/>' +
+      '<line x1="' + PAD.l + '" y1="' + scaleY(maxVal / 2) + '" x2="' + (PAD.l + innerW) + '" y2="' + scaleY(maxVal / 2) + '" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>' +
+      '<text x="' + (PAD.l - 4) + '" y="' + (PAD.t + 4) + '" text-anchor="end" font-size="10" fill="var(--text3)">' + yMax + '</text>' +
+      '<text x="' + (PAD.l - 4) + '" y="' + (scaleY(maxVal / 2) + 4) + '" text-anchor="end" font-size="10" fill="var(--text3)">' + yMid + '</text>' +
+      '<text x="' + (PAD.l - 4) + '" y="' + (PAD.t + innerH + 4) + '" text-anchor="end" font-size="10" fill="var(--text3)">0</text>' +
+      '<polyline points="' + recPoints + '" fill="none" stroke="#27ae60" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+      '<polyline points="' + payPoints + '" fill="none" stroke="#2e7dd1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+      dots(recPoints, '#27ae60') +
+      dots(payPoints, '#2e7dd1') +
+      xLabels +
+    '</svg>' +
+  '</div>';
+}

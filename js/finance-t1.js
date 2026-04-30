@@ -199,7 +199,7 @@ async function saveT1Fields(sec,btn){
       amortization:+q('t1-am')||0,company_lock:+q('t1-cl')||0,debt_service:+q('t1-ds')||0};
   }
   await upsertSummary(data);
-  setLoading(btn,false);closeModal();finRender();toast('✓ 已保存');
+  setLoading(btn,false);closeModal();finRender();toast('✓ 已保存', 'success');
 }
 async function upsertSummary(data,ym){
   ym=ym||currentMonth;
