@@ -2,7 +2,13 @@
  * pm-views.js  —  今日看板 / 任务列表 / 项目视图 / 图表 / 甘特图
  * ════════════════════════════════════════════════ */
 
+window._todayViewMode = window._todayViewMode || 'today';
+
 function renderToday() {
+  if (window._todayViewMode === 'week') {
+    renderWeekGrid();
+    return;
+  }
   document.getElementById('header-title').textContent = '今日看板';
   const now = new Date();
   document.getElementById('header-sub').textContent = now.toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
@@ -21,11 +27,15 @@ function renderToday() {
   const g3 = active.filter(t=>urgencyOf(t)===3).sort((a,b)=>priorityOrder(a.priority)-priorityOrder(b.priority));
 
   let html = `<div class="view-pane">
+    <div class="view-mode-tabs">
+      <button class="vmtab active" onclick="window._todayViewMode='today';renderToday()">今日</button>
+      <button class="vmtab" onclick="window._todayViewMode='week';renderWeekGrid()">本周</button>
+    </div>
     <div class="stats-grid">
-      <div class="stat-card" style="cursor:${g0.length?'pointer':'default'}" ${g0.length?`onclick="showDashboardTaskList('g0')"`:''}><div class="stat-label">紧急 / 逾期</div><div class="stat-val${g0.length?' red':''}">${g0.length}</div></div>
-      <div class="stat-card" style="cursor:${g1.length?'pointer':'default'}" ${g1.length?`onclick="showDashboardTaskList('g1')"`:''}><div class="stat-label">3 天内到期</div><div class="stat-val${g1.length?' amber':''}">${g1.length}</div></div>
-      <div class="stat-card" style="cursor:${g2.length?'pointer':'default'}" ${g2.length?`onclick="showDashboardTaskList('g2')"`:''}><div class="stat-label">本周内</div><div class="stat-val">${g2.length}</div></div>
-      <div class="stat-card" style="cursor:${done.length?'pointer':'default'}" ${done.length?`onclick="showDashboardTaskList('done')"`:''}><div class="stat-label">今日已完成</div><div class="stat-val${done.length?' green':''}">${done.length}</div><div class="stat-sub" style="font-size:10px">今天标记完成的任务</div></div>
+      <div class="stat-card sc-red" style="cursor:${g0.length?'pointer':'default'}" ${g0.length?`onclick="showDashboardTaskList('g0')"`:''}><div class="stat-label">紧急 / 逾期</div><div class="stat-val${g0.length?' red':''}">${g0.length}</div></div>
+      <div class="stat-card sc-amber" style="cursor:${g1.length?'pointer':'default'}" ${g1.length?`onclick="showDashboardTaskList('g1')"`:''}><div class="stat-label">3 天内到期</div><div class="stat-val${g1.length?' amber':''}">${g1.length}</div></div>
+      <div class="stat-card sc-blue" style="cursor:${g2.length?'pointer':'default'}" ${g2.length?`onclick="showDashboardTaskList('g2')"`:''}><div class="stat-label">本周内</div><div class="stat-val">${g2.length}</div></div>
+      <div class="stat-card sc-green" style="cursor:${done.length?'pointer':'default'}" ${done.length?`onclick="showDashboardTaskList('done')"`:''}><div class="stat-label">今日已完成</div><div class="stat-val${done.length?' green':''}">${done.length}</div><div class="stat-sub" style="font-size:10px">今天标记完成的任务</div></div>
     </div>`;
 
   // Project progress mini chart
@@ -38,9 +48,9 @@ function renderToday() {
       const doneCnt = tasks.filter(t=>t.done).length;
       const pct = tasks.length ? Math.round(doneCnt/tasks.length*100) : 0;
       const color = PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length];
-      html += `<div class="proj-progress-row">
+      html += `<div class="proj-progress-row" onclick="showProjectTaskList('${p.id}')" style="cursor:pointer" title="点击查看任务明细">
         <div class="proj-progress-label">
-          <span class="proj-progress-name" style="cursor:pointer" onclick="switchView('project-${p.id}')">${p.name}</span>
+          <span class="proj-progress-name" style="cursor:pointer" onclick="event.stopPropagation();switchView('project-${p.id}')">${p.name}</span>
           <span class="proj-progress-pct">${doneCnt}/${tasks.length} · ${pct}%</span>
         </div>
         <div class="proj-progress-track">
@@ -153,20 +163,20 @@ function renderTaskList() {
   }).sort((a,b) => urgencyOf(a)-urgencyOf(b) || priorityOrder(a.priority)-priorityOrder(b.priority));
 
   const projChips = state.projects.map(p=>
-    `<span class="filter-chip${filterProject===p.id?' on':''}" onclick="filterProject='${p.id}';filterStatus='all';renderTaskList()">${p.name}</span>`
+    `<span class="filter-chip${filterProject===p.id?' on':''}" onclick="filterProject='${p.id}';filterStatus='all';render()">${p.name}</span>`
   ).join('');
   const statusChips = [['all','全部'],['todo','待启动'],['doing','进行中'],['waiting','待反馈'],['done','已完成']].map(([v,l])=>
-    `<span class="filter-chip${filterStatus===v?' on':''}" onclick="filterStatus='${v}';renderTaskList()">${l}</span>`
+    `<span class="filter-chip${filterStatus===v?' on':''}" onclick="filterStatus='${v}';render()">${l}</span>`
   ).join('');
-  const assigneeChips = state.members.map(m=>`<span class="filter-chip${filterAssignee===m.id?' on':''}" onclick="filterAssignee='${m.id}';renderTaskList()" style="${filterAssignee===m.id?'':''}">
+  const assigneeChips = state.members.map(m=>`<span class="filter-chip${filterAssignee===m.id?' on':''}" onclick="filterAssignee='${m.id}';render()" style="${filterAssignee===m.id?'':''}">
     <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:14px;border-radius:50%;background:${memberColor(m.id)};display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#fff;flex-shrink:0">${memberInitial(m.id)}</span>${m.name}</span>
   </span>`).join('');
 
   let html = `<div class="view-pane">
-    <div class="filter-bar"><span class="filter-chip${filterProject==='all'?' on':''}" onclick="filterProject='all';renderTaskList()">全部项目</span>${projChips}</div>
+    <div class="filter-bar"><span class="filter-chip${filterProject==='all'?' on':''}" onclick="filterProject='all';render()">全部项目</span>${projChips}</div>
     <div class="filter-bar" style="margin-top:-12px">${statusChips}</div>
-    <div class="filter-bar" style="margin-top:-12px"><span class="filter-chip${filterAssignee==='all'?' on':''}" onclick="filterAssignee='all';renderTaskList()">全部成员</span>${assigneeChips}</div>
-    ${(filterProject!=='all' || filterStatus!=='all' || filterAssignee!=='all') ? `<div style="margin-top:-8px;margin-bottom:4px"><button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--text3)" onclick="filterProject='all';filterStatus='all';filterAssignee='all';localStorage.removeItem('pm_task_filters');renderTaskList()">✕ 清除所有筛选</button></div>` : ''}
+    <div class="filter-bar" style="margin-top:-12px"><span class="filter-chip${filterAssignee==='all'?' on':''}" onclick="filterAssignee='all';render()">全部成员</span>${assigneeChips}</div>
+    ${(filterProject!=='all' || filterStatus!=='all' || filterAssignee!=='all') ? `<div style="margin-top:-8px;margin-bottom:4px"><button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--text3)" onclick="filterProject='all';filterStatus='all';filterAssignee='all';localStorage.removeItem('pm_task_filters');render()">✕ 清除所有筛选</button></div>` : ''}
     ${tasks.length ? tasks.map(t=>taskCardHTML(t)).join('') : '<div class="empty-state"><i data-lucide="search" class="empty-icon"></i>没有匹配的任务<div class="empty-hint">试试调整筛选条件</div></div>'}
   </div>`;
   document.getElementById('main-content').innerHTML = html;
@@ -336,7 +346,7 @@ function renderCharts() {
       const doneCnt = tasks.filter(t=>t.done).length;
       const pct = tasks.length?Math.round(doneCnt/tasks.length*100):0;
       const color = PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length];
-      projBarsHTML += `<div class="proj-progress-row" data-tip="${p.name}: ${doneCnt}/${tasks.length} 完成 · ${pct}%">
+      projBarsHTML += `<div class="proj-progress-row" onclick="showProjectTaskList('${p.id}')" data-tip="${p.name}: ${doneCnt}/${tasks.length} 完成 · ${pct}%" style="cursor:pointer" title="点击查看详情">
         <div class="proj-progress-label">
           <span class="proj-progress-name">${p.name}</span>
           <span class="proj-progress-pct">${doneCnt}/${tasks.length} · ${pct}%</span>
@@ -359,7 +369,7 @@ function renderCharts() {
     {label:'普通',count:priorityData['普通'],color:'var(--text3)',bg:'var(--surface2)'},
   ].map(d => {
     const w = Math.max(2, Math.round(d.count/priTotal*100));
-    return `<div class="chart-bar-row" data-tip="${d.label}优先级: ${d.count} 个任务 (${Math.round(d.count/priTotal*100)}%)">
+    return `<div class="chart-bar-row" onclick="showPriorityTaskList('${d.label}')" data-tip="${d.label}优先级: ${d.count} 个任务 (${Math.round(d.count/priTotal*100)}%)" style="cursor:pointer" title="点击查看详情">
       <span class="chart-bar-label">${d.label}</span>
       <div class="chart-bar-track"><div class="chart-bar-fill" style="width:${w}%;background:${d.color}"></div></div>
       <span class="chart-bar-val">${d.count}</span>
@@ -379,7 +389,7 @@ function renderCharts() {
       const pct = Math.round(doneCnt/totalMine*100);
       const w = Math.max(2, Math.round(cnt/maxTask*100));
       const color = memberColor(m.id);
-      return `<div class="chart-bar-row" data-tip="${m.name}: ${cnt} 个待办任务 · 完成率 ${pct}%">
+      return `<div class="chart-bar-row" onclick="showMemberTaskList('${m.id}')" data-tip="${m.name}: ${cnt} 个待办任务 · 完成率 ${pct}%" style="cursor:pointer" title="点击查看详情">
         <span class="chart-bar-label" style="display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>${m.name}</span>
         <div class="chart-bar-track"><div class="chart-bar-fill" style="width:${w}%;background:${color}"></div></div>
         <span class="chart-bar-val" style="font-size:11px">${cnt} 待办 · ${pct}% 完成</span>
@@ -402,7 +412,7 @@ function renderCharts() {
         <div style="display:flex;align-items:center;gap:24px">
           <div style="flex-shrink:0">${donutSVG}</div>
           <div class="chart-legend" style="flex-direction:column;gap:8px">
-            ${donutData.map(d=>`<div class="legend-item"><div class="legend-dot" style="background:${d.color}"></div><span style="font-size:13px">${d.label}</span><span style="font-family:var(--mono);font-size:13px;color:var(--text);font-weight:600;margin-left:auto">${d.count}</span></div>`).join('')}
+            ${donutData.map(d=>`<div class="legend-item" onclick="showStatusTaskList('${d.label==='待启动'?'todo':d.label==='进行中'?'doing':d.label==='待反馈'?'waiting':'done'}')" style="cursor:pointer" title="点击查看详情"><div class="legend-dot" style="background:${d.color}"></div><span style="font-size:13px">${d.label}</span><span style="font-family:var(--mono);font-size:13px;color:var(--text);font-weight:600;margin-left:auto">${d.count}</span></div>`).join('')}
           </div>
         </div>
       </div>
@@ -465,7 +475,8 @@ function buildDonutSVG(data, total) {
       const xi1=cx+ir*Math.cos(ea),yi1=cy+ir*Math.sin(ea);
       const xi2=cx+ir*Math.cos(sa),yi2=cy+ir*Math.sin(sa);
       const large=angle>Math.PI?1:0;
-      svg += `<path d="M${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} L${xi1},${yi1} A${ir},${ir} 0 ${large},0 ${xi2},${yi2} Z" fill="${d.color}"/>`;
+      const statusMap = { '待启动': 'todo', '进行中': 'doing', '待反馈': 'waiting', '已完成': 'done' };
+      svg += `<path d="M${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} L${xi1},${yi1} A${ir},${ir} 0 ${large},0 ${xi2},${yi2} Z" fill="${d.color}" onclick="showStatusTaskList('${statusMap[d.label]}')" style="cursor:pointer" title="点击查看${d.label}任务"/>`;
       sa=ea;
     });
     const activeCnt = total - (data.find(d=>d.label==='已完成')||{count:0}).count;
@@ -526,7 +537,7 @@ function buildBurndownSVG(projId) {
     ${gridLines}
     <path d="${areaPath}" fill="#2e7dd1" opacity="0.08"/>
     <polyline points="${pointsStr}" fill="none" stroke="#2e7dd1" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-    ${log.map((l,i)=>`<circle cx="${toX(i)}" cy="${toY(l.remaining)}" r="10" fill="transparent" stroke="none" data-tip="${l.date}: 剩余 ${l.remaining} 个任务" style="cursor:pointer"/>`).join('')}
+    ${log.map((l,i)=>`<circle cx="${toX(i)}" cy="${toY(l.remaining)}" r="10" fill="transparent" stroke="none" data-tip="${l.date}: 剩余 ${l.remaining} 个任务" style="cursor:pointer" onclick="showBurndownDayTasks('${projId}','${l.date}')"/>`).join('')}
     ${log.map((l,i)=>`<circle cx="${toX(i)}" cy="${toY(l.remaining)}" r="3.5" fill="#2e7dd1" style="pointer-events:none"/>`).join('')}
     ${yLabels}${xLabels}
     <text x="${padL}" y="${padT-4}" fill="#a8a59e" font-size="10">剩余任务数</text>
@@ -591,8 +602,8 @@ function buildMonthlyTrendSVG() {
   }
 
   // Hover dots for each data point
-  let createdDots = days.map((d, i) => `<circle cx="${toX(i)}" cy="${toY(createdByDay[d])}" r="8" fill="transparent" stroke="none" data-tip="${d}: 新建 ${createdByDay[d]} 个任务" style="cursor:pointer"/>`).join('');
-  let completedDots = days.map((d, i) => `<circle cx="${toX(i)}" cy="${toY(completedByDay[d])}" r="8" fill="transparent" stroke="none" data-tip="${d}: 完成 ${completedByDay[d]} 个任务" style="cursor:pointer"/>`).join('');
+  let createdDots = days.map((d, i) => `<circle cx="${toX(i)}" cy="${toY(createdByDay[d])}" r="8" fill="transparent" stroke="none" data-tip="${d}: 新建 ${createdByDay[d]} 个任务" style="cursor:pointer" onclick="showDayTaskList('${d}','created')"/>`).join('');
+  let completedDots = days.map((d, i) => `<circle cx="${toX(i)}" cy="${toY(completedByDay[d])}" r="8" fill="transparent" stroke="none" data-tip="${d}: 完成 ${completedByDay[d]} 个任务" style="cursor:pointer" onclick="showDayTaskList('${d}','completed')"/>`).join('');
 
   return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block">
     ${gridLines}
@@ -610,9 +621,180 @@ function buildMonthlyTrendSVG() {
   </svg>`;
 }
 
+// ─── Chart click-to-detail modals ──────────────────────────────────────────────
+function showStatusTaskList(status) {
+  const statusLabels = { todo: '待启动', doing: '进行中', waiting: '待反馈', done: '已完成' };
+  const label = statusLabels[status] || status;
+  const tasks = state.tasks.filter(t => t.status === status);
+  const projMap = {};
+  state.projects.forEach(p => { projMap[p.id] = p.name; });
+  const memberMap = {};
+  state.members.forEach(m => { memberMap[m.id] = m.name; });
+  const rows = tasks.length
+    ? tasks.map(t => `<tr>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.title)}">${escHtml(t.title)}</td>
+      <td style="white-space:nowrap">${escHtml(projMap[t.projectId]||'—')}</td>
+      <td style="white-space:nowrap">${escHtml(memberMap[t.assignee]||'—')}</td>
+      <td style="white-space:nowrap">${t.due||'—'}</td>
+      <td>${t.done?'✅':'—'}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:24px">暂无数据</td></tr>`;
+  openModal(modalHeader('任务状态：' + label) +
+    `<div class="modal-body" style="padding:16px 20px">
+      <div style="margin-bottom:12px;font-size:12px;color:var(--text3)">共 ${tasks.length} 个任务</div>
+      <div style="max-height:60vh;overflow:auto">
+        <table class="data-table" style="width:100%"><thead><tr><th>任务名称</th><th>项目</th><th>负责人</th><th>截止</th><th>完成</th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+    </div>` +
+    `<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>`);
+}
+
+function showPriorityTaskList(priority) {
+  const tasks = state.tasks.filter(t => !t.done && t.priority === priority);
+  const projMap = {};
+  state.projects.forEach(p => { projMap[p.id] = p.name; });
+  const memberMap = {};
+  state.members.forEach(m => { memberMap[m.id] = m.name; });
+  const rows = tasks.length
+    ? tasks.map(t => `<tr>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.title)}">${escHtml(t.title)}</td>
+      <td style="white-space:nowrap">${escHtml(projMap[t.projectId]||'—')}</td>
+      <td style="white-space:nowrap">${escHtml(memberMap[t.assignee]||'—')}</td>
+      <td style="white-space:nowrap">${t.due||'—'}</td>
+      <td><span style="display:inline-block;padding:2px 6px;border-radius:3px;font-size:11px;background:var(--surface2)">${priority}</span></td>
+    </tr>`).join('')
+    : `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:24px">暂无数据</td></tr>`;
+  openModal(modalHeader('优先级：' + priority + '（待办）') +
+    `<div class="modal-body" style="padding:16px 20px">
+      <div style="margin-bottom:12px;font-size:12px;color:var(--text3)">共 ${tasks.length} 个待办任务</div>
+      <div style="max-height:60vh;overflow:auto">
+        <table class="data-table" style="width:100%"><thead><tr><th>任务名称</th><th>项目</th><th>负责人</th><th>截止</th><th>优先级</th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+    </div>` +
+    `<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>`);
+}
+
+function showProjectTaskList(projectId) {
+  const proj = state.projects.find(p => p.id === projectId);
+  const tasks = state.tasks.filter(t => t.projectId === projectId);
+  const memberMap = {};
+  state.members.forEach(m => { memberMap[m.id] = m.name; });
+  const doneCnt = tasks.filter(t => t.done).length;
+  const pct = tasks.length ? Math.round(doneCnt / tasks.length * 100) : 0;
+  const statusLabels = { todo: '待启动', doing: '进行中', waiting: '待反馈', done: '已完成' };
+  const rows = tasks.length
+    ? tasks.map(t => `<tr>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.title)}">${escHtml(t.title)}</td>
+      <td style="white-space:nowrap">${statusLabels[t.status]||t.status}</td>
+      <td style="white-space:nowrap">${t.priority}</td>
+      <td style="white-space:nowrap">${escHtml(memberMap[t.assignee]||'—')}</td>
+      <td style="white-space:nowrap">${t.due||'—'}</td>
+      <td>${t.done?'✅':'—'}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">暂无任务</td></tr>`;
+  openModal(modalHeader('项目：' + (proj ? proj.name : projectId)) +
+    `<div class="modal-body" style="padding:16px 20px">
+      <div style="margin-bottom:12px;font-size:12px;color:var(--text3)">${tasks.length} 个任务 · ${doneCnt} 完成 · ${pct}%</div>
+      <div style="max-height:60vh;overflow:auto">
+        <table class="data-table" style="width:100%"><thead><tr><th>任务名称</th><th>状态</th><th>优先级</th><th>负责人</th><th>截止</th><th>完成</th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+    </div>` +
+    `<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>`);
+}
+
+function showMemberTaskList(memberId) {
+  const member = state.members.find(m => m.id === memberId);
+  const tasks = state.tasks.filter(t => t.assignee === memberId);
+  const projMap = {};
+  state.projects.forEach(p => { projMap[p.id] = p.name; });
+  const doneCnt = tasks.filter(t => t.done).length;
+  const pct = tasks.length ? Math.round(doneCnt / tasks.length * 100) : 0;
+  const statusLabels = { todo: '待启动', doing: '进行中', waiting: '待反馈', done: '已完成' };
+  const rows = tasks.length
+    ? tasks.map(t => `<tr>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.title)}">${escHtml(t.title)}</td>
+      <td style="white-space:nowrap">${escHtml(projMap[t.projectId]||'—')}</td>
+      <td style="white-space:nowrap">${statusLabels[t.status]||t.status}</td>
+      <td style="white-space:nowrap">${t.priority}</td>
+      <td style="white-space:nowrap">${t.due||'—'}</td>
+      <td>${t.done?'✅':'—'}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">暂无任务</td></tr>`;
+  openModal(modalHeader('成员：' + (member ? member.name : memberId)) +
+    `<div class="modal-body" style="padding:16px 20px">
+      <div style="margin-bottom:12px;font-size:12px;color:var(--text3)">${tasks.length} 个任务 · ${doneCnt} 完成 · ${pct}% · 待办 ${tasks.length-doneCnt} 个</div>
+      <div style="max-height:60vh;overflow:auto">
+        <table class="data-table" style="width:100%"><thead><tr><th>任务名称</th><th>项目</th><th>状态</th><th>优先级</th><th>截止</th><th>完成</th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+    </div>` +
+    `<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>`);
+}
+
+function showDayTaskList(date, type) {
+  const label = type === 'created' ? '新建' : '完成';
+  const statusLabels = { todo: '待启动', doing: '进行中', waiting: '待反馈', done: '已完成' };
+  const projMap = {};
+  state.projects.forEach(p => { projMap[p.id] = p.name; });
+  const memberMap = {};
+  state.members.forEach(m => { memberMap[m.id] = m.name; });
+  let tasks;
+  if (type === 'created') {
+    tasks = state.tasks.filter(t => t.createdAt && t.createdAt.slice(0, 10) === date);
+  } else {
+    tasks = state.tasks.filter(t => t.completedAt && t.completedAt.slice(0, 10) === date);
+  }
+  const rows = tasks.length
+    ? tasks.map(t => `<tr>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.title)}">${escHtml(t.title)}</td>
+      <td style="white-space:nowrap">${escHtml(projMap[t.projectId]||'—')}</td>
+      <td style="white-space:nowrap">${statusLabels[t.status]||t.status}</td>
+      <td style="white-space:nowrap">${escHtml(memberMap[t.assignee]||'—')}</td>
+      <td style="white-space:nowrap">${t.due||'—'}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:24px">暂无数据</td></tr>`;
+  openModal(modalHeader(date + ' · ' + label + '任务') +
+    `<div class="modal-body" style="padding:16px 20px">
+      <div style="margin-bottom:12px;font-size:12px;color:var(--text3)">共 ${tasks.length} 个任务</div>
+      <div style="max-height:60vh;overflow:auto">
+        <table class="data-table" style="width:100%"><thead><tr><th>任务名称</th><th>项目</th><th>状态</th><th>负责人</th><th>截止</th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+    </div>` +
+    `<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>`);
+}
+
+function showBurndownDayTasks(projId, date) {
+  const projLabel = projId === 'all' ? '全部项目' : (state.projects.find(p => p.id === projId) || {}).name || projId;
+  const remaining = state.burndownLog[projId]
+    ? (state.burndownLog[projId].find(l => l.date === date) || {}).remaining
+    : null;
+  const tasks = projId === 'all'
+    ? state.tasks.filter(t => !t.done)
+    : state.tasks.filter(t => t.projectId === projId && !t.done);
+  const projMap = {};
+  state.projects.forEach(p => { projMap[p.id] = p.name; });
+  const memberMap = {};
+  state.members.forEach(m => { memberMap[m.id] = m.name; });
+  const rows = tasks.length
+    ? tasks.map(t => `<tr>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.title)}">${escHtml(t.title)}</td>
+      <td style="white-space:nowrap">${escHtml(projMap[t.projectId]||'—')}</td>
+      <td style="white-space:nowrap">${escHtml(memberMap[t.assignee]||'—')}</td>
+      <td style="white-space:nowrap">${t.due||'—'}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:24px">暂无待办任务</td></tr>`;
+  openModal(modalHeader('燃尽图 · ' + date + ' · ' + projLabel) +
+    `<div class="modal-body" style="padding:16px 20px">
+      <div style="margin-bottom:12px;font-size:12px;color:var(--text3)">快照剩余：${remaining != null ? remaining : '—'} 个 · 当前待办：${tasks.length} 个</div>
+      <div style="max-height:60vh;overflow:auto">
+        <table class="data-table" style="width:100%"><thead><tr><th>任务名称</th><th>项目</th><th>负责人</th><th>截止</th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+    </div>` +
+    `<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>`);
+}
+
 // ─── Gantt ────────────────────────────────────────────────────────────────────
 let ganttDayW = 42;
-let projectViewMode = {}; // { [pid]: 'list' | 'kanban' }
+var projectViewMode = {}; // { [pid]: 'list' | 'kanban' }
 
 async function renderGantt() {
   document.getElementById('header-title').textContent = '甘特图';
@@ -795,6 +977,10 @@ async function renderGantt() {
   document.getElementById('main-content').innerHTML = html;
   ganttScrollToday();
   initGanttDrag();
+  // 依赖关系连线（双帧确保 DOM 已稳定）
+  requestAnimationFrame(function() {
+    requestAnimationFrame(drawGanttDepLines);
+  });
 }
 
 function setGanttZoom(w) {
@@ -1085,3 +1271,209 @@ function buildGanttHistoryTable(records) {
     + '</tr>'; }).join('') + '</tbody>'
     + '</table>';
 }
+
+/* 甘特图依赖连线 */
+window.drawGanttDepLines = function() {
+  var rightCol = document.getElementById('gantt-right-col');
+  if (!rightCol) return;
+
+  // 清除旧 overlay
+  var old = rightCol.querySelector('.gantt-dep-overlay');
+  if (old) old.remove();
+
+  // 清除旧阻塞标记
+  rightCol.querySelectorAll('.gantt-bar.is-dep-blocked').forEach(function(el) {
+    el.classList.remove('is-dep-blocked');
+  });
+
+  var colRect = rightCol.getBoundingClientRect();
+  var hasDeps = false;
+
+  // 收集所有 bar 位置（相对 rightCol）
+  var barMap = {};
+  rightCol.querySelectorAll('.gantt-bar[data-task-id]').forEach(function(bar) {
+    var r = bar.getBoundingClientRect();
+    barMap[bar.dataset.taskId] = {
+      el: bar,
+      x: r.left - colRect.left,
+      y: r.top - colRect.top,
+      w: r.width,
+      h: r.height
+    };
+  });
+
+  var NS = 'http://www.w3.org/2000/svg';
+  var svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'gantt-dep-overlay');
+  svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;pointer-events:none;z-index:6;overflow:visible';
+  svg.setAttribute('height', String(rightCol.scrollHeight || rightCol.offsetHeight));
+
+  // Arrow marker
+  var defs = document.createElementNS(NS, 'defs');
+  var marker = document.createElementNS(NS, 'marker');
+  marker.setAttribute('id', 'gdep-arrow');
+  marker.setAttribute('viewBox', '0 0 10 10');
+  marker.setAttribute('refX', '8');
+  marker.setAttribute('refY', '5');
+  marker.setAttribute('markerWidth', '5');
+  marker.setAttribute('markerHeight', '5');
+  marker.setAttribute('orient', 'auto-start-reverse');
+  var ap = document.createElementNS(NS, 'path');
+  ap.setAttribute('d', 'M2 1L8 5L2 9');
+  ap.setAttribute('fill', 'none');
+  ap.setAttribute('stroke', 'var(--amber,#d4842a)');
+  ap.setAttribute('stroke-width', '1.5');
+  ap.setAttribute('stroke-linecap', 'round');
+  marker.appendChild(ap);
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+
+  (state.tasks || []).forEach(function(task) {
+    if (!task.dependencies || !task.dependencies.length) return;
+    var tgt = barMap[task.id];
+    if (!tgt) return;
+
+    task.dependencies.forEach(function(depId) {
+      var src = barMap[depId];
+      if (!src) return;
+      hasDeps = true;
+
+      // 标记阻塞（依赖未完成且自身未完成）
+      var depTask = (state.tasks || []).find(function(t) { return t.id === depId; });
+      if (depTask && !depTask.done && !task.done) {
+        tgt.el.classList.add('is-dep-blocked');
+      }
+
+      var x1 = src.x + src.w;
+      var y1 = src.y + src.h / 2;
+      var x2 = tgt.x;
+      var y2 = tgt.y + tgt.h / 2;
+      var d;
+
+      if (x2 > x1 + 8) {
+        // 正向连线：L 形
+        var midX = x1 + Math.max(16, (x2 - x1) / 2);
+        d = 'M ' + x1 + ' ' + y1 +
+            ' L ' + midX + ' ' + y1 +
+            ' L ' + midX + ' ' + y2 +
+            ' L ' + x2 + ' ' + y2;
+      } else {
+        // 逆向绕道：当前任务在前置任务左边
+        var bpX = Math.min(src.x, tgt.x) - 20;
+        d = 'M ' + x1 + ' ' + y1 +
+            ' L ' + (x1 + 10) + ' ' + y1 +
+            ' L ' + (x1 + 10) + ' ' + (src.y - 8) +
+            ' L ' + bpX + ' ' + (src.y - 8) +
+            ' L ' + bpX + ' ' + (tgt.y - 8) +
+            ' L ' + (tgt.x - 4) + ' ' + (tgt.y - 8) +
+            ' L ' + x2 + ' ' + y2;
+      }
+
+      var path = document.createElementNS(NS, 'path');
+      path.setAttribute('class', 'dep-arrow-line');
+      path.setAttribute('d', d);
+      path.setAttribute('marker-end', 'url(#gdep-arrow)');
+      svg.appendChild(path);
+    });
+  });
+
+  if (hasDeps) {
+    rightCol.style.position = 'relative';
+    rightCol.appendChild(svg);
+  }
+};
+
+window.renderWeekGrid = function() {
+  var now = new Date();
+  var dow = now.getDay();
+  var monday = new Date(now);
+  monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+  monday.setHours(0, 0, 0, 0);
+
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var dayNames = ['周一','周二','周三','周四','周五','周六','周日'];
+  var MAX_SHOW = 6;
+
+  // 统计
+  var weekEnd = new Date(monday); weekEnd.setDate(weekEnd.getDate() + 6); weekEnd.setHours(23,59,59,999);
+  var weekTasks = (state.tasks || []).filter(function(t) {
+    if (!t.due) return false;
+    var d = new Date(t.due + 'T00:00:00');
+    return d >= monday && d <= weekEnd;
+  });
+  var weekDone = weekTasks.filter(function(t) { return t.done; }).length;
+  var weekPending = weekTasks.filter(function(t) { return !t.done; }).length;
+
+  var colsHTML = '';
+  for (var i = 0; i < 7; i++) {
+    var day = new Date(monday); day.setDate(monday.getDate() + i);
+    var dayStr = day.getFullYear() + '-' +
+      String(day.getMonth() + 1).padStart(2, '0') + '-' +
+      String(day.getDate()).padStart(2, '0');
+    var isToday = day.getTime() === today.getTime();
+    var isPast  = day < today;
+
+    var dueTasks = (state.tasks || []).filter(function(t) { return t.due === dayStr; });
+    var shown = dueTasks.slice(0, MAX_SHOW);
+    var more  = dueTasks.length - MAX_SHOW;
+
+    var itemsHTML = shown.map(function(t) {
+      var cls = 'week-task-item';
+      if (t.done) cls += ' t-done';
+      else if (t.priority === '紧急') cls += ' t-urgent';
+      else if (t.priority === '重要') cls += ' t-high';
+      var title = (t.title || '');
+      var projName = window.projName ? window.projName(t.projectId) : (t.projectId || '');
+      var statusInfo = window.statusInfo ? window.statusInfo(t.status) : {lbl: t.status||'', cls: ''};
+      var assigneeName = '';
+      var assigneeInitial = '';
+      var assigneeColor = '';
+      if (t.assignee && window.memberName && window.memberColor) {
+        assigneeName = window.memberName(t.assignee);
+        assigneeInitial = window.memberInitial ? window.memberInitial(t.assignee) : (assigneeName||'?')[0];
+        assigneeColor = window.memberColor(t.assignee);
+      }
+      var priDot = t.priority==='紧急'?'#ef4444':t.priority==='重要'?'#f59e0b':'#94a3b8';
+      return '<div class="' + cls + '" onclick="openEditTask(\'' + t.id + '\')" title="' + escHtml(title) + '">' +
+        '<div class="wti-top">' +
+          '<span class="wti-status ' + statusInfo.cls + '">' + escHtml(statusInfo.lbl) + '</span>' +
+          '<span class="wti-pri" style="color:' + priDot + '">●</span>' +
+        '</div>' +
+        '<div class="wti-title">' + escHtml(title) + '</div>' +
+        '<div class="wti-meta">' +
+          (projName ? '<span class="wti-proj">' + escHtml(projName) + '</span>' : '') +
+          (assigneeName ? '<span class="wti-member" title="' + escHtml(assigneeName) + '"><span class="wti-avatar" style="background:' + assigneeColor + '">' + escHtml(assigneeInitial) + '</span>' + escHtml(assigneeName) + '</span>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+    if (more > 0) itemsHTML += '<div class="week-more-label">+' + more + ' 个</div>';
+    if (!dueTasks.length) itemsHTML = '<div class="week-empty-label">—</div>';
+
+    var colCls = 'week-day-col' + (isToday ? ' is-today' : '') + (isPast ? ' is-past' : '');
+    colsHTML +=
+      '<div class="' + colCls + '">' +
+        '<div class="week-day-head">' +
+          '<div class="week-day-name">' + dayNames[i] + '</div>' +
+          '<div class="week-day-num">' + day.getDate() + '</div>' +
+        '</div>' +
+        '<div class="week-task-list">' + itemsHTML + '</div>' +
+      '</div>';
+  }
+
+  var tabsHtml =
+    '<div class="view-mode-tabs">' +
+      '<button class="vmtab" onclick="window._todayViewMode=\'today\';renderToday()">今日</button>' +
+      '<button class="vmtab active">本周</button>' +
+    '</div>';
+
+  var summaryHtml =
+    '<div class="week-summary-bar">' +
+      '<div class="week-summary-stat">本周共 <strong>' + weekTasks.length + '</strong> 个任务到期</div>' +
+      '<div class="week-summary-stat">已完成 <strong class="c-green">' + weekDone + '</strong> 个</div>' +
+      '<div class="week-summary-stat">待处理 <strong class="c-amber">' + weekPending + '</strong> 个</div>' +
+    '</div>';
+
+  document.getElementById('main-content').innerHTML =
+    '<div class="view-pane">' + tabsHtml + summaryHtml + '<div class="week-grid">' + colsHTML + '</div></div>';
+  lucide.createIcons();
+};

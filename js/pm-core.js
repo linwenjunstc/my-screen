@@ -35,9 +35,9 @@ function setLoading(btn, loading) {
 
 let currentView = 'today';
 let searchQuery = '';
-let filterProject = 'all';
-let filterStatus = 'all';
-let filterAssignee = 'all';
+var filterProject = 'all';
+var filterStatus = 'all';
+var filterAssignee = 'all';
 let activeTaskTab = 'basic'; // for edit modal tabs
 let editSubtasks = []; // temp store for edit modal
 let editTags = []; // temp selected tags in edit modal
@@ -157,6 +157,7 @@ async function loadState() {
 
     updateBadges();
     if (!window._ganttSaving) render();
+    if (typeof refreshNotifs === 'function') refreshNotifs();
   } catch (err) {
     console.error(err);
     toast("获取数据失败");
@@ -427,6 +428,7 @@ function exportCSV() {
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 function uid() { return 'i' + Date.now() + Math.random().toString(36).slice(2,6); }
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function priorityOrder(p) { return {'紧急':0,'重要':1,'普通':2}[p]??3; }
 
 function urgencyOf(t) {
@@ -464,6 +466,9 @@ const MENU_DEFS = [
   { key: 'logs',      label: '操作日志',   icon: '📋', required: false },
   { key: 'pm',        label: '项目管理',   icon: '□', required: true  },
   { key: 'finance',   label: '资金计划',   icon: '💰', required: false },
+  { key: 'base_contracts',  label: '合同库',   icon: '📄', adminOnly: false },
+  { key: 'base_customers',  label: '客户库',   icon: '👥', adminOnly: false },
+  { key: 'base_suppliers',  label: '供应商库', icon: '🏢', adminOnly: false },
   { key: 'system_config', label: '系统配置', icon: '⚙', adminOnly: true },
 ];
 
@@ -501,6 +506,12 @@ function applyMenuPerms() {
   // 如果当前激活的模块被隐藏了，自动切换
   if (activeModule === 'finance' && !allowed.includes('finance')) {
     switchModule('pm');
+  }
+  // 基础库配置：拥有任一基础库权限即显示
+  var baseLibBtn = document.getElementById('base-lib-btn');
+  if (baseLibBtn) {
+    var hasBaseLib = allowed.includes('base_contracts') || allowed.includes('base_customers') || allowed.includes('base_suppliers');
+    baseLibBtn.classList.toggle('menu-hidden', !hasBaseLib);
   }
 }
 
@@ -1030,3 +1041,276 @@ function showConfirm(title, message, onConfirm, opts) {
 }
 
 // ─── Today ────────────────────────────────────────────────────────────────────
+
+/* ════════════════════════════════════════════════
+ * 通知铃铛系统 — 重设计版（带点击导航）
+ * ════════════════════════════════════════════════ */
+
+// 计算通知列表（PM 任务到期 + Finance 收付款到期）
+window._notifItems = [];
+
+window.buildNotifItems = function() {
+  var items = [];
+  var now = new Date(); now.setHours(0, 0, 0, 0);
+  var in48h = new Date(now); in48h.setDate(now.getDate() + 2);
+
+  // ── PM 任务：今日到期 ──
+  (state.tasks || []).forEach(function(t) {
+    if (t.done || !t.due) return;
+    var due = new Date(t.due + 'T00:00:00'); due.setHours(0, 0, 0, 0);
+    var assigneeName = '';
+    if (t.assignee) {
+      var m = (state.members || []).find(function(mb) { return mb.id === t.assignee; });
+      if (m) assigneeName = m.name;
+    }
+    if (due.getTime() === now.getTime()) {
+      items.push({
+        id: 'task-today-' + t.id,
+        type: 'red',
+        icon: '⏰',
+        iconCls: 'ico-red',
+        title: (t.title || '未命名任务') + '  今日到期',
+        sub: assigneeName || '未分配',
+        tag: '任务',
+        ts: due.getTime(),
+        navType: 'task',
+        navId: t.id
+      });
+    } else if (due > now && due <= in48h) {
+      var diffDays = Math.round((due.getTime() - now.getTime()) / 86400000);
+      items.push({
+        id: 'task-48h-' + t.id,
+        type: 'amber',
+        icon: '📋',
+        iconCls: 'ico-amber',
+        title: (t.title || '未命名任务'),
+        sub: (assigneeName || '未分配') + '  ·  ' + diffDays + '天后到期',
+        tag: '任务',
+        ts: due.getTime(),
+        navType: 'task',
+        navId: t.id
+      });
+    }
+  });
+
+  // ── Finance：收款计划到期 ──
+  try {
+    if (typeof finState !== 'undefined' && finState) {
+      (finState.receipts || []).forEach(function(r) {
+        if (!r.next_expected_date) return;
+        var d = new Date(r.next_expected_date + 'T00:00:00'); d.setHours(0, 0, 0, 0);
+        if (d >= now && d <= in48h) {
+          var amtStr = r.plan_amount
+            ? '¥' + (Number(r.plan_amount) / 10000).toFixed(1) + '万'
+            : '';
+          items.push({
+            id: 'fin-receipt-' + r.id,
+            type: 'blue',
+            icon: '💰',
+            iconCls: 'ico-blue',
+            title: (r.contract_name || '收款计划') + '  计划到款',
+            sub: (r.customer_name || '') + (amtStr ? '  ·  ' + amtStr : ''),
+            tag: '资金',
+            ts: d.getTime(),
+            navType: 'receipt',
+            navId: r.id
+          });
+        }
+      });
+      (finState.payments || []).forEach(function(p) {
+        var planTotal = (+p.plan_cash || 0) + (+p.plan_supply_chain || 0);
+        if (!planTotal) return;
+        // 付款计划没有 next_expected_date，用月末作提醒（本月最后3天）
+        var monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        var diff = Math.round((monthEnd.getTime() - now.getTime()) / 86400000);
+        if (diff <= 3) {
+          items.push({
+            id: 'fin-payment-' + p.id,
+            type: 'teal',
+            icon: '📤',
+            iconCls: 'ico-teal',
+            title: (p.contract_name || '付款计划') + '  本月到期',
+            sub: (p.supplier_name || '') + '  ·  ¥' + (planTotal / 10000).toFixed(1) + '万',
+            tag: '资金',
+            ts: monthEnd.getTime(),
+            navType: 'payment',
+            navId: p.id
+          });
+        }
+      });
+    }
+  } catch(e) { /* Finance 未初始化时忽略 */ }
+
+  // 按紧急程度排序（today > 48h > finance），同级按时间正序
+  items.sort(function(a, b) {
+    var typeOrder = { red: 0, amber: 1, blue: 2, teal: 3 };
+    var to = (typeOrder[a.type] || 0) - (typeOrder[b.type] || 0);
+    if (to !== 0) return to;
+    return a.ts - b.ts;
+  });
+
+  window._notifItems = items;
+  return items;
+};
+
+// 读取/写入已读状态（localStorage）
+function _getReadIds() {
+  try { return JSON.parse(localStorage.getItem('pm_notif_read_v2') || '[]'); } catch(e) { return []; }
+}
+function _saveReadIds(ids) {
+  try { localStorage.setItem('pm_notif_read_v2', JSON.stringify(ids.slice(-300))); } catch(e) {}
+}
+
+// 渲染角标和面板
+window.refreshNotifs = function() {
+  var items = buildNotifItems();
+  var readIds = _getReadIds();
+  var unreadItems = items.filter(function(i) { return !readIds.includes(i.id); });
+  var unreadCount = unreadItems.length;
+
+  // ── 更新铃铛按钮状态 ──
+  var trigger = document.getElementById('notif-trigger');
+  var badge = document.getElementById('notif-badge');
+  var bellIcon = document.getElementById('notif-bell-icon');
+
+  if (trigger) {
+    trigger.classList.toggle('has-unread', unreadCount > 0);
+  }
+  if (badge) {
+    if (unreadCount > 0) {
+      badge.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
+      badge.classList.add('visible');
+    } else {
+      badge.classList.remove('visible');
+    }
+  }
+
+  // ── 更新面板头部角标 ──
+  var countEl = document.getElementById('notif-unread-count');
+  if (countEl) {
+    if (unreadCount > 0) {
+      countEl.textContent = unreadCount;
+      countEl.classList.add('visible');
+    } else {
+      countEl.classList.remove('visible');
+    }
+  }
+
+  // ── 渲染面板内容 ──
+  var listEl = document.getElementById('notif-list');
+  if (!listEl) return;
+
+  if (items.length === 0) {
+    listEl.innerHTML = '<div class="notif-empty-state">暂无待处理提醒</div>';
+    return;
+  }
+
+  listEl.innerHTML = items.map(function(item) {
+    var isRead = readIds.includes(item.id);
+    var cls = 'notif-item type-' + item.type + (isRead ? ' read-item' : ' unread');
+    // 截断标题避免溢出
+    var title = item.title || '';
+    if (title.length > 28) title = title.slice(0, 28) + '…';
+    return (
+      '<div class="' + escHtml(cls) + '"' +
+        ' onclick="notifNavigate(\'' + escHtml(item.navType) + '\',\'' + escHtml(item.navId) + '\',\'' + escHtml(item.id) + '\')">' +
+        '<div class="notif-unread-dot"></div>' +
+        '<div class="notif-item-icon ' + escHtml(item.iconCls) + '">' + item.icon + '</div>' +
+        '<div class="notif-item-content">' +
+          '<div class="notif-item-title">' + escHtml(title) + '</div>' +
+          '<div class="notif-item-sub">' +
+            '<span style="font-size:9.5px;padding:1px 5px;border-radius:3px;' +
+              'background:var(--surface2);border:1px solid var(--border);color:var(--text3)">' +
+              escHtml(item.tag) +
+            '</span>' +
+            '<span>' + escHtml(item.sub || '') + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<svg class="notif-item-arrow" width="13" height="13" fill="none" stroke="currentColor"' +
+          ' stroke-width="1.8" viewBox="0 0 16 16">' +
+          '<path d="M6 3l5 5-5 5"/>' +
+        '</svg>' +
+      '</div>'
+    );
+  }).join('');
+};
+
+// 点击通知 → 标记已读 + 导航
+window.notifNavigate = function(navType, navId, itemId) {
+  // 标记已读
+  var readIds = _getReadIds();
+  if (!readIds.includes(itemId)) {
+    readIds.push(itemId);
+    _saveReadIds(readIds);
+  }
+
+  // 关闭面板
+  closeNotifPanel();
+  refreshNotifs(); // 更新角标
+
+  // 导航
+  if (navType === 'task') {
+    // 确保在 PM 模块
+    if (typeof switchModule === 'function') switchModule('pm');
+    // 切换到今日看板或任务列表，再打开任务详情
+    setTimeout(function() {
+      if (typeof openEditTask === 'function') openEditTask(navId);
+    }, 120);
+
+  } else if (navType === 'receipt') {
+    if (typeof switchModule === 'function') switchModule('finance');
+    setTimeout(function() {
+      if (typeof switchTab === 'function') switchTab('receipt');
+    }, 120);
+
+  } else if (navType === 'payment') {
+    if (typeof switchModule === 'function') switchModule('finance');
+    setTimeout(function() {
+      if (typeof switchTab === 'function') switchTab('payment');
+    }, 120);
+  }
+};
+
+// 开关面板
+window.toggleNotifPanel = function(e) {
+  e.stopPropagation();
+  var panel = document.getElementById('notif-panel');
+  var trigger = document.getElementById('notif-trigger');
+  if (!panel) return;
+  var isOpen = panel.style.display !== 'none';
+  if (isOpen) {
+    closeNotifPanel();
+  } else {
+    refreshNotifs(); // 每次打开时刷新内容
+    panel.style.display = 'block';
+    if (trigger) trigger.classList.add('is-open');
+  }
+};
+
+window.closeNotifPanel = function() {
+  var panel = document.getElementById('notif-panel');
+  var trigger = document.getElementById('notif-trigger');
+  if (panel) panel.style.display = 'none';
+  if (trigger) trigger.classList.remove('is-open');
+};
+
+// 全部已读
+window.markAllNotifsRead = function() {
+  var items = window._notifItems || buildNotifItems();
+  var readIds = _getReadIds();
+  var merged = Array.from(new Set(readIds.concat(items.map(function(i) { return i.id; }))));
+  _saveReadIds(merged);
+  refreshNotifs();
+};
+
+// 点击面板外关闭
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.notif-wrap')) {
+    closeNotifPanel();
+  }
+}, true);
+
+// 数据加载后自动刷新通知（在 loadState 末尾 render() 之后注入）
+// 由于 render() 已在 loadState 里调用，此函数需要从外部挂钩
+// 在 loadState() 的成功路径末尾找到 `if (!window._ganttSaving) render();`，
+// 在其之后追加：if (typeof refreshNotifs === 'function') refreshNotifs();

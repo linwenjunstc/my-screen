@@ -98,7 +98,7 @@
       </button>
     </nav>
     <div class="sb-bottom">
-      <button class="sb-util" onclick="openBaseLibModal()">
+      <button class="sb-util" id="base-lib-btn" onclick="openBaseLibModal()">
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><line x1="5" y1="5.5" x2="11" y2="5.5"/><line x1="5" y1="8" x2="11" y2="8"/></svg>基础库配置
       </button>
     </div>
@@ -115,6 +115,45 @@
           <i data-lucide="sun" class="theme-icon-light" style="width:15px;height:15px"></i>
           <i data-lucide="moon" class="theme-icon-dark" style="width:15px;height:15px"></i>
         </button>
+        <!-- ── 通知铃铛 ── -->
+        <div class="notif-wrap" id="notif-wrap">
+          <button class="notif-trigger" id="notif-trigger"
+            onclick="toggleNotifPanel(event)" title="通知提醒">
+            <svg class="notif-bell-icon" id="notif-bell-icon"
+              width="18" height="18" viewBox="0 0 18 18"
+              fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <!-- 铃铛弧形顶部 -->
+              <path d="M9 2C9 2 9 2.5 9 3"/>
+              <!-- 铃铛身体 -->
+              <path d="M14 10c0-2.76-2.24-5-5-5S4 7.24 4 10c0 2.5-.6 3.8-1.5 4.5h13C14.6 13.8 14 12.5 14 10z"/>
+              <!-- 铃舌 -->
+              <path d="M7 14.5a2 2 0 0 0 4 0"/>
+            </svg>
+            <!-- 未读角标 -->
+            <span class="notif-badge" id="notif-badge"></span>
+          </button>
+
+          <!-- 通知面板 -->
+          <div class="notif-panel" id="notif-panel" style="display:none">
+            <div class="notif-panel-header">
+              <div class="notif-panel-title">
+                <svg width="14" height="14" viewBox="0 0 18 18" fill="none"
+                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                  <path d="M14 10c0-2.76-2.24-5-5-5S4 7.24 4 10c0 2.5-.6 3.8-1.5 4.5h13C14.6 13.8 14 12.5 14 10z"/>
+                  <path d="M7 14.5a2 2 0 0 0 4 0"/>
+                </svg>
+                <span>提醒</span>
+                <span class="notif-unread-count" id="notif-unread-count"></span>
+              </div>
+              <button class="notif-read-all" onclick="markAllNotifsRead()">全部已读</button>
+            </div>
+            <div class="notif-body" id="notif-list">
+              <div class="notif-empty-state">暂无提醒</div>
+            </div>
+          </div>
+        </div>
+        <!-- ── 通知铃铛 end ── -->
         <div class="user-dropdown" id="user-dropdown">
           <button class="user-dropdown-trigger" onclick="toggleUserDropdown(event)">
             <div class="member-avatar" id="user-avatar-top" style="width:26px;height:26px;font-size:11px;background:var(--accent);color:#fff">?</div>

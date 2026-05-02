@@ -28,8 +28,13 @@ function renderReceipts(){
         ${r.next_expected_date||'—'}
       </td>
       <td style="font-size:12px;color:var(--text3)">${r.remark||'—'}</td>
+      <td style="text-align:center">
+        <button class="quick-entry-btn"
+          onclick="event.stopPropagation();openQuickReceiptEntry('${r.id}')"
+          title="快速录入本月实际到款">+ 录入到款</button>
+      </td>
     </tr>`).join('')
-    :`<tr><td colspan="11"><div class="empty"><i data-lucide="download" class="empty-icon"></i>暂无数据，点击右上角新增</div></td></tr>`;
+    :`<tr><td colspan="12"><div class="empty"><i data-lucide="download" class="empty-icon"></i>暂无数据，点击右上角新增</div></td></tr>`;
 
   document.getElementById('main-content').innerHTML=`
   <div class="table-wrap">
@@ -51,6 +56,7 @@ function renderReceipts(){
         <th style="min-width:120px">收款比例</th>
         <th style="min-width:110px">预计下次收款</th>
         <th style="min-width:80px">备注</th>
+        <th style="min-width:90px;text-align:center">快捷录入</th>
       </tr></thead>
       <tbody>${tbody}</tbody>
       ${rows.length?`<tfoot><tr class="tfoot-row">
@@ -60,7 +66,7 @@ function renderReceipts(){
         <td>${fmt(tot.prev)} 元</td>
         <td>${fmt(tot.plan)} 元</td>
         <td>${fmt(tot.cum)} 元</td>
-        <td colspan="3"></td>
+        <td colspan="4"></td>
       </tr></tfoot>`:''}
     </table>
     </div>
@@ -168,3 +174,66 @@ async function saveReceipt(id,btn){
   setLoading(btn,false);closeModal();finRender();toast(`✓ ${id?'已更新':'已添加'}`);
   finLogAction(id?'更新收款记录':'新增收款记录', `${id?'更新':'新增'}收款「${name}」${data.plan_amount?'，本月计划 '+fmt(data.plan_amount)+' 元':''}`);
 }
+
+window.openQuickReceiptEntry = function(receiptRecordId) {
+  var rec = finState.receipts.find(function(r) { return r.id === receiptRecordId; });
+  if (!rec) return;
+  var today = new Date();
+  var todayStr = today.getFullYear() + '-' +
+    String(today.getMonth() + 1).padStart(2, '0') + '-' +
+    String(today.getDate()).padStart(2, '0');
+
+  openModal(modalHeader('录入实际到款') +
+    '<div class="modal-body">' +
+      '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--text2)">' +
+        '<div style="font-weight:600;color:var(--text);margin-bottom:4px">' + escHtml(rec.contract_name || '—') + '</div>' +
+        '<div style="display:flex;gap:16px;flex-wrap:wrap">' +
+          '<span>客户：' + escHtml(rec.customer_name || '—') + '</span>' +
+          '<span>本月计划：' + fmt(rec.plan_amount) + ' 元</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="form-group"><label class="form-label">实际到款日期 <span style="color:var(--red)">*</span></label>' +
+        '<input type="date" class="form-input" id="qr-date" value="' + todayStr + '"></div>' +
+      '<div class="form-group"><label class="form-label">实际到款金额（元）<span style="color:var(--red)">*</span></label>' +
+        '<input type="number" class="form-input" id="qr-amount" placeholder="请输入金额" min="0" step="0.01"></div>' +
+      '<div class="form-group"><label class="form-label">备注</label>' +
+        '<input type="text" class="form-input" id="qr-remark" placeholder="可选"></div>' +
+    '</div>' +
+    '<div class="modal-footer"><div></div>' +
+      '<div style="display:flex;gap:8px">' +
+        '<button class="btn btn-ghost" onclick="closeModal()">取消</button>' +
+        '<button class="btn btn-primary" onclick="saveQuickReceiptEntry(\'' + receiptRecordId + '\',this)">确认录入</button>' +
+      '</div></div>');
+};
+
+window.saveQuickReceiptEntry = async function(receiptRecordId, btn) {
+  var rec = finState.receipts.find(function(r) { return r.id === receiptRecordId; });
+  if (!rec) return;
+  var date = document.getElementById('qr-date') && document.getElementById('qr-date').value;
+  var amount = parseFloat(document.getElementById('qr-amount') && document.getElementById('qr-amount').value);
+  var remark = document.getElementById('qr-remark') ? document.getElementById('qr-remark').value : '';
+  if (!date) { toast('请填写到款日期', 'warning'); return; }
+  if (!amount || amount <= 0) { toast('请填写有效金额', 'warning'); return; }
+  btn.disabled = true; btn.textContent = '保存中...';
+  try {
+    var res = await sb.from('actual_receipts').insert({
+      id: uid(),
+      year_month: currentMonth,
+      receipt_date: date,
+      contract_name: rec.contract_name || '',
+      customer_name: rec.customer_name || '',
+      upstream_contract_id: rec.upstream_contract_id || null,
+      amount: amount,
+      remark: remark
+    });
+    if (res.error) throw res.error;
+    await finLogAction('新增实际收款', JSON.stringify({ contract: rec.contract_name, amount: amount, date: date }));
+    toast('实际到款已录入', 'success');
+    closeModal();
+    await loadAll();
+    switchTab('t5');
+  } catch(e) {
+    toast('录入失败：' + e.message, 'error');
+    btn.disabled = false; btn.textContent = '确认录入';
+  }
+};

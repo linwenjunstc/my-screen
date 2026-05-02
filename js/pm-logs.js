@@ -1,4 +1,4 @@
-/* ════════════════════════════════════════════════
+﻿/* ════════════════════════════════════════════════
  * pm-logs.js  —  操作日志 / Tab分类 / 日志渲染
  * ════════════════════════════════════════════════ */
 
@@ -56,18 +56,21 @@ async function logAction(action, detail) {
 async function openLogsModal() {
   window._logTab = window._logTab || 'all';
   const _isAdmin = isAdmin();
+  const _isSuperAdmin = currentUser && currentUser.role === 'super_admin';
+  const logTabs = [
+    {k:'all',  label:'全部'},
+    {k:'task', label:'📋 任务'},
+    {k:'project',label:'📁 项目'},
+    {k:'gantt', label:'📊 甘特图'},
+    {k:'finance',label:'💰 资金'},
+    {k:'member', label:'👤 成员'},
+  ];
+  if (_isSuperAdmin) logTabs.push({k:'login', label:'🔑 登录'});
   openModal(`${modalHeader('操作日志')}
     <div style="display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 22px;overflow-x:auto">
-      ${[
-        {k:'all',  label:'全部'},
-        {k:'task', label:'📋 任务'},
-        {k:'project',label:'📁 项目'},
-        {k:'gantt', label:'📊 甘特图'},
-        {k:'finance',label:'💰 资金'},
-        {k:'member', label:'👤 成员'},
-      ].map(t=>`<button
+      ${logTabs.map(t=>`<button
         class="modal-tab ${window._logTab===t.k?'active':''}"
-        onclick="window._logTab='${t.k}';document.querySelectorAll('.log-cat-tab').forEach(el=>el.classList.remove('active'));this.classList.add('active');refreshLogsList()"
+        onclick="window._logTab='${t.k}';document.querySelectorAll('[data-logtab]').forEach(el=>el.classList.remove('active'));this.classList.add('active');refreshLogsList()"
         style="white-space:nowrap"
         data-logtab="${t.k}"
       >${t.label}</button>`).join('')}
@@ -128,8 +131,18 @@ async function refreshLogsList() {
               '新增供应商','更新供应商','删除供应商',
               '导出资金报表','编辑月度计划','编辑完成情况'],
     member: ['添加成员','删除成员','修改角色',
-             '重置密码','修改密码','用户登录','配置菜单权限'],
+             '重置密码','修改密码','配置菜单权限'],
+    login: ['用户登录'],
   };
+
+  const _isSuperAdmin = currentUser && currentUser.role === 'super_admin';
+  // 非超级管理员禁止查看登录日志
+  if (window._logTab === 'login' && !_isSuperAdmin) {
+    window._logTab = 'all';
+    document.querySelectorAll('[data-logtab]').forEach(el => {
+      el.classList.toggle('active', el.dataset.logtab === 'all');
+    });
+  }
 
   const _isAdminUser = isAdmin();
   const filterUserId = _isAdminUser
@@ -156,11 +169,14 @@ async function refreshLogsList() {
     return;
   }
 
-  // 前端 Tab 过滤
-  const filtered = catFilter ? (data||[]).filter(l => catFilter.includes(l.action)) : (data||[]);
+  // 前端 Tab 过滤（非超级管理员隐藏登录记录）
+  var filtered = catFilter ? (data||[]).filter(l => catFilter.includes(l.action)) : (data||[]);
+  if (!_isSuperAdmin && !catFilter) {
+    filtered = filtered.filter(l => l.action !== '用户登录');
+  }
 
   if (!filtered.length) {
-    const tabLabel = {all:'',task:'任务',project:'项目',gantt:'甘特图',finance:'资金',member:'成员'}[window._logTab||'all'];
+    const tabLabel = {all:'',task:'任务',project:'项目',gantt:'甘特图',finance:'资金',member:'成员',login:'登录'}[window._logTab||'all'];
     listEl.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">暂无${tabLabel}日志记录</div>`;
     if (countEl) countEl.textContent = '共 0 条';
     return;
@@ -218,30 +234,53 @@ async function refreshLogsList() {
   const memberColors = {};
   state.members.forEach(m => { memberColors[m.id] = MEMBER_COLORS[m.colorIdx % MEMBER_COLORS.length]; });
 
-  listEl.innerHTML = Object.entries(groups).map(([date, logs]) => {
-    const today = new Date().toISOString().slice(0, 10);
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-    const dateLabel = date === today ? '今天' : date === yesterday ? '昨天' : date;
-    const logsHTML = logs.map(log => {
-      const time = new Date(log.created_at).toLocaleTimeString('zh', { hour: '2-digit', minute: '2-digit' });
-      const icon = ACTION_ICONS[log.action] || '▸';
-      const color = memberColors[log.user_id] || 'var(--text3)';
-      const detailText = formatLogDetail(log);
-      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
-        <div style="width:28px;height:28px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;flex-shrink:0;margin-top:1px">${(log.user_name||'?').slice(0,1)}</div>
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span style="font-size:13px;font-weight:500">${log.user_name || '未知'}</span>
-            <span style="font-size:11px;padding:1px 7px;background:${getLogBadgeColor(log.action).bg};border-radius:10px;color:${getLogBadgeColor(log.action).text};border:1px solid ${getLogBadgeColor(log.action).border}">${icon} ${log.action}</span>
-            <span style="font-size:11px;color:var(--text3);margin-left:auto">${time}</span>
-          </div>
-          ${detailText ? `<div style="font-size:12px;color:var(--text2);margin-top:3px">${detailText}</div>` : ''}
-        </div>
-      </div>`;
-    }).join('');
-    return `<div style="margin-bottom:4px">
-      <div style="font-size:11px;font-weight:600;color:var(--text3);padding:8px 0 4px;position:sticky;top:0;background:var(--surface)">${dateLabel}</div>
-      ${logsHTML}
-    </div>`;
-  }).join('');
+  // 节点样式映射
+  function getTlDotClass(action) {
+    if (!action) return 'dot-sys';
+    if (['添加任务','添加子任务','添加项目','添加成员','添加标签',
+         '新增收款记录','新增付款明细','新增实际收款','新增实际支付',
+         '新增对上合同','新增对下合同','新增客户','新增供应商'].includes(action)) return 'dot-add';
+    if (['完成任务','完成子任务'].includes(action)) return 'dot-done';
+    if (action.includes('删除')) return 'dot-del';
+    if (['甘特图调整','gantt_adjust'].includes(action)) return 'dot-gantt';
+    if (['导出资金报表','编辑月度计划','编辑完成情况',
+         '更新收款记录','更新付款明细','更新实际收款','更新实际支付',
+         '更新对上合同','更新对下合同','更新客户','更新供应商'].includes(action)) return 'dot-fin';
+    if (['添加成员','删除成员','修改角色','重置密码','修改密码','配置菜单权限','用户登录'].includes(action)) return 'dot-sys';
+    if (action.includes('编辑') || action.includes('修改') || action.includes('更新') || action.includes('调整')) return 'dot-edit';
+    return 'dot-sys';
+  }
+
+  var tlHTML = '<div class="log-timeline">';
+  var groupEntries = Object.entries(groups);
+  groupEntries.forEach(function(entry) {
+    var date = entry[0];
+    var dayLogs = entry[1];
+    var todayStr = new Date().toISOString().slice(0, 10);
+    var yStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    var dateLabel = date === todayStr ? '今天' : date === yStr ? '昨天' : date;
+    tlHTML += '<div class="log-tl-day">' + dateLabel + '</div>';
+    dayLogs.forEach(function(log, idx) {
+      var time = new Date(log.created_at).toLocaleTimeString('zh', { hour: '2-digit', minute: '2-digit' });
+      var icon = ACTION_ICONS[log.action] || '▸';
+      var badge = getLogBadgeColor(log.action);
+      var dotClass = getTlDotClass(log.action);
+      var detailText = formatLogDetail(log);
+      var isLast = idx === dayLogs.length - 1;
+      tlHTML +=
+        '<div class="log-tl-item' + (isLast ? ' log-tl-last' : '') + '">' +
+          '<div class="log-tl-dot ' + dotClass + '">' + icon + '</div>' +
+          '<div class="log-tl-body">' +
+            '<div class="log-tl-header">' +
+              '<span class="log-tl-user">' + escHtml(log.user_name || '未知') + '</span>' +
+              '<span class="log-tl-badge" style="background:' + badge.bg + ';color:' + badge.text + ';border-color:' + badge.border + '">' + escHtml(log.action) + '</span>' +
+              '<span class="log-tl-time">' + time + '</span>' +
+            '</div>' +
+            (detailText ? '<div class="log-tl-detail">' + escHtml(detailText) + '</div>' : '') +
+          '</div>' +
+        '</div>';
+    });
+  });
+  tlHTML += '</div>';
+  listEl.innerHTML = tlHTML;
 }

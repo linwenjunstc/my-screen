@@ -4,21 +4,27 @@
 
 //  基础库配置弹框
 function openBaseLibModal(){
+  var allowed = typeof getEffectiveMenuPerms === 'function' ? getEffectiveMenuPerms() : [];
+  var libs = [
+    { key: 'base_contracts',  label: '合同库',   icon: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><line x1="5" y1="5.5" x2="11" y2="5.5"/><line x1="5" y1="8" x2="11" y2="8"/></svg>', tab: 'contracts' },
+    { key: 'base_customers',  label: '客户库',   icon: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 14c0-3 2.7-5 6-5s6 2 6 5"/></svg>', tab: 'customers' },
+    { key: 'base_suppliers',  label: '供应商库', icon: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="6" width="10" height="8" rx="1"/><path d="M4 6V4a4 4 0 0 1 8 0v2"/></svg>', tab: 'suppliers' },
+  ];
+  var visibleLibs = libs.filter(function(l) { return allowed.includes(l.key); });
+  if (!visibleLibs.length) {
+    toast('你没有访问任何基础库的权限', 'info');
+    return;
+  }
+  var buttonsHTML = visibleLibs.map(function(l) {
+    return '<button class="btn btn-ghost" style="padding:14px 20px;font-size:14px;justify-content:flex-start;display:flex;align-items:center;gap:10px;width:100%" onclick="closeModal();switchTab(\'' + l.tab + '\')">' + l.icon + l.label + '</button>';
+  }).join('');
   openModal(`
   <div class="modal-header">
     <div class="modal-title">基础库配置</div>
     <button class="modal-close" onclick="closeModal()"><i data-lucide="x"></i></button>
   </div>
   <div class="modal-body" style="display:flex;flex-direction:column;gap:10px;padding:24px">
-    <button class="btn btn-ghost" style="padding:14px 20px;font-size:14px;justify-content:flex-start;display:flex;align-items:center;gap:10px;width:100%" onclick="closeModal();switchTab('contracts')">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><line x1="5" y1="5.5" x2="11" y2="5.5"/><line x1="5" y1="8" x2="11" y2="8"/></svg>合同库
-    </button>
-    <button class="btn btn-ghost" style="padding:14px 20px;font-size:14px;justify-content:flex-start;display:flex;align-items:center;gap:10px;width:100%" onclick="closeModal();switchTab('customers')">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 14c0-3 2.7-5 6-5s6 2 6 5"/></svg>客户库
-    </button>
-    <button class="btn btn-ghost" style="padding:14px 20px;font-size:14px;justify-content:flex-start;display:flex;align-items:center;gap:10px;width:100%" onclick="closeModal();switchTab('suppliers')">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="6" width="10" height="8" rx="1"/><path d="M4 6V4a4 4 0 0 1 8 0v2"/></svg>供应商库
-    </button>
+    ${buttonsHTML}
   </div>
   <div class="modal-footer"><div></div>
     <button class="btn btn-ghost" onclick="closeModal()">关闭</button>
@@ -58,27 +64,27 @@ async function renderDashboard(){
 
   document.getElementById('main-content').innerHTML=`
   <div class="stat-grid" style="grid-template-columns:repeat(5,1fr)">
-    <div class="stat-card ${c.surplus>=0?'positive':'warning'}">
+    <div class="stat-card ${c.surplus>=0?'positive':'warning'}" onclick="showFinSummaryModal()" style="cursor:pointer" title="点击查看资金计划明细">
       <div class="stat-label">资金溢缺</div>
       <div class="stat-val">${fmt(c.surplus)}</div>
       <div class="stat-sub">计划 · 万元</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" onclick="showPlanIncomeModal()" style="cursor:pointer" title="查看计划收入明细">
       <div class="stat-label">计划收入</div>
       <div class="stat-val">${fmt(c.planRec)}</div>
       <div class="stat-sub">实收 ${fmt(actRec)} · ${recRatio}%</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" onclick="showPlanExpenseModal()" style="cursor:pointer" title="查看计划支出明细">
       <div class="stat-label">计划支出</div>
       <div class="stat-val">${fmt(c.planPay)}</div>
       <div class="stat-sub">实支 ${fmt(actPay)} · ${payRatio}%</div>
     </div>
-    <div class="stat-card ${rtcf===null?'':'rtcf-card'}">
+    <div class="stat-card ${rtcf===null?'':'rtcf-card'}" onclick="showCashFlowModal()" style="cursor:pointer" title="查看现金流计算明细">
       <div class="stat-label">实时现金流<span class="stat-hint" title="上月完成净额 + 当月实收 − 当月实付"> ⓘ</span></div>
       <div class="stat-val">${rtcfVal}</div>
       <div class="stat-sub">${rtcf===null?'待录入 '+fmtMon(prevMon):'上月净额 '+fmt(computePrevBalance())}</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" onclick="showFlowRatioModal()" style="cursor:pointer" title="查看收付明细">
       <div class="stat-label">收付比例</div>
       <div style="display:flex;align-items:center;gap:10px">
         ${donutRing}
@@ -91,7 +97,7 @@ async function renderDashboard(){
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px">
-    <div class="chart-card" style="padding:16px 18px">
+    <div class="chart-card" style="padding:16px 18px" onclick="showMoMComparisonModal()" style="cursor:pointer" title="查看环比明细">
       <div class="chart-title" style="margin-bottom:10px">月度环比
         <span style="font-size:11px;font-weight:400;color:var(--text3)">较上月</span>
       </div>
@@ -106,7 +112,7 @@ async function renderDashboard(){
         </div>
       </div>
     </div>
-    <div class="chart-card" style="padding:16px 18px">
+    <div class="chart-card" style="padding:16px 18px" onclick="showCompletionRateModal()" style="cursor:pointer" title="查看完成率明细">
       <div class="chart-title" style="margin-bottom:10px">收款完成率</div>
       <div class="proj-progress-track" style="height:32px;margin-top:8px">
         <div class="proj-progress-fill" style="width:${Math.min(recRatio,100)}%;background:var(--grad-green);display:flex;align-items:center;justify-content:flex-end;padding-right:10px;font-size:12px;font-weight:600;color:#fff;font-family:var(--mono)">${recRatio}%</div>
@@ -123,7 +129,7 @@ async function renderDashboard(){
     ${finState.receipts.map(r=>{
       const ratio=r.contract_amount?(+r.cumulative_received||0)/(+r.contract_amount):0;
       const cls=ratio>=1?'ratio-red':ratio>=0.6?'ratio-amber':'ratio-green';
-      return `<div class="prog-row" data-tip="${r.contract_name||'—'}: 累计收款 ${fmt(r.cumulative_received)} / ${fmt(r.contract_amount)} 元 (${(ratio*100).toFixed(1)}%)">
+      return `<div class="prog-row" onclick="showReceiptDetailModal('${r.id}')" data-tip="${r.contract_name||'—'}: 累计收款 ${fmt(r.cumulative_received)} / ${fmt(r.contract_amount)} 元 (${(ratio*100).toFixed(1)}%)">
         <div class="prog-name">${r.contract_name||'—'}</div>
         <div class="prog-meta">${fmt(r.cumulative_received)} / ${fmt(r.contract_amount)} 元</div>
         <div class="prog-bar-wrap"><div class="prog-bar" style="width:${Math.min(ratio*100,100).toFixed(1)}%;background:var(--grad-green)"></div></div>
@@ -138,7 +144,7 @@ async function renderDashboard(){
       const planSub=(+r.plan_cash||0)+(+r.plan_supply_chain||0);
       const ratio=planSub?act/planSub:0;
       const cls=ratio>=1?'ratio-red':ratio>=0.6?'ratio-amber':'ratio-green';
-      return `<div class="prog-row" data-tip="${r.contract_name||'—'}: 实际支付 ${fmt(act)} / 计划 ${fmt(planSub)} 元${planSub?' ('+(ratio*100).toFixed(1)+'%)':''}">
+      return `<div class="prog-row" onclick="showPaymentDetailModal('${r.id}')" data-tip="${r.contract_name||'—'}: 实际支付 ${fmt(act)} / 计划 ${fmt(planSub)} 元${planSub?' ('+(ratio*100).toFixed(1)+'%)':''}">
         <div class="prog-name">${r.contract_name||'—'}</div>
         <div class="prog-meta">${fmt(act)} / ${fmt(planSub)} 元</div>
         <div class="prog-bar-wrap"><div class="prog-bar" style="width:${Math.min(ratio*100,100).toFixed(1)}%;background:var(--grad-blue)"></div></div>
@@ -1215,11 +1221,12 @@ function buildTrendSVGStatic(months, recByMonth, payByMonth) {
   var yMax = (maxVal / 10000).toFixed(1);
   var yMid = (maxVal / 10000 / 2).toFixed(1);
 
-  var dots = function(points, color) {
+  var dots = function(points, color, clickType) {
     var pts = points.split(' ');
     return pts.map(function(p) {
       var parts = p.split(',');
-      return '<circle cx="' + parts[0] + '" cy="' + parts[1] + '" r="3.5" fill="' + color + '" stroke="var(--bg)" stroke-width="1.5"/>';
+      return '<circle cx="' + parts[0] + '" cy="' + parts[1] + '" r="8" fill="transparent" stroke="none" style="cursor:pointer" onclick="showTrendDayDetail(\'' + clickType + '\')"/>' +
+        '<circle cx="' + parts[0] + '" cy="' + parts[1] + '" r="3.5" fill="' + color + '" stroke="var(--bg)" stroke-width="1.5" style="pointer-events:none"/>';
     }).join('');
   };
 
@@ -1244,9 +1251,235 @@ function buildTrendSVGStatic(months, recByMonth, payByMonth) {
       '<text x="' + (PAD.l - 4) + '" y="' + (PAD.t + innerH + 4) + '" text-anchor="end" font-size="10" fill="var(--text3)">0</text>' +
       '<polyline points="' + recPoints + '" fill="none" stroke="#27ae60" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
       '<polyline points="' + payPoints + '" fill="none" stroke="#2e7dd1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
-      dots(recPoints, '#27ae60') +
-      dots(payPoints, '#2e7dd1') +
+      dots(recPoints, '#27ae60', 'rec') +
+      dots(payPoints, '#2e7dd1', 'pay') +
       xLabels +
     '</svg>' +
   '</div>';
+}
+
+// ─── Dashboard click-to-detail modals ─────────────────────────────────────────
+function showFinSummaryModal() {
+  var c = computeTotals();
+  var sum = finState.summary || {};
+  var actRec = finState.actualReceipts.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var actPay = finState.actualPayments.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var header = '<tr style="background:var(--surface2)"><td colspan="3"><b>资金计划明细 · ' + fmtMon(currentMonth) + '</b></td></tr>';
+  var rows = [
+    ['一、固定支出','',''],
+    ['人工费',fmt(sum.labor_cost||0)+' 万',fmt(sum.actual_labor||0)+' 万'],
+    ['部门费用',fmt(sum.dept_cost||0)+' 万',fmt(sum.actual_dept||0)+' 万'],
+    ['摊销',fmt(sum.amortization||0)+' 万',fmt(sum.actual_amortization||0)+' 万'],
+    ['公司锁定',fmt(sum.company_lock||0)+' 万',fmt(sum.actual_company_lock||0)+' 万'],
+    ['还本付息',fmt(sum.debt_service||0)+' 万',fmt(sum.actual_debt_service||0)+' 万'],
+    ['支出小计',fmt(c.totalExp||0)+' 万',''],
+    ['二、资金筹措','',''],
+    ['股东注资',fmt(sum.shareholder_injection||0)+' 万','—'],
+    ['股东借款',fmt(sum.shareholder_loan||0)+' 万','—'],
+    ['流动资金贷款',fmt(sum.working_capital_loan||0)+' 万','—'],
+    ['供应链金融',fmt(sum.supply_chain_finance||0)+' 万','—'],
+    ['筹措小计',fmt(c.funding||0)+' 万',''],
+    ['三、资金溢缺',fmt(c.surplus||0)+' 万',''],
+    ['实际收款',fmt(actRec)+' 万',''],
+    ['实际付款',fmt(actPay)+' 万',''],
+  ];
+  var tbody = rows.map(function(r){
+    var cls = r[0].indexOf('一、')===0||r[0].indexOf('二、')===0||r[0].indexOf('三、')===0 ? 'style="font-weight:600;background:var(--surface2)"' : '';
+    return '<tr '+cls+'><td>'+r[0]+'</td><td style="text-align:right;font-family:var(--mono)">'+r[1]+'</td><td style="text-align:right;font-family:var(--mono);color:var(--text3)">'+(r[2]||'')+'</td></tr>';
+  }).join('');
+  openModal(modalHeader('资金计划明细 · '+fmtMon(currentMonth)) +
+    '<div class="modal-body" style="padding:16px 20px"><div style="max-height:65vh;overflow:auto">' +
+    '<table class="data-table" style="width:100%"><thead><tr><th>项目</th><th style="text-align:right">计划数（万元）</th><th style="text-align:right">实际数（万元）</th></tr></thead><tbody>'+tbody+'</tbody></table>' +
+    '</div></div>' +
+    '<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>');
+}
+
+function showPlanIncomeModal() {
+  var rows = finState.receipts.length
+    ? finState.receipts.map(function(r){
+        var ratio = r.contract_amount ? ((+r.cumulative_received||0)/(+r.contract_amount)*100).toFixed(1) : 0;
+        return '<tr><td>'+escHtml(r.contract_name||'—')+'</td><td>'+escHtml(r.customer_name||'—')+'</td><td style="text-align:right;font-family:var(--mono)">'+fmt(r.contract_amount)+'</td><td style="text-align:right;font-family:var(--mono)">'+fmt(r.cumulative_received)+'</td><td style="text-align:right;font-family:var(--mono)">'+ratio+'%</td></tr>';
+      }).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:24px">暂无收款计划</td></tr>';
+  openModal(modalHeader('计划收入明细 · '+fmtMon(currentMonth)) +
+    '<div class="modal-body" style="padding:16px 20px"><div style="max-height:65vh;overflow:auto">' +
+    '<table class="data-table" style="width:100%"><thead><tr><th>合同名称</th><th>客户</th><th style="text-align:right">合同金额</th><th style="text-align:right">累计收款</th><th style="text-align:right">收款率</th></tr></thead><tbody>'+rows+'</tbody></table>' +
+    '</div></div>' +
+    '<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>');
+}
+
+function showPlanExpenseModal() {
+  var rows = finState.payments.length
+    ? finState.payments.map(function(r){
+        var planSub = (+r.plan_cash||0)+(+r.plan_supply_chain||0);
+        var act = finState.actualPayments.filter(function(p){return p.downstream_contract_id===r.downstream_contract_id;}).reduce(function(s,p){return s+(+p.amount||0);},0);
+        var ratio = planSub ? (act/planSub*100).toFixed(1) : 0;
+        return '<tr><td>'+escHtml(r.contract_name||'—')+'</td><td>'+escHtml(r.supplier_name||'—')+'</td><td style="text-align:right;font-family:var(--mono)">'+fmt(planSub)+'</td><td style="text-align:right;font-family:var(--mono)">'+fmt(act)+'</td><td style="text-align:right;font-family:var(--mono)">'+ratio+'%</td></tr>';
+      }).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:24px">暂无付款计划</td></tr>';
+  openModal(modalHeader('计划支出明细 · '+fmtMon(currentMonth)) +
+    '<div class="modal-body" style="padding:16px 20px"><div style="max-height:65vh;overflow:auto">' +
+    '<table class="data-table" style="width:100%"><thead><tr><th>合同名称</th><th>供应商</th><th style="text-align:right">计划金额</th><th style="text-align:right">实际支付</th><th style="text-align:right">支付率</th></tr></thead><tbody>'+rows+'</tbody></table>' +
+    '</div></div>' +
+    '<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>');
+}
+
+function showCashFlowModal() {
+  var prevMon = prevMonthOf(currentMonth);
+  var prevBalance = computePrevBalance();
+  var actRec = finState.actualReceipts.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var actPay = finState.actualPayments.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var rtcf = computeRealTimeCashFlow();
+  var html = '<table class="data-table" style="width:100%;margin-bottom:16px">' +
+    '<tr><td style="font-weight:600">上月完成净额</td><td style="text-align:right;font-family:var(--mono);font-weight:600">'+fmt(prevBalance)+'</td><td style="font-size:11px;color:var(--text3)">'+fmtMon(prevMon)+' 上月实际收付差额</td></tr>' +
+    '<tr><td>当月实际收款</td><td style="text-align:right;font-family:var(--mono);color:#27ae60">+ '+fmt(actRec)+'</td><td style="font-size:11px;color:var(--text3)">'+fmtMon(currentMonth)+' 所有实际收款汇总</td></tr>' +
+    '<tr><td>当月实际付款</td><td style="text-align:right;font-family:var(--mono);color:#e74c3c">- '+fmt(actPay)+'</td><td style="font-size:11px;color:var(--text3)">'+fmtMon(currentMonth)+' 所有实际付款汇总</td></tr>' +
+    '<tr style="background:var(--surface2)"><td style="font-weight:600">实时现金流</td><td style="text-align:right;font-family:var(--mono);font-weight:600;color:'+(rtcf>=0?'#27ae60':'#e74c3c')+'">'+fmt(rtcf)+'</td><td style="font-size:11px;color:var(--text3)">上月净额 + 当月实收 - 当月实付</td></tr>' +
+    '</table>';
+  openModal(modalHeader('实时现金流计算明细') +
+    '<div class="modal-body" style="padding:16px 20px"><div style="max-height:65vh;overflow:auto">' + html +
+    '</div></div>' +
+    '<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>');
+}
+
+function showFlowRatioModal() {
+  var actRec = finState.actualReceipts.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var actPay = finState.actualPayments.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var total = actRec + actPay || 1;
+  var recPct = (actRec/total*100).toFixed(1);
+  var payPct = (actPay/total*100).toFixed(1);
+  var recRows = finState.actualReceipts.length
+    ? finState.actualReceipts.map(function(r){return '<tr><td>'+escHtml(r.contract_name||'—')+'</td><td>'+escHtml(r.customer_name||'—')+'</td><td style="text-align:right;font-family:var(--mono)">'+fmt(r.amount)+'</td><td>'+escHtml(r.receipt_date||'—')+'</td></tr>';}).join('')
+    : '<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:24px">暂无收款记录</td></tr>';
+  var payRows = finState.actualPayments.length
+    ? finState.actualPayments.map(function(r){return '<tr><td>'+escHtml(r.contract_name||'—')+'</td><td>'+escHtml(r.supplier_name||'—')+'</td><td style="text-align:right;font-family:var(--mono)">'+fmt(r.amount)+'</td><td>'+escHtml(r.payment_date||'—')+'</td></tr>';}).join('')
+    : '<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:24px">暂无付款记录</td></tr>';
+  openModal(modalHeader('收付明细 · '+fmtMon(currentMonth)) +
+    '<div class="modal-body" style="padding:16px 20px"><div style="max-height:65vh;overflow:auto">' +
+    '<div style="display:flex;gap:20px;margin-bottom:16px">' +
+      '<div style="flex:1;text-align:center;padding:16px;background:var(--surface2);border-radius:8px"><div style="font-size:24px;font-family:var(--mono);color:#27ae60;font-weight:600">'+fmt(actRec)+'</div><div style="font-size:12px;color:var(--text3);margin-top:4px">实际收款 ('+recPct+'%)</div></div>' +
+      '<div style="flex:1;text-align:center;padding:16px;background:var(--surface2);border-radius:8px"><div style="font-size:24px;font-family:var(--mono);color:#2e7dd1;font-weight:600">'+fmt(actPay)+'</div><div style="font-size:12px;color:var(--text3);margin-top:4px">实际付款 ('+payPct+'%)</div></div>' +
+    '</div>' +
+    '<div style="font-weight:600;margin-bottom:8px">收款记录</div>' +
+    '<table class="data-table" style="width:100%"><thead><tr><th>合同</th><th>客户</th><th style="text-align:right">金额</th><th>日期</th></tr></thead><tbody>'+recRows+'</tbody></table>' +
+    '<div style="font-weight:600;margin:16px 0 8px">付款记录</div>' +
+    '<table class="data-table" style="width:100%"><thead><tr><th>合同</th><th>供应商</th><th style="text-align:right">金额</th><th>日期</th></tr></thead><tbody>'+payRows+'</tbody></table>' +
+    '</div></div>' +
+    '<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>');
+}
+
+function showMoMComparisonModal() {
+  var prevMon = prevMonthOf(currentMonth);
+  var actRec = finState.actualReceipts.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var actPay = finState.actualPayments.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var prevRec = finState.prevActualReceipts.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var prevPay = finState.prevActualPayments.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var recChange = prevRec ? ((actRec-prevRec)/prevRec*100).toFixed(1) : null;
+  var payChange = prevPay ? ((actPay-prevPay)/prevPay*100).toFixed(1) : null;
+  openModal(modalHeader('月度环比 · '+fmtMon(currentMonth)+' vs '+fmtMon(prevMon)) +
+    '<div class="modal-body" style="padding:16px 20px"><div style="max-height:65vh;overflow:auto">' +
+    '<table class="data-table" style="width:100%"><thead><tr><th>指标</th><th style="text-align:right">'+fmtMon(prevMon)+'</th><th style="text-align:right">'+fmtMon(currentMonth)+'</th><th style="text-align:right">环比</th></tr></thead><tbody>' +
+    '<tr><td>实际收款</td><td style="text-align:right;font-family:var(--mono)">'+fmt(prevRec)+'</td><td style="text-align:right;font-family:var(--mono)">'+fmt(actRec)+'</td><td style="text-align:right;font-family:var(--mono);color:'+(recChange===null?'var(--text3)':recChange>=0?'#27ae60':'#e74c3c')+'">'+(recChange===null?'—':(recChange>=0?'+'+recChange:recChange)+'%')+'</td></tr>' +
+    '<tr><td>实际付款</td><td style="text-align:right;font-family:var(--mono)">'+fmt(prevPay)+'</td><td style="text-align:right;font-family:var(--mono)">'+fmt(actPay)+'</td><td style="text-align:right;font-family:var(--mono);color:'+(payChange===null?'var(--text3)':payChange<=0?'#27ae60':'#e74c3c')+'">'+(payChange===null?'—':(payChange<=0?payChange:'+'+payChange)+'%')+'</td></tr>' +
+    '</tbody></table>' +
+    '</div></div>' +
+    '<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>');
+}
+
+function showCompletionRateModal() {
+  var c = computeTotals();
+  var actRec = finState.actualReceipts.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var actPay = finState.actualPayments.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var recRatio = c.planRec ? (actRec/c.planRec*100).toFixed(1) : 0;
+  var payRatio = c.planPay ? (actPay/c.planPay*100).toFixed(1) : 0;
+  var recRemain = c.planRec ? (c.planRec - actRec) : 0;
+  var payRemain = c.planPay ? (c.planPay - actPay) : 0;
+  openModal(modalHeader('收付款完成率明细 · '+fmtMon(currentMonth)) +
+    '<div class="modal-body" style="padding:16px 20px"><div style="max-height:65vh;overflow:auto">' +
+    '<table class="data-table" style="width:100%"><thead><tr><th>指标</th><th style="text-align:right">计划</th><th style="text-align:right">实际</th><th style="text-align:right">完成率</th><th style="text-align:right">剩余</th></tr></thead><tbody>' +
+    '<tr><td>收款</td><td style="text-align:right;font-family:var(--mono)">'+fmt(c.planRec)+'</td><td style="text-align:right;font-family:var(--mono);color:#27ae60">'+fmt(actRec)+'</td><td style="text-align:right;font-family:var(--mono);font-weight:600">'+recRatio+'%</td><td style="text-align:right;font-family:var(--mono);color:'+(recRemain>0?'var(--red)':'var(--green)')+'">'+fmt(recRemain)+'</td></tr>' +
+    '<tr><td>付款</td><td style="text-align:right;font-family:var(--mono)">'+fmt(c.planPay)+'</td><td style="text-align:right;font-family:var(--mono);color:#2e7dd1">'+fmt(actPay)+'</td><td style="text-align:right;font-family:var(--mono);font-weight:600">'+payRatio+'%</td><td style="text-align:right;font-family:var(--mono);color:'+(payRemain>0?'var(--red)':'var(--green)')+'">'+fmt(payRemain)+'</td></tr>' +
+    '</tbody></table>' +
+    '</div></div>' +
+    '<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>');
+}
+
+function showReceiptDetailModal(recordId) {
+  var plan = finState.receipts.find(function(r){return r.id===recordId;});
+  if (!plan) { toast('未找到收款计划', 'error'); return; }
+  var ratio = plan.contract_amount ? ((+plan.cumulative_received||0)/(+plan.contract_amount)*100).toFixed(1) : 0;
+  var actuals = finState.actualReceipts.filter(function(r){return r.upstream_contract_id===plan.upstream_contract_id;});
+  var actualTotal = actuals.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var summary = '<table class="data-table" style="width:100%;margin-bottom:16px">' +
+    '<tr><td style="font-weight:600">合同名称</td><td>'+escHtml(plan.contract_name||'—')+'</td></tr>' +
+    '<tr><td style="font-weight:600">客户</td><td>'+escHtml(plan.customer_name||'—')+'</td></tr>' +
+    '<tr><td style="font-weight:600">合同金额</td><td style="font-family:var(--mono)">'+fmt(plan.contract_amount)+' 元</td></tr>' +
+    '<tr><td style="font-weight:600">累计收款</td><td style="font-family:var(--mono);color:#27ae60">'+fmt(plan.cumulative_received)+' 元 ('+ratio+'%)</td></tr>' +
+    '<tr><td style="font-weight:600">计划收款（本期）</td><td style="font-family:var(--mono)">'+fmt(plan.plan_amount)+' 元</td></tr>' +
+    '</table>';
+  var detailRows = actuals.length
+    ? actuals.map(function(r){return '<tr><td>'+escHtml(r.receipt_date||'—')+'</td><td style="text-align:right;font-family:var(--mono)">'+fmt(r.amount)+'</td><td>'+escHtml(r.remark||'—')+'</td></tr>';}).join('')
+    : '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:20px">暂无实际收款记录</td></tr>';
+  openModal(modalHeader('收款详情 · '+escHtml(plan.contract_name||'—')) +
+    '<div class="modal-body" style="padding:16px 20px"><div style="max-height:65vh;overflow:auto">' +
+    summary +
+    '<div style="font-weight:600;margin-bottom:8px">实际收款明细</div>' +
+    '<table class="data-table" style="width:100%"><thead><tr><th>收款日期</th><th style="text-align:right">金额（元）</th><th>备注</th></tr></thead><tbody>'+detailRows+'</tbody></table>' +
+    '</div></div>' +
+    '<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>');
+}
+
+function showPaymentDetailModal(planId) {
+  var plan = finState.payments.find(function(r){return r.id===planId;});
+  if (!plan) { toast('未找到付款计划', 'error'); return; }
+  var planSub = (+plan.plan_cash||0)+(+plan.plan_supply_chain||0);
+  var actuals = finState.actualPayments.filter(function(r){return r.downstream_contract_id===plan.downstream_contract_id;});
+  var actualTotal = actuals.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var ratio = planSub ? (actualTotal/planSub*100).toFixed(1) : 0;
+  var summary = '<table class="data-table" style="width:100%;margin-bottom:16px">' +
+    '<tr><td style="font-weight:600">合同名称</td><td>'+escHtml(plan.contract_name||'—')+'</td></tr>' +
+    '<tr><td style="font-weight:600">供应商</td><td>'+escHtml(plan.supplier_name||'—')+'</td></tr>' +
+    '<tr><td style="font-weight:600">合同金额</td><td style="font-family:var(--mono)">'+fmt(plan.contract_amount)+' 元</td></tr>' +
+    '<tr><td style="font-weight:600">计划现金</td><td style="font-family:var(--mono)">'+fmt(plan.plan_cash)+' 元</td></tr>' +
+    '<tr><td style="font-weight:600">计划供应链</td><td style="font-family:var(--mono)">'+fmt(plan.plan_supply_chain)+' 元</td></tr>' +
+    '<tr><td style="font-weight:600">实际支付合计</td><td style="font-family:var(--mono);color:#2e7dd1">'+fmt(actualTotal)+' 元 ('+ratio+'%)</td></tr>' +
+    '</table>';
+  var detailRows = actuals.length
+    ? actuals.map(function(r){return '<tr><td>'+escHtml(r.payment_date||'—')+'</td><td style="text-align:right;font-family:var(--mono)">'+fmt(r.amount)+'</td><td>'+escHtml(r.remark||'—')+'</td></tr>';}).join('')
+    : '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:20px">暂无实际支付记录</td></tr>';
+  openModal(modalHeader('付款详情 · '+escHtml(plan.contract_name||'—')) +
+    '<div class="modal-body" style="padding:16px 20px"><div style="max-height:65vh;overflow:auto">' +
+    summary +
+    '<div style="font-weight:600;margin-bottom:8px">实际支付明细</div>' +
+    '<table class="data-table" style="width:100%"><thead><tr><th>支付日期</th><th style="text-align:right">金额（元）</th><th>备注</th></tr></thead><tbody>'+detailRows+'</tbody></table>' +
+    '</div></div>' +
+    '<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>');
+}
+
+function showTrendDayDetail(clickType) {
+  var label = clickType === 'rec' ? '收款' : '付款';
+  var dataSource = clickType === 'rec' ? finState.actualReceipts : finState.actualPayments;
+  var trendMonths = [];
+  for (var i = 5; i >= 0; i--) {
+    var d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - i);
+    trendMonths.push(d.toISOString().slice(0, 7));
+  }
+  var monthTotals = {};
+  trendMonths.forEach(function(m){ monthTotals[m] = 0; });
+  dataSource.forEach(function(r){
+    var ym = (r.year_month||'').substring(0,7);
+    if (monthTotals.hasOwnProperty(ym)) monthTotals[ym] += (+r.amount||0);
+  });
+  var rows = trendMonths.map(function(m){
+    var val = monthTotals[m];
+    var mon = parseInt(m.split('-')[1]);
+    return '<tr><td>'+m+' ('+mon+'月)</td><td style="font-family:var(--mono);text-align:right;font-weight:600">'+(val/10000).toFixed(1)+'</td><td style="font-family:var(--mono);text-align:right;color:var(--text3)">'+fmt(val)+'</td></tr>';
+  }).join('');
+  openModal(modalHeader('近6月'+label+'趋势明细') +
+    '<div class="modal-body" style="padding:16px 20px"><div style="max-height:65vh;overflow:auto">' +
+    '<table class="data-table" style="width:100%"><thead><tr><th>月份</th><th style="text-align:right">万元</th><th style="text-align:right">元</th></tr></thead><tbody>'+rows+'</tbody></table>' +
+    '</div></div>' +
+    '<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>');
 }

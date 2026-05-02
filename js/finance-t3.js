@@ -44,9 +44,14 @@ function renderPayments(){
       <td class="num">${fmt(r.cumulative_paid)} <span class="unit">元</span></td>
       <td>${ratioCell(r.cumulative_paid,r.contract_amount)}</td>
       <td style="font-size:12px;color:var(--text3)">${r.remark||'—'}</td>
+      <td style="text-align:center">
+        <button class="quick-entry-btn"
+          onclick="event.stopPropagation();openQuickPaymentEntry('${r.id}')"
+          title="快速录入本月实际支付">+ 录入支付</button>
+      </td>
     </tr>`;
   }).join('')
-  :`<tr><td colspan="13"><div class="empty"><i data-lucide="send" class="empty-icon"></i>暂无数据，点击右上角新增</div></td></tr>`;
+  :`<tr><td colspan="14"><div class="empty"><i data-lucide="send" class="empty-icon"></i>暂无数据，点击右上角新增</div></td></tr>`;
 
   document.getElementById('main-content').innerHTML=`
   <div class="table-wrap">
@@ -70,6 +75,7 @@ function renderPayments(){
         <th class="num">本期累计已支付（元）</th>
         <th style="min-width:120px">累计支付比例</th>
         <th style="min-width:80px">备注</th>
+        <th style="min-width:90px;text-align:center">快捷录入</th>
       </tr></thead>
       <tbody>${tbody}</tbody>
       ${rows.length?`<tfoot><tr class="tfoot-row">
@@ -82,7 +88,7 @@ function renderPayments(){
         <td>${fmt(tot.actual)} 元</td>
         <td></td>
         <td>${fmt(tot.cum)} 元</td>
-        <td colspan="2"></td>
+        <td colspan="3"></td>
       </tr></tfoot>`:''}
     </table>
     </div>
@@ -261,5 +267,76 @@ async function savePayment(id,btn){
   setLoading(btn,false);closeModal();finRender();toast(`✓ ${id?'已更新':'已添加'}`);
   finLogAction(id?'更新付款明细':'新增付款明细', `${id?'更新':'新增'}付款「${name}」`);
 }
+
+window.openQuickPaymentEntry = function(paymentPlanId) {
+  var pay = finState.payments.find(function(p) { return p.id === paymentPlanId; });
+  if (!pay) return;
+  var today = new Date();
+  var todayStr = today.getFullYear() + '-' +
+    String(today.getMonth() + 1).padStart(2, '0') + '-' +
+    String(today.getDate()).padStart(2, '0');
+  var planTotal = (+pay.plan_cash || 0) + (+pay.plan_supply_chain || 0);
+
+  openModal(modalHeader('录入实际支付') +
+    '<div class="modal-body">' +
+      '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--text2)">' +
+        '<div style="font-weight:600;color:var(--text);margin-bottom:4px">' + escHtml(pay.contract_name || '—') + '</div>' +
+        '<div style="display:flex;gap:16px;flex-wrap:wrap">' +
+          '<span>供应商：' + escHtml(pay.supplier_name || '—') + '</span>' +
+          '<span>本月计划：' + fmt(planTotal) + ' 元</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="form-group"><label class="form-label">付款方式</label>' +
+        '<div style="display:flex;gap:12px">' +
+          '<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="radio" name="qp-type" value="cash" checked> 现金</label>' +
+          '<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="radio" name="qp-type" value="supply"> 供应链</label>' +
+        '</div></div>' +
+      '<div class="form-group"><label class="form-label">实际付款日期 <span style="color:var(--red)">*</span></label>' +
+        '<input type="date" class="form-input" id="qp-date" value="' + todayStr + '"></div>' +
+      '<div class="form-group"><label class="form-label">实际付款金额（元）<span style="color:var(--red)">*</span></label>' +
+        '<input type="number" class="form-input" id="qp-amount" placeholder="请输入金额" min="0" step="0.01"></div>' +
+      '<div class="form-group"><label class="form-label">备注</label>' +
+        '<input type="text" class="form-input" id="qp-remark" placeholder="可选"></div>' +
+    '</div>' +
+    '<div class="modal-footer"><div></div>' +
+      '<div style="display:flex;gap:8px">' +
+        '<button class="btn btn-ghost" onclick="closeModal()">取消</button>' +
+        '<button class="btn btn-primary" onclick="saveQuickPaymentEntry(\'' + paymentPlanId + '\',this)">确认录入</button>' +
+      '</div></div>');
+};
+
+window.saveQuickPaymentEntry = async function(paymentPlanId, btn) {
+  var pay = finState.payments.find(function(p) { return p.id === paymentPlanId; });
+  if (!pay) return;
+  var payType = (document.querySelector('input[name="qp-type"]:checked') || {}).value || 'cash';
+  var date = document.getElementById('qp-date') && document.getElementById('qp-date').value;
+  var amount = parseFloat(document.getElementById('qp-amount') && document.getElementById('qp-amount').value);
+  var remark = document.getElementById('qp-remark') ? document.getElementById('qp-remark').value : '';
+  if (!date) { toast('请填写付款日期', 'warning'); return; }
+  if (!amount || amount <= 0) { toast('请填写有效金额', 'warning'); return; }
+  btn.disabled = true; btn.textContent = '保存中...';
+  var typeLabel = payType === 'cash' ? '现金' : '供应链';
+  try {
+    var res = await sb.from('actual_payments').insert({
+      id: uid(),
+      year_month: currentMonth,
+      payment_date: date,
+      contract_name: pay.contract_name || '',
+      supplier_name: pay.supplier_name || '',
+      downstream_contract_id: pay.downstream_contract_id || null,
+      amount: amount,
+      remark: '[' + typeLabel + ']' + (remark ? ' ' + remark : '')
+    });
+    if (res.error) throw res.error;
+    await finLogAction('新增实际支付', JSON.stringify({ contract: pay.contract_name, amount: amount, date: date, type: typeLabel }));
+    toast('实际支付已录入', 'success');
+    closeModal();
+    await loadAll();
+    switchTab('t6');
+  } catch(e) {
+    toast('录入失败：' + e.message, 'error');
+    btn.disabled = false; btn.textContent = '确认录入';
+  }
+};
 
 //  完成情况 T4 

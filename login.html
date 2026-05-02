@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -614,6 +614,12 @@ async function doLogin() {
   }
 
   localStorage.setItem('pm_session', JSON.stringify({ ...data, loginAt: Date.now() }));
+	  try { await sb.from('logs').insert({
+	    id: 'i'+Date.now()+Math.random().toString(36).slice(2,6),
+	    user_id: data.id, user_name: data.name,
+	    action: '用户登录', detail: '',
+	    created_at: new Date().toISOString()
+	  }); } catch(e) {}
   btnInner.innerHTML = '<span>✓ 验证成功，跳转中...</span>';
   btn.style.background = '#1e6e44';
   setTimeout(() => { window.location.href = 'projectManage.html'; }, 600);
