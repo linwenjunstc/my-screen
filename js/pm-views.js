@@ -958,6 +958,7 @@ async function renderGantt() {
   const html = `<div class="view-pane">
     <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <div class="gantt-week-group">
+          <button class="gantt-week-btn" onclick="ganttScrollToday()">今天</button>
           <button class="gantt-week-btn" onclick="ganttJumpToWeek(0)">本周</button>
           <button class="gantt-week-btn" onclick="ganttJumpToWeek(1)">下周</button>
         </div>

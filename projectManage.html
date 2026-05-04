@@ -425,6 +425,13 @@ function updateHeaderForModule(mod) {
     if (el) el.style.display = mod === 'finance' ? '' : 'none';
   });
 
+  // 资金计划页面不需要 PM 的新建任务/项目等按钮
+  const pmOnlyElements = ['header-add-btn', 'header-add-proj-btn', 'header-gantt-today-btn', 'task-search-wrap'];
+  pmOnlyElements.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+
   // Reset header title
   if (mod === 'finance') {
     document.getElementById('header-title').textContent = '月度资金计划';
