@@ -43,7 +43,7 @@ function buildMembersListHTML() {
       </div>
       <div style="flex: 1; margin-left: 12px;">
         <div style="font-size: 14px; font-weight: 600; color: var(--text);">
-          ${m.name} ${isMe ? '<span style="font-size:10px; color:var(--green); font-weight:400;">(你)</span>' : ''}
+          ${escHtml(m.name)} ${isMe ? '<span style="font-size:10px; color:var(--green); font-weight:400;">(你)</span>' : ''}
         </div>
         <div style="font-size: 11px; color: var(--text3);">密码: •••••• | 负责任务: ${taskCnt}</div>
       </div>
@@ -75,7 +75,7 @@ async function submitAddMember() {
   const newMember = {
     id: uid(),
     name: name,
-    password: pass, // 存储明文密码供自定义登录校验
+    password: md5(pass), // MD5 哈希存储
     colorIdx: state.members.length % MEMBER_COLORS.length
   };
 
@@ -147,7 +147,7 @@ function buildMembersListHTML() {
       <div class="member-avatar" style="background:${MEMBER_COLORS[m.colorIdx%MEMBER_COLORS.length]}">${m.name.slice(0,1)}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          ${m.name}
+          ${escHtml(m.name)}
           ${isMe ? '<span style="font-size:10px;color:var(--green)">(你)</span>' : ''}
         </div>
         <div style="margin-top:3px;display:flex;align-items:center;gap:4px">
@@ -207,7 +207,7 @@ function buildTagsListHTML() {
     return `<div id="tag-row-${tg.id}" class="subtask-item" style="gap:10px">
       <span style="width:10px;height:10px;border-radius:50%;background:${p.dot};flex-shrink:0;margin-top:2px"></span>
       <div style="flex:1;min-width:0">
-        <div id="tag-label-${tg.id}" style="font-size:13px;font-weight:500">${tg.name}</div>
+        <div id="tag-label-${tg.id}" style="font-size:13px;font-weight:500">${escHtml(tg.name)}</div>
         <div style="font-size:11px;color:var(--text3);margin-top:2px">使用中：${usedCount} 个任务</div>
       </div>
       <button onclick="startEditTag('${tg.id}')" title="重命名" style="border:none;background:transparent;cursor:pointer;color:var(--text3);font-size:13px;padding:4px 6px;border-radius:4px;transition:color .15s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text3)'">✎</button>
@@ -306,7 +306,7 @@ function buildRoleManageListHTML() {
       <div class="member-avatar" style="width:32px;height:32px;font-size:13px;background:${MEMBER_COLORS[m.colorIdx % MEMBER_COLORS.length]};flex-shrink:0;margin-top:2px">${m.name.slice(0,1)}</div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
-          <span style="font-size:13px;font-weight:500">${m.name}</span>
+          <span style="font-size:13px;font-weight:500">${escHtml(m.name)}</span>
           ${isMe ? '<span style="font-size:10px;color:var(--green)">(你)</span>' : ''}
           <span class="role-badge role-${role}">${ROLE_LABELS[role] || role}</span>
         </div>
@@ -355,39 +355,59 @@ function openMenuPermsModal(memberId) {
   }
 
   // 当前成员的有效权限（用于预选 checkbox）
-  const currentPerms = m.menuPerms && m.menuPerms.length
-    ? m.menuPerms
-    : getDefaultMenuPerms(m.role || 'user');
+  // 如果正在编辑同一成员，使用未保存的编辑状态；否则从成员数据读取
+  // null/undefined = 从未配置，使用角色默认值；[] = 显式清空，尊重空数组
+  const currentPerms = (window._editingPerms && window._editingPerms.memberId === memberId)
+    ? [...window._editingPerms.perms]
+    : (m.menuPerms != null ? m.menuPerms : getDefaultMenuPerms(m.role || 'user'));
 
   // 过滤出该成员可配置的菜单项
-  // adminOnly 的菜单只有 admin+ 才能被配置拥有，普通用户不能拥有 adminOnly 菜单
   const targetIsAdmin = getRoleLevel(m.role || 'user') >= 2;
   const configurableMenus = MENU_DEFS.filter(md => {
-    if (md.adminOnly && !targetIsAdmin) return false;  // 普通用户不能有管理菜单
+    if (md.adminOnly && !targetIsAdmin) return false;
     return true;
   });
 
-  const itemsHTML = configurableMenus.map(md => {
-    const isChecked = currentPerms.includes(md.key);
-    const isRequired = md.required;
-    return `<label class="perm-item ${isChecked ? 'checked' : ''} ${isRequired ? 'locked' : ''}"
-      onclick="${isRequired ? '' : `togglePermItem(this, '${md.key}')`}" style="${isRequired ? 'cursor:not-allowed' : ''}">
-      <div class="perm-check ${isChecked ? 'on' : ''}" id="pcheck-${md.key}"></div>
-      <span>${md.icon} ${md.label}</span>
-      ${isRequired ? '<span style="font-size:10px;color:var(--text3);margin-left:auto">必选</span>' : ''}
-    </label>`;
-  }).join('');
+  // 按分组整理
+  var GROUPS = [
+    { key: 'pm',      label: '项目管理',   desc: '任务看板、甘特图、数据统计等' },
+    { key: 'finance', label: '资金计划',   desc: '月度资金计划、收付款管理' },
+    { key: 'base',    label: '基础库配置', desc: '基础信息、合同库、客户库、供应商库' },
+    { key: 'ai',      label: 'AI 助手',    desc: 'AI 任务助手对话面板' },
+    { key: 'admin',   label: '系统管理',   desc: '成员、标签、角色、系统配置' },
+  ];
 
-  openModal(`${modalHeader(`配置菜单权限 · ${m.name}`)}
+  // 仅超级管理员可配置 AI 助手权限，其他角色看不到此分组
+  if (!currentUser || currentUser.role !== 'super_admin') {
+    GROUPS = GROUPS.filter(function(g) { return g.key !== 'ai'; });
+  }
+
+  var groupsHTML = '';
+  GROUPS.forEach(function(g) {
+    var groupItems = configurableMenus.filter(function(md) { return md.group === g.key; });
+    if (!groupItems.length) return;
+    var itemsHTML = groupItems.map(function(md) {
+      var isChecked = currentPerms.includes(md.key);
+      return '<label class="perm-item ' + (isChecked ? 'checked' : '') + '" onclick="togglePermItem(this,\'' + md.key + '\')">' +
+        '<div class="perm-check ' + (isChecked ? 'on' : '') + '" id="pcheck-' + md.key + '"></div>' +
+        '<span>' + md.icon + ' ' + md.label + '</span>' +
+      '</label>';
+    }).join('');
+    groupsHTML +=
+      '<div style="margin-bottom:16px">' +
+        '<div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">' + g.label + '</div>' +
+        '<div style="font-size:10px;color:var(--text3);margin-bottom:8px">' + g.desc + '</div>' +
+        '<div class="perm-grid">' + itemsHTML + '</div>' +
+      '</div>';
+  });
+
+  openModal(`${modalHeader(`配置菜单权限 · ${escHtml(m.name)}`)}
     <div class="modal-body">
       <div style="font-size:12px;color:var(--text2);margin-bottom:14px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border)">
-        为 <strong>${m.name}</strong>（${ROLE_LABELS[m.role || 'user']}）配置可见的菜单项。必选项不可取消。
+        为 <strong>${escHtml(m.name)}</strong>（${ROLE_LABELS[m.role || 'user']}）配置可见的菜单项。无任何分组权限时对应模块 TAB 将自动隐藏。
       </div>
-      <div class="perm-grid" id="perm-grid-${memberId}">
-        ${itemsHTML}
-      </div>
+      ${groupsHTML}
       <div style="margin-top:12px;display:flex;gap:8px">
-        <button class="btn btn-ghost btn-sm" onclick="resetMenuPermsToDefault('${memberId}')">恢复默认</button>
         <button class="btn btn-ghost btn-sm" onclick="selectAllMenuPerms('${memberId}', true)">全部勾选</button>
         <button class="btn btn-ghost btn-sm" onclick="selectAllMenuPerms('${memberId}', false)">全部取消</button>
       </div>
@@ -433,10 +453,14 @@ function selectAllMenuPerms(memberId, selectAll) {
   if (!m) return;
   const targetIsAdmin = getRoleLevel(m.role || 'user') >= 2;
   const available = MENU_DEFS
-    .filter(md => !(md.adminOnly && !targetIsAdmin))
-    .map(md => md.key);
-  const required = MENU_DEFS.filter(md => md.required).map(md => md.key);
-  window._editingPerms.perms = selectAll ? [...available] : [...required];
+    .filter(function(md) {
+      if (md.adminOnly && !targetIsAdmin) return false;
+      // 仅超级管理员可配置 AI 助手权限
+      if (md.group === 'ai' && currentUser && currentUser.role !== 'super_admin') return false;
+      return true;
+    })
+    .map(function(md) { return md.key; });
+  window._editingPerms.perms = selectAll ? [...available] : [];
   openMenuPermsModal(memberId);
 }
 
@@ -445,9 +469,7 @@ async function saveMenuPerms(memberId, btn) {
   const m = state.members.find(x => x.id === memberId);
   if (!m) return;
 
-  // 确保必选项始终存在
-  const required = MENU_DEFS.filter(md => md.required).map(md => md.key);
-  const finalPerms = [...new Set([...required, ...window._editingPerms.perms])];
+  const finalPerms = [...window._editingPerms.perms];
 
   setLoading(btn, true);
   const { error } = await sb.from('members').update({ menu_perms: finalPerms }).eq('id', memberId);
@@ -471,11 +493,10 @@ async function saveMenuPerms(memberId, btn) {
 async function adminResetPassword(memberId, memberName) {
   const DEFAULT_PWD = '123456';
   showConfirm('重置密码', `即将把「${memberName}」的登录密码重置为：${DEFAULT_PWD}\n\n请提醒该用户登录后及时修改密码。`, async function() {
-    const { error } = await sb.from('members').update({ password: DEFAULT_PWD }).eq('id', memberId);
+    const { error } = await sb.from('members').update({ password: md5(DEFAULT_PWD) }).eq('id', memberId);
     if (error) { toast('重置失败：' + error.message, 'error'); return; }
     if (currentUser && currentUser.id === memberId) {
-      currentUser.password = DEFAULT_PWD;
-      localStorage.setItem('pm_session', JSON.stringify(currentUser));
+      currentUser.password = md5(DEFAULT_PWD);
     }
     toast(`「${memberName}」的密码已重置为 ${DEFAULT_PWD}`, 'success');
     logAction('重置密码', `管理员重置了「${memberName}」的密码`);

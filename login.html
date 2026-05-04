@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -9,26 +9,26 @@
 	<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:        #f0ede6;
+  --bg:        #eef2f7;
   --surface:   #ffffff;
-  --surface2:  #f5f3ee;
-  --surface3:  #ebe9e3;
-  --border:    #e4e1d8;
-  --border2:   #ccc9bf;
-  --text:      #1a1916;
-  --text2:     #5c5a54;
-  --text3:     #9c9a94;
-  --teal:      #0e7268;
-  --teal-bg:   #edf6f5;
-  --teal-dim:  rgba(14,114,104,.1);
-  --red:       #c94040;
-  --red-bg:    #fdf2f2;
-  --red-border:#f0c8c8;
-  --green:     #1e6e44;
-  --sb-bg:     #1c1b18;
+  --surface2:  #f7f9fc;
+  --surface3:  #edf0f6;
+  --border:    #e3e8f0;
+  --border2:   #c8cdd6;
+  --text:      #0f172a;
+  --text2:     #475569;
+  --text3:     #94a3b8;
+  --accent:    #2563eb;
+  --accent-dim: rgba(37,99,235,.07); --teal: #0ea5e9; --teal-bg: #f0f9ff;
+  --accent-dim2: rgba(37,99,235,.1);
+  --red:       #ef4444;
+  --red-bg:    #fef2f2;
+  --red-border:#fecaca;
+  --green:     #10b981;
+  --sb-bg:     #0f172a;
   --sb-border: rgba(255,255,255,.07);
-  --sb-text:   #c8c5be;
-  --sb-text2:  #7a7870;
+  --sb-text:   #94a3b8;
+  --sb-text2:  #64748b;
   --font:      'DM Sans', -apple-system, 'PingFang SC', sans-serif;
   --mono:      'DM Mono', monospace;
   --radius-sm: 6px;
@@ -61,8 +61,8 @@ body {
   z-index: 0;
   /* 微妙的噪点质感 */
   background-image:
-    radial-gradient(ellipse 80% 60% at 20% 50%, rgba(14,114,104,.12) 0%, transparent 70%),
-    radial-gradient(ellipse 60% 80% at 80% 80%, rgba(14,114,104,.06) 0%, transparent 60%);
+    radial-gradient(ellipse 80% 60% at 20% 50%, rgba(37,99,235,.12) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 80% at 80% 80%, rgba(37,99,235,.06) 0%, transparent 60%);
 }
 .bg-right {
   position: fixed;
@@ -79,9 +79,9 @@ body {
   width: 1px;
   background: linear-gradient(to bottom,
     transparent,
-    rgba(14,114,104,.4) 30%,
-    rgba(14,114,104,.6) 50%,
-    rgba(14,114,104,.4) 70%,
+    rgba(37,99,235,.4) 30%,
+    rgba(37,99,235,.6) 50%,
+    rgba(37,99,235,.4) 70%,
     transparent
   );
 }
@@ -95,7 +95,7 @@ body {
 }
 .dot-1 {
   width: 300px; height: 300px;
-  background: radial-gradient(circle, rgba(14,114,104,.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(37,99,235,.15) 0%, transparent 70%);
   top: -80px; left: -80px;
   animation: floatA 14s ease-in-out infinite;
 }
@@ -152,12 +152,12 @@ body {
   position: absolute;
   inset: -8px;
   border-radius: 50%;
-  border: 1px solid rgba(14,114,104,.25);
+  border: 1px solid rgba(37,99,235,.25);
   animation: logoPulse 3s ease-in-out infinite;
 }
 .brand-logo-ring-2 {
   inset: -16px;
-  border-color: rgba(14,114,104,.1);
+  border-color: rgba(37,99,235,.1);
   animation-delay: .6s;
 }
 @keyframes logoPulse {
@@ -202,8 +202,8 @@ body {
 .status-dot {
   width: 6px; height: 6px;
   border-radius: 50%;
-  background: var(--teal);
-  box-shadow: 0 0 6px var(--teal);
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
   flex-shrink: 0;
   animation: dotBlink 2.5s ease-in-out infinite;
 }
@@ -272,7 +272,7 @@ body {
   top: 0; left: 20%; right: 20%;
   height: 2px;
   border-radius: 0 0 4px 4px;
-  background: linear-gradient(90deg, transparent, var(--teal), transparent);
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
   opacity: .7;
 }
 
@@ -319,8 +319,31 @@ body {
 .form-input::placeholder { color: var(--text3); font-size: 13px; }
 .form-input:focus {
   background: var(--surface);
-  border-color: var(--teal);
-  box-shadow: 0 0 0 3px rgba(14,114,104,.1);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+}
+
+/* ── 记住密码 ────────────────────────────────────────────── */
+.remember-row {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+}
+.remember-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.remember-check {
+  width: 16px; height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.remember-text {
+  font-size: 12.5px;
+  color: var(--text2);
 }
 
 .btn-login {
@@ -345,7 +368,7 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(14,114,104,.0) 0%, rgba(14,114,104,.15) 100%);
+  background: linear-gradient(135deg, rgba(37,99,235,.0) 0%, rgba(37,99,235,.15) 100%);
   opacity: 0;
   transition: opacity .2s;
 }
@@ -430,8 +453,8 @@ body {
   content: '';
   width: 5px; height: 5px;
   border-radius: 50%;
-  background: var(--teal);
-  box-shadow: 0 0 4px var(--teal);
+  background: var(--accent);
+  box-shadow: 0 0 4px var(--accent);
 }
 
 /* ── 输入框行内图标 ──────────────────────────────────────────────── */
@@ -447,7 +470,7 @@ body {
   pointer-events: none;
   transition: color .15s;
 }
-.input-wrap:focus-within .input-icon { color: var(--teal); }
+.input-wrap:focus-within .input-icon { color: var(--accent); }
 
 /* ── 响应式（窄屏变单列）────────────────────────────────────────── */
 @media (max-width: 640px) {
@@ -472,11 +495,11 @@ body {
     <div class="brand-logo-ring"></div>
     <div class="brand-logo-ring brand-logo-ring-2"></div>
     <svg viewBox="0 0 56 56" fill="none">
-      <circle cx="28" cy="28" r="24" stroke="rgba(14,114,104,.2)" stroke-width="1.5"/>
-      <rect x="14" y="15" width="12" height="12" rx="3" fill="rgba(14,114,104,.8)"/>
-      <rect x="30" y="15" width="12" height="12" rx="3" fill="rgba(14,114,104,.4)"/>
-      <rect x="14" y="31" width="12" height="10" rx="3" fill="rgba(14,114,104,.4)"/>
-      <rect x="30" y="31" width="12" height="10" rx="3" fill="rgba(14,114,104,.9)"/>
+      <circle cx="28" cy="28" r="24" stroke="rgba(37,99,235,.2)" stroke-width="1.5"/>
+      <rect x="14" y="15" width="12" height="12" rx="3" fill="rgba(37,99,235,.8)"/>
+      <rect x="30" y="15" width="12" height="12" rx="3" fill="rgba(37,99,235,.4)"/>
+      <rect x="14" y="31" width="12" height="10" rx="3" fill="rgba(37,99,235,.4)"/>
+      <rect x="30" y="31" width="12" height="10" rx="3" fill="rgba(37,99,235,.9)"/>
     </svg>
   </div>
 
@@ -488,7 +511,7 @@ body {
       <div class="status-dot"></div>
       <span>DATABASE</span>
       <div class="status-bar-fill"></div>
-      <span style="color:rgba(14,114,104,.8)">ONLINE</span>
+      <span style="color:rgba(37,99,235,.8)">ONLINE</span>
     </div>
     <div class="status-item">
       <div class="status-dot amber"></div>
@@ -537,6 +560,13 @@ body {
       </div>
     </div>
 
+    <div class="remember-row">
+      <label class="remember-label">
+        <input type="checkbox" id="remember-me" class="remember-check">
+        <span class="remember-text">记住密码（5 天内免输入）</span>
+      </label>
+    </div>
+
     <button class="btn-login" id="login-btn" onclick="doLogin()">
       <div class="btn-inner" id="btn-inner">
         <span>进入系统</span>
@@ -555,6 +585,59 @@ body {
 </div>
 
 <script>
+// ── MD5 哈希（纯 JS 实现，用于密码加密存储）────
+function md5(str) {
+  function R(t,n){return(t<<n)|(t>>>(32-n))}
+  function F(b,c,d){return(b&c)|((~b)&d)}
+  function G(b,c,d){return(b&d)|(c&(~d))}
+  function H(b,c,d){return b^c^d}
+  function I(b,c,d){return c^(b|(~d))}
+  function FF(a,b,c,d,x,s,t){ return R(a+F(b,c,d)+x+t,s)+b }
+  function GG(a,b,c,d,x,s,t){ return R(a+G(b,c,d)+x+t,s)+b }
+  function HH(a,b,c,d,x,s,t){ return R(a+H(b,c,d)+x+t,s)+b }
+  function II(a,b,c,d,x,s,t){ return R(a+I(b,c,d)+x+t,s)+b }
+  var bytes = [];
+  for (var i = 0; i < str.length; i++) {
+    var ch = str.charCodeAt(i);
+    if (ch < 0x80) bytes.push(ch);
+    else if (ch < 0x800) { bytes.push(0xc0|(ch>>6)); bytes.push(0x80|(ch&0x3f)); }
+    else if (ch < 0x10000) { bytes.push(0xe0|(ch>>12)); bytes.push(0x80|((ch>>6)&0x3f)); bytes.push(0x80|(ch&0x3f)); }
+    else { bytes.push(0xf0|(ch>>18)); bytes.push(0x80|((ch>>12)&0x3f)); bytes.push(0x80|((ch>>6)&0x3f)); bytes.push(0x80|(ch&0x3f)); }
+  }
+  var len = bytes.length;
+  bytes.push(0x80);
+  while ((bytes.length % 64) !== 56) bytes.push(0);
+  var bits = len * 8;
+  for (var i = 0; i < 8; i++) { bytes.push((bits >>> (i*8)) & 0xff); }
+  var words = [];
+  for (var i = 0; i < bytes.length; i += 4) {
+    words.push(bytes[i] | (bytes[i+1]<<8) | (bytes[i+2]<<16) | (bytes[i+3]<<24));
+  }
+  var S = [7,12,17,22, 7,12,17,22, 7,12,17,22, 7,12,17,22,
+           5,9,14,20, 5,9,14,20, 5,9,14,20, 5,9,14,20,
+           4,11,16,23, 4,11,16,23, 4,11,16,23, 4,11,16,23,
+           6,10,15,21, 6,10,15,21, 6,10,15,21, 6,10,15,21];
+  var T = []; for (var i = 1; i <= 64; i++) T[i-1] = Math.floor(Math.abs(Math.sin(i)) * 0x100000000);
+  var A=0x67452301, B=0xefcdab89, C=0x98badcfe, D=0x10325476;
+  for (var k = 0; k < words.length; k += 16) {
+    var a=A, b=B, c=C, d=D;
+    for (var i = 0; i < 64; i++) {
+      var f, g;
+      if (i < 16) { f = F(b,c,d); g = i; }
+      else if (i < 32) { f = G(b,c,d); g = (5*i+1)%16; }
+      else if (i < 48) { f = H(b,c,d); g = (3*i+5)%16; }
+      else { f = I(b,c,d); g = (7*i)%16; }
+      var temp = d;
+      d = c; c = b;
+      b = R(a + f + T[i] + words[k+g], S[i]) + b;
+      a = temp;
+    }
+    A = (A + a) | 0; B = (B + b) | 0; C = (C + c) | 0; D = (D + d) | 0;
+  }
+  function hex(v) { return ((v>>>0).toString(16)).padStart(8, '0'); }
+  return hex(A) + hex(B) + hex(C) + hex(D);
+}
+
 ;(function patchPostMessage() {
   const orig = window.postMessage.bind(window);
   window.postMessage = function(data, targetOrigin, transfer) {
@@ -577,11 +660,80 @@ try {
   const _s = JSON.parse(localStorage.getItem('pm_session') || 'null');
   if (_s && _s.id && _s.loginAt && (Date.now() - _s.loginAt) < 8*3600*1000)
     window.location.href = 'projectManage.html';
-} catch(e) { localStorage.removeItem('pm_session'); }
+  // 检查 Remember Me（5 天有效）
+  const _r = JSON.parse(localStorage.getItem('pm_remember') || 'null');
+  if (_r && _r.expires && Date.now() < _r.expires) {
+    // 如果是退出登录后回到登录页，预填表单而不自动跳转
+    if (_r.loggedOut) {
+      document.getElementById('login-user').value = _r.name || '';
+      document.getElementById('login-pass').value = _r.password || '';
+      document.getElementById('remember-me').checked = true;
+      // 清除 loggedOut 标记，下次可直接自动登录
+      delete _r.loggedOut;
+      localStorage.setItem('pm_remember', JSON.stringify(_r));
+    } else {
+      window.location.href = 'projectManage.html';
+    }
+  }
+} catch(e) { localStorage.removeItem('pm_session'); localStorage.removeItem('pm_remember'); }
+
+// 页面加载时检查锁定状态（防止刷新绕过）
+(function checkLockOnLoad() {
+  const count = parseInt(localStorage.getItem('pm_login_fail_count') || '0', 10);
+  const lastFail = parseInt(localStorage.getItem('pm_login_fail_time') || '0', 10);
+  if (count >= 5 && Date.now() - lastFail < 15 * 60 * 1000) {
+    const secs = Math.ceil((15 * 60 * 1000 - (Date.now() - lastFail)) / 1000);
+    const errBox = document.getElementById('msg-err');
+    const btn = document.getElementById('login-btn');
+    if (errBox) {
+      errBox.textContent = '账号已临时锁定，请 ' + Math.ceil(secs / 60) + ' 分钟后再试';
+      errBox.classList.add('show');
+    }
+    if (btn) btn.disabled = true;
+  }
+})();
+
+// ── 登录频率限制 ──────────────────────────────────
+const RATE_KEY_COUNT = 'pm_login_fail_count';
+const RATE_KEY_TIME  = 'pm_login_fail_time';
+const MAX_ATTEMPTS   = 5;
+const LOCKOUT_MS     = 15 * 60 * 1000;
+
+function getRateState() {
+  const count = parseInt(localStorage.getItem(RATE_KEY_COUNT) || '0', 10);
+  const lastFailTime = parseInt(localStorage.getItem(RATE_KEY_TIME) || '0', 10);
+  return { count, lastFailTime };
+}
+
+function isRateLimited() {
+  const { count, lastFailTime } = getRateState();
+  if (count < MAX_ATTEMPTS) return false;
+  if (Date.now() - lastFailTime < LOCKOUT_MS) return true;
+  localStorage.removeItem(RATE_KEY_COUNT);
+  localStorage.removeItem(RATE_KEY_TIME);
+  return false;
+}
+
+function recordFailedAttempt() {
+  const { count } = getRateState();
+  localStorage.setItem(RATE_KEY_COUNT, count + 1);
+  localStorage.setItem(RATE_KEY_TIME, Date.now());
+}
+
+function clearRateLimit() {
+  localStorage.removeItem(RATE_KEY_COUNT);
+  localStorage.removeItem(RATE_KEY_TIME);
+}
+
+function getRemainingLockSeconds() {
+  const { lastFailTime } = getRateState();
+  return Math.ceil((LOCKOUT_MS - (Date.now() - lastFailTime)) / 1000);
+}
 
 async function doLogin() {
   const name     = document.getElementById('login-user').value.trim();
   const pass     = document.getElementById('login-pass').value;
+  const remember = document.getElementById('remember-me').checked;
   const btn      = document.getElementById('login-btn');
   const btnInner = document.getElementById('btn-inner');
   const errBox   = document.getElementById('msg-err');
@@ -596,30 +748,110 @@ async function doLogin() {
     return;
   }
 
+  // 检查是否处于锁定状态
+  if (isRateLimited()) {
+    const secs = getRemainingLockSeconds();
+    const mins = Math.ceil(secs / 60);
+    errBox.textContent = '登录尝试次数过多，请 ' + mins + ' 分钟后再试（剩余 ' + secs + ' 秒）';
+    errBox.classList.add('show');
+    return;
+  }
+
   btn.disabled = true;
   btnInner.innerHTML = '<span class="spinner"></span><span>验证中...</span>';
 
+  // 按用户名查用户（密码可能是 MD5 哈希或旧明文）
   const { data, error } = await sb
     .from('members').select('*')
-    .eq('name', name).eq('password', pass).maybeSingle();
+    .eq('name', name).maybeSingle();
 
   if (error || !data) {
+    recordFailedAttempt();
+
     btn.disabled = false;
     btnInner.innerHTML = '<span>进入系统</span><div class="btn-arrow">→</div>';
-    errBox.textContent = error ? '数据库错误：' + error.message : '账号或密码错误，请重试';
+
+    const { count } = getRateState();
+    const remaining = MAX_ATTEMPTS - count;
+
+    if (remaining <= 0) {
+      errBox.textContent = '账号或密码错误。连续失败 ' + MAX_ATTEMPTS + ' 次，账号已锁定 15 分钟。';
+    } else if (remaining <= 2) {
+      errBox.textContent = '账号或密码错误，还可尝试 ' + remaining + ' 次（失败过多将暂时锁定）';
+    } else {
+      errBox.textContent = error ? '数据库错误：' + error.message : '账号或密码错误，请重试';
+    }
+
     errBox.classList.add('show');
     document.getElementById('login-pass').value = '';
     document.getElementById('login-pass').focus();
     return;
   }
 
-  localStorage.setItem('pm_session', JSON.stringify({ ...data, loginAt: Date.now() }));
-	  try { await sb.from('logs').insert({
-	    id: 'i'+Date.now()+Math.random().toString(36).slice(2,6),
-	    user_id: data.id, user_name: data.name,
-	    action: '用户登录', detail: '',
-	    created_at: new Date().toISOString()
-	  }); } catch(e) {}
+  var hashedInput = md5(pass);
+  var passwordMatch = false;
+
+  if (data.password === hashedInput) {
+    // 密码已是 MD5 哈希
+    passwordMatch = true;
+  } else if (data.password === pass) {
+    // 密码仍为明文（旧数据），自动升级
+    passwordMatch = true;
+    try { await sb.from('members').update({ password: hashedInput }).eq('id', data.id); } catch(e) {}
+  }
+
+  if (!passwordMatch) {
+    recordFailedAttempt();
+
+    btn.disabled = false;
+    btnInner.innerHTML = '<span>进入系统</span><div class="btn-arrow">→</div>';
+
+    const { count: cnt2 } = getRateState();
+    const remaining2 = MAX_ATTEMPTS - cnt2;
+
+    if (remaining2 <= 0) {
+      errBox.textContent = '账号或密码错误。连续失败 ' + MAX_ATTEMPTS + ' 次，账号已锁定 15 分钟。';
+    } else if (remaining2 <= 2) {
+      errBox.textContent = '账号或密码错误，还可尝试 ' + remaining2 + ' 次（失败过多将暂时锁定）';
+    } else {
+      errBox.textContent = '账号或密码错误，请重试';
+    }
+
+    errBox.classList.add('show');
+    document.getElementById('login-pass').value = '';
+    document.getElementById('login-pass').focus();
+    return;
+  }
+
+  clearRateLimit();  // 登录成功，清除失败计数
+
+  // Remember Me：5 天免输入，存储用户名和密码
+  if (remember) {
+    localStorage.setItem('pm_remember', JSON.stringify({
+      name: name,
+      password: pass,
+      expires: Date.now() + 5 * 24 * 3600 * 1000
+    }));
+  } else {
+    localStorage.removeItem('pm_remember');
+  }
+
+  // 安全：显式排除 password 字段，密码不进入前端 Session
+  const { password: _pw, ...safeData } = data;
+  localStorage.setItem('pm_session', JSON.stringify({
+    ...safeData,
+    loginAt: Date.now(),
+    menuPerms: data.menu_perms || null,
+    colorIdx: data.color_idx || 0
+  }));
+
+  try { await sb.from('logs').insert({
+    id: 'i'+Date.now()+Math.random().toString(36).slice(2,6),
+    user_id: data.id, user_name: data.name,
+    action: '用户登录', detail: '',
+    created_at: new Date().toISOString()
+  }); } catch(e) {}
+
   btnInner.innerHTML = '<span>✓ 验证成功，跳转中...</span>';
   btn.style.background = '#1e6e44';
   setTimeout(() => { window.location.href = 'projectManage.html'; }, 600);

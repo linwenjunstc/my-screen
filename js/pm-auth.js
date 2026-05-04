@@ -40,19 +40,21 @@ async function submitChangePassword(btn) {
   errEl.style.display = 'none';
 
   if (!oldPwd || !newPwd || !confirmPwd) return showErr('所有字段不能为空');
-  if (oldPwd !== currentUser.password)  return showErr('当前密码不正确');
+  var oldHash = md5(oldPwd);
+  // 从 DB 查询当前密码哈希（不再依赖 session 中的密码）
+  const { data: pwData, error: pwErr } = await sb.from('members').select('password').eq('id', currentUser.id).single();
+  if (pwErr || !pwData || oldHash !== pwData.password) return showErr('当前密码不正确');
   if (newPwd.length < 6)               return showErr('新密码至少需要 6 位字符');
   if (newPwd !== confirmPwd)            return showErr('两次输入的新密码不一致');
   if (newPwd === oldPwd)               return showErr('新密码不能与当前密码相同');
 
   setLoading(btn, true);
-  const { error } = await sb.from('members').update({ password: newPwd }).eq('id', currentUser.id);
+  var newHash = md5(newPwd);
+  const { error } = await sb.from('members').update({ password: newHash }).eq('id', currentUser.id);
   setLoading(btn, false);
 
   if (error) { showErr('更新失败，请重试'); return; }
 
-  currentUser.password = newPwd;
-  localStorage.setItem('pm_session', JSON.stringify(currentUser));
   closeModal();
   toast('✓ 密码已成功修改', 'success');
   logAction('修改密码', '修改了登录密码');

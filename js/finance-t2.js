@@ -79,10 +79,10 @@ function openEditReceiptModal(id){
   const isEdit=!!r;
   const canE=!isEdit||canEdit(r);
   const cuOpts=finState.customers.map(c=>
-    `<option value="${c.id}" ${r&&r.customer_id===c.id?'selected':''}>${c.name}</option>`
+    `<option value="${c.id}" ${r&&r.customer_id===c.id?'selected':''}>${escHtml(c.name)}</option>`
   ).join('');
   const upOpts=finState.contractsUp.map(c=>
-    `<option value="${c.id}" ${r&&r.upstream_contract_id===c.id?'selected':''}>${c.name}（${c.customer_name||''}）</option>`
+    `<option value="${c.id}" ${r&&r.upstream_contract_id===c.id?'selected':''}>${escHtml(c.name)}（${escHtml(c.customer_name||'')}）</option>`
   ).join('');
 
   openModal(`

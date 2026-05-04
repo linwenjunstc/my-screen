@@ -90,6 +90,31 @@ async function loadAll(){
   finState.customers=cu.data||[];     finState.suppliers=su.data||[];
   finState.contractsUp=cup.data||[];  finState.contractsDown=cdn.data||[];
   finState.monthlyRevenues=mr.data||[];
+
+  // ── 数据权限过滤（三级，基于 creator_id） ──
+  if (currentUser && currentUser.role !== 'super_admin') {
+    var superAdminIds = state.members.filter(function(m) { return m.role === 'super_admin'; }).map(function(m) { return m.id; });
+    function finFilter(records) {
+      if (!records || !records.length) return records;
+      if (currentUser.role === 'admin') {
+        return records.filter(function(r) { return !r.creator_id || !superAdminIds.includes(r.creator_id); });
+      } else {
+        return records.filter(function(r) { return !r.creator_id || r.creator_id === currentUser.id; });
+      }
+    }
+    finState.payments = finFilter(finState.payments);
+    finState.receipts = finFilter(finState.receipts);
+    finState.extras = finFilter(finState.extras);
+    finState.actualReceipts = finFilter(finState.actualReceipts);
+    finState.actualPayments = finFilter(finState.actualPayments);
+    finState.prevPayments = finFilter(finState.prevPayments);
+    finState.prevReceipts = finFilter(finState.prevReceipts);
+    finState.prevActualReceipts = finFilter(finState.prevActualReceipts);
+    finState.prevActualPayments = finFilter(finState.prevActualPayments);
+    finState.contractsUp = finFilter(finState.contractsUp);
+    finState.contractsDown = finFilter(finState.contractsDown);
+  }
+
   if(finState.config.dept_name)
     document.getElementById('sb-dept-name').textContent=finState.config.dept_name;
   const[yr,mn]=currentMonth.split('-');
@@ -182,7 +207,28 @@ const ADD_LABELS={
   receipt:'+ 新增收款记录', payment:'+ 新增付款明细',
   contracts:'+ 新增合同', customers:'+ 新增客户', suppliers:'+ 新增供应商'
 };
+// Tab → 菜单权限 key 映射
+var TAB_PERM_MAP = {
+  t1:'fin_t1', receipt:'fin_receipt', payment:'fin_payment',
+  t4:'fin_t4', t5:'fin_t5', t6:'fin_t6', dashboard:'fin_dashboard',
+  contracts:'base_contracts', customers:'base_customers', suppliers:'base_suppliers'
+};
+
 function switchTab(tab){
+  // 权限守卫：无权限时拒绝切换
+  var permKey = TAB_PERM_MAP[tab];
+  var allowed = typeof getEffectiveMenuPerms === 'function' ? getEffectiveMenuPerms() : [];
+  if (permKey && !allowed.includes(permKey)) {
+    // 切换到第一个有权限的 Tab
+    var tabs = ['t1','receipt','payment','t4','t5','t6','dashboard'];
+    var found = false;
+    for (var i = 0; i < tabs.length; i++) {
+      var pk = TAB_PERM_MAP[tabs[i]];
+      if (!pk || allowed.includes(pk)) { currentTab = tabs[i]; found = true; break; }
+    }
+    if (!found) return;
+    tab = currentTab;
+  }
   currentTab=tab;
   Object.keys(TAB_TITLES).forEach(t=>{
     const el=document.getElementById('tab-'+t);

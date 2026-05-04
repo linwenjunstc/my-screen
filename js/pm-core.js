@@ -2,6 +2,58 @@
  * pm-core.js  —  常量/状态/初始化/数据同步/工具函数/角色/菜单权限/路由
  * ════════════════════════════════════════════════ */
 
+// ── MD5 哈希（纯 JS 实现，用于密码加密存储）────
+function md5(str) {
+  function R(t,n){return(t<<n)|(t>>>(32-n))}
+  function F(b,c,d){return(b&c)|((~b)&d)}
+  function G(b,c,d){return(b&d)|(c&(~d))}
+  function H(b,c,d){return b^c^d}
+  function I(b,c,d){return c^(b|(~d))}
+  function FF(a,b,c,d,x,s,t){ return R(a+F(b,c,d)+x+t,s)+b }
+  function GG(a,b,c,d,x,s,t){ return R(a+G(b,c,d)+x+t,s)+b }
+  function HH(a,b,c,d,x,s,t){ return R(a+H(b,c,d)+x+t,s)+b }
+  function II(a,b,c,d,x,s,t){ return R(a+I(b,c,d)+x+t,s)+b }
+  var bytes = [];
+  for (var i = 0; i < str.length; i++) {
+    var ch = str.charCodeAt(i);
+    if (ch < 0x80) bytes.push(ch);
+    else if (ch < 0x800) { bytes.push(0xc0|(ch>>6)); bytes.push(0x80|(ch&0x3f)); }
+    else if (ch < 0x10000) { bytes.push(0xe0|(ch>>12)); bytes.push(0x80|((ch>>6)&0x3f)); bytes.push(0x80|(ch&0x3f)); }
+    else { bytes.push(0xf0|(ch>>18)); bytes.push(0x80|((ch>>12)&0x3f)); bytes.push(0x80|((ch>>6)&0x3f)); bytes.push(0x80|(ch&0x3f)); }
+  }
+  var len = bytes.length;
+  bytes.push(0x80);
+  while ((bytes.length % 64) !== 56) bytes.push(0);
+  var bits = len * 8;
+  for (var i = 0; i < 8; i++) { bytes.push((bits >>> (i*8)) & 0xff); }
+  var words = [];
+  for (var i = 0; i < bytes.length; i += 4) {
+    words.push(bytes[i] | (bytes[i+1]<<8) | (bytes[i+2]<<16) | (bytes[i+3]<<24));
+  }
+  var S = [7,12,17,22, 7,12,17,22, 7,12,17,22, 7,12,17,22,
+           5,9,14,20, 5,9,14,20, 5,9,14,20, 5,9,14,20,
+           4,11,16,23, 4,11,16,23, 4,11,16,23, 4,11,16,23,
+           6,10,15,21, 6,10,15,21, 6,10,15,21, 6,10,15,21];
+  var T = []; for (var i = 1; i <= 64; i++) T[i-1] = Math.floor(Math.abs(Math.sin(i)) * 0x100000000);
+  var A=0x67452301, B=0xefcdab89, C=0x98badcfe, D=0x10325476;
+  for (var k = 0; k < words.length; k += 16) {
+    var a=A, b=B, c=C, d=D;
+    for (var i = 0; i < 64; i++) {
+      var f, g;
+      if (i < 16) { f = F(b,c,d); g = i; }
+      else if (i < 32) { f = G(b,c,d); g = (5*i+1)%16; }
+      else if (i < 48) { f = H(b,c,d); g = (3*i+5)%16; }
+      else { f = I(b,c,d); g = (7*i)%16; }
+      var temp = d;
+      d = c; c = b;
+      b = R(a + f + T[i] + words[k+g], S[i]) + b;
+      a = temp;
+    }
+    A = (A + a) | 0; B = (B + b) | 0; C = (C + c) | 0; D = (D + d) | 0;
+  }
+  function hex(v) { return ((v>>>0).toString(16)).padStart(8, '0'); }
+  return hex(A) + hex(B) + hex(C) + hex(D);
+}
 ;(function patchPostMessage() {
   const orig = window.postMessage.bind(window);
   window.postMessage = function(data, targetOrigin, transfer) {
@@ -91,9 +143,9 @@ const PROJ_COLORS = ['#2e7dd1','#27ae60','#d4842a','#e74c3c','#8b4de8','#0ea57c'
 // 【读取】从云端获取最新数据
 let _loadingState = false;
 let _lastLoadTime = 0;
-async function loadState() {
+async function loadState(force) {
   if (_loadingState) return;
-  if (Date.now() - _lastLoadTime < 800) return;
+  if (!force && Date.now() - _lastLoadTime < 800) return;
   _loadingState = true;
   try {
     const [tasksRes, projsRes, memsRes, tagsRes] = await Promise.all([
@@ -144,15 +196,32 @@ async function loadState() {
         ];
     }
     
-    // 角色过滤：普通用户只看自己相关的任务和项目
-    if (currentUser && !isAdmin()) {
-      state.tasks = state.tasks.filter(t => t.assignee === currentUser.id);
-      // 只展示：(a) 自己是成员 (b) 自己是负责人 (c) 有自己的任务
-      const visiblePids = new Set(state.tasks.map(t => t.projectId).filter(Boolean));
-      state.projects = state.projects.filter(p =>
-(p.members || []).includes(currentUser.id) ||
-        visiblePids.has(p.id)
-      );
+    // ── 数据权限过滤（三级） ──
+    if (currentUser) {
+      if (currentUser.role === 'super_admin') {
+        // 超级管理员：查看所有数据，不过滤
+      } else if (isAdmin()) {
+        // 管理员：查看除超级管理员以外的所有数据
+        var superAdminIds = state.members.filter(function(m) { return m.role === 'super_admin'; }).map(function(m) { return m.id; });
+        // 隐藏超级管理员账号
+        state.members = state.members.filter(function(m) { return m.role !== 'super_admin'; });
+        // 过滤超级管理员的任务
+        state.tasks = state.tasks.filter(function(t) {
+          return !superAdminIds.includes(t.assignee) && !superAdminIds.includes(t.created_by);
+        });
+        // 过滤仅超级管理员参与的项目
+        state.projects = state.projects.filter(function(p) {
+          return (p.members || []).some(function(mid) { return !superAdminIds.includes(mid); });
+        });
+      } else {
+        // 普通用户：仅查看自己的任务和相关项目
+        state.tasks = state.tasks.filter(function(t) { return t.assignee === currentUser.id; });
+        var visiblePids = {};
+        state.tasks.forEach(function(t) { if (t.projectId) visiblePids[t.projectId] = true; });
+        state.projects = state.projects.filter(function(p) {
+          return (p.members || []).includes(currentUser.id) || visiblePids[p.id];
+        });
+      }
     }
 
     updateBadges();
@@ -198,15 +267,20 @@ async function handleCustomLogin() {
     const pass = document.getElementById('login-pass').value;
     const errEl = document.getElementById('login-err');
 
-    // 在数据库 members 表中查找匹配的账号和密码
+    // 按用户名查用户，密码对比支持 MD5 哈希 + 明文兼容
     const { data: member, error } = await sb
         .from('members')
         .select('*')
         .eq('name', name)
-        .eq('password', pass)
-        .single();
+        .maybeSingle();
 
     if (error || !member) {
+        errEl.textContent = "账号或密码错误，或您尚未被添加为成员";
+        return;
+    }
+
+    var hashed = md5(pass);
+    if (member.password !== hashed && member.password !== pass) {
         errEl.textContent = "账号或密码错误，或您尚未被添加为成员";
         return;
     }
@@ -454,41 +528,68 @@ function isAdmin()      { return currentUser && (currentUser.role === 'admin' ||
 
 // 菜单项定义
 const MENU_DEFS = [
-  { key: 'today',     label: '今日看板',   icon: '○', required: true  },  // 必须项
-  { key: 'tasks',     label: '全部任务',   icon: '≡', required: true  },  // 必须项
-  { key: 'charts',    label: '数据统计',   icon: '◉', required: false },
-  { key: 'gantt',     label: '甘特图',     icon: '▦', required: false },
-  { key: 'projects',  label: '项目列表',   icon: '□', required: false },
-  { key: 'add_task',  label: '快速添加任务', icon: '+', required: false },
-  { key: 'members',   label: '成员管理',   icon: '👤', adminOnly: true },
-  { key: 'tags',      label: '标签管理',   icon: '🏷', adminOnly: true },
-  { key: 'roles',     label: '角色权限',   icon: '🔐', adminOnly: true },
-  { key: 'logs',      label: '操作日志',   icon: '📋', required: false },
-  { key: 'pm',        label: '项目管理',   icon: '□', required: true  },
-  { key: 'finance',   label: '资金计划',   icon: '💰', required: false },
-  { key: 'base_contracts',  label: '合同库',   icon: '📄', adminOnly: false },
-  { key: 'base_customers',  label: '客户库',   icon: '👥', adminOnly: false },
-  { key: 'base_suppliers',  label: '供应商库', icon: '🏢', adminOnly: false },
-  { key: 'system_config', label: '系统配置', icon: '⚙', adminOnly: true },
+  // ── 项目管理 ──
+  { key: 'today',     label: '今日看板',   icon: '○', group: 'pm' },
+  { key: 'tasks',     label: '全部任务',   icon: '≡', group: 'pm' },
+  { key: 'charts',    label: '数据统计',   icon: '◉', group: 'pm' },
+  { key: 'gantt',     label: '甘特图',     icon: '▦', group: 'pm' },
+  { key: 'projects',  label: '项目列表',   icon: '□', group: 'pm' },
+  { key: 'add_task',  label: '快速添加任务', icon: '+', group: 'pm' },
+  { key: 'logs',      label: '操作日志',   icon: '📋', group: 'pm' },
+  // ── 资金计划 ──
+  { key: 'fin_t1',        label: '月度资金计划', icon: '📊', group: 'finance' },
+  { key: 'fin_receipt',   label: '对上收款台账', icon: '📥', group: 'finance' },
+  { key: 'fin_payment',   label: '对下付款计划', icon: '📤', group: 'finance' },
+  { key: 'fin_t4',        label: '完成情况',     icon: '✅', group: 'finance' },
+  { key: 'fin_t5',        label: '实际收款明细', icon: '💰', group: 'finance' },
+  { key: 'fin_t6',        label: '实际支付明细', icon: '💳', group: 'finance' },
+  { key: 'fin_dashboard', label: '资金看板',     icon: '📈', group: 'finance' },
+  // ── 基础库配置 ──
+  { key: 'basic_info',       label: '基础信息配置', icon: '⚙', group: 'base' },
+  { key: 'base_contracts',   label: '合同库',       icon: '📄', group: 'base' },
+  { key: 'base_customers',   label: '客户库',       icon: '👥', group: 'base' },
+  { key: 'base_suppliers',   label: '供应商库',     icon: '🏢', group: 'base' },
+  // ── 系统管理 ──
+  { key: 'members',   label: '成员管理',   icon: '👤', group: 'admin', adminOnly: true },
+  { key: 'tags',      label: '标签管理',   icon: '🏷', group: 'admin', adminOnly: true },
+  { key: 'roles',     label: '角色权限',   icon: '🔐', group: 'admin', adminOnly: true },
+  { key: 'system_config', label: '系统配置', icon: '⚙', group: 'admin', adminOnly: true },
+  // ── AI 助手 ──
+  { key: 'ai_assistant', label: 'AI 任务助手', icon: '🤖', group: 'ai' },
 ];
 
 // 根据角色返回默认可见菜单
 function getDefaultMenuPerms(role) {
+  // 仅 super_admin 默认拥有全部权限，admin 和 user 均需手动配置
   if (role === 'super_admin') return MENU_DEFS.map(m => m.key);
-  if (role === 'admin') return MENU_DEFS.filter(m => !m.superOnly).map(m => m.key);
-  // 普通用户默认：PM 模块、今日看板、全部任务、日志（无资金计划）
-  return ['pm', 'today', 'tasks', 'logs'];
+  return [];
 }
 
-// 获取当前用户实际菜单权限
+// 检查用户对某个分组的菜单权限
+function hasGroupPerm(group) {
+  var allowed = getEffectiveMenuPerms();
+  return MENU_DEFS.filter(function(m) { return m.group === group; }).some(function(m) { return allowed.includes(m.key); });
+}
+
+// 获取当前用户实际菜单权限（含旧格式兼容）
 function getEffectiveMenuPerms() {
   if (!currentUser) return [];
   // super_admin 始终拥有全部权限，不受配置影响
   if (currentUser.role === 'super_admin') return MENU_DEFS.map(m => m.key);
-  // 有自定义配置则用自定义
-  if (currentUser.menuPerms && currentUser.menuPerms.length > 0) return currentUser.menuPerms;
-  // 否则用角色默认
-  return getDefaultMenuPerms(currentUser.role);
+  var perms;
+  // null/undefined = 从未配置，使用角色默认值
+  // [] = 管理员显式清空，尊重空数组
+  if (currentUser.menuPerms != null) {
+    perms = currentUser.menuPerms.slice();
+  } else {
+    perms = getDefaultMenuPerms(currentUser.role);
+  }
+  // 向后兼容：旧版 'finance' 自动展开为所有资金子菜单
+  if (perms.includes('finance')) {
+    var finKeys = MENU_DEFS.filter(function(m) { return m.group === 'finance'; }).map(function(m) { return m.key; });
+    perms = perms.filter(function(k) { return k !== 'finance'; }).concat(finKeys);
+  }
+  return perms;
 }
 
 // 应用菜单权限到侧边栏和顶部 Tab
@@ -498,20 +599,24 @@ function applyMenuPerms() {
     const key = el.getAttribute('data-menu-key');
     el.classList.toggle('menu-hidden', !allowed.includes(key));
   });
-  // 顶部模块切换 Tab 的显示/隐藏
+  // 顶部模块切换 Tab 的显示/隐藏（基于分组权限）
+  var hasPM = hasGroupPerm('pm');
+  var hasFinance = hasGroupPerm('finance');
+  var hasBase = hasGroupPerm('base');
   const pmTab = document.getElementById('top-tab-pm');
   const finTab = document.getElementById('top-tab-finance');
-  if (pmTab) pmTab.classList.toggle('menu-hidden', !allowed.includes('pm'));
-  if (finTab) finTab.classList.toggle('menu-hidden', !allowed.includes('finance'));
+  if (pmTab) pmTab.classList.toggle('menu-hidden', !hasPM);
+  if (finTab) finTab.classList.toggle('menu-hidden', !hasFinance && !hasBase);
   // 如果当前激活的模块被隐藏了，自动切换
-  if (activeModule === 'finance' && !allowed.includes('finance')) {
+  if (activeModule === 'pm' && !hasPM && (hasFinance || hasBase)) {
+    switchModule('finance');
+  } else if (activeModule === 'finance' && !hasFinance && !hasBase && hasPM) {
     switchModule('pm');
   }
   // 基础库配置：拥有任一基础库权限即显示
   var baseLibBtn = document.getElementById('base-lib-btn');
   if (baseLibBtn) {
-    var hasBaseLib = allowed.includes('base_contracts') || allowed.includes('base_customers') || allowed.includes('base_suppliers');
-    baseLibBtn.classList.toggle('menu-hidden', !hasBaseLib);
+    baseLibBtn.classList.toggle('menu-hidden', !hasBase);
   }
 }
 
@@ -547,6 +652,12 @@ function updateUserInfoUI() {
 function handleLogout() {
   showConfirm('退出登录', '确定要退出登录吗？', function() {
     localStorage.removeItem('pm_session');
+    // 保留 pm_remember 中的用户名密码，标记为主动退出
+    var rem = JSON.parse(localStorage.getItem('pm_remember') || 'null');
+    if (rem && rem.name) {
+      rem.loggedOut = true;
+      localStorage.setItem('pm_remember', JSON.stringify(rem));
+    }
     window.location.href = 'login.html';
   });
 }
@@ -571,15 +682,33 @@ async function init() {
     return;
   }
 
-  // Session 过期检查（8 小时，loginAt 不存在则跳过）
+  // Session 过期检查（8 小时），但 Remember Me 可在 5 天内延长
   if (parsed.loginAt && (Date.now() - parsed.loginAt) > SESSION_MAX) {
-    localStorage.removeItem('pm_session');
-    window.location.href = 'login.html';
-    return;
+    var remember = JSON.parse(localStorage.getItem('pm_remember') || 'null');
+    if (remember && remember.expires && Date.now() < remember.expires) {
+      // Remember Me 有效，刷新 loginAt 继续使用
+      parsed.loginAt = Date.now();
+      localStorage.setItem('pm_session', JSON.stringify(parsed));
+    } else {
+      localStorage.removeItem('pm_session');
+      localStorage.removeItem('pm_remember');
+      window.location.href = 'login.html';
+      return;
+    }
   }
 
   // Session 有效 → 立即显示主界面，不阻塞
-  currentUser = { ...parsed, role: parsed.role || 'user' };
+  currentUser = { ...parsed, role: parsed.role || 'user', menuPerms: parsed.menuPerms || parsed.menu_perms || null };
+
+  // 清除历史 Session 中可能遗留的明文密码
+  if (currentUser && currentUser.password) {
+    delete currentUser.password;
+    try {
+      const stored = JSON.parse(localStorage.getItem('pm_session') || '{}');
+      delete stored.password;
+      localStorage.setItem('pm_session', JSON.stringify(stored));
+    } catch(e) {}
+  }
 
   const loader = document.getElementById('page-loader');
   const layout = document.getElementById('main-layout');
@@ -607,13 +736,12 @@ async function silentRoleSync() {
   try {
     const { data, error } = await sb
       .from('members')
-      .select('id, role, color_idx, password, menu_perms')
+      .select('id, role, color_idx, menu_perms')
       .eq('id', currentUser.id)
       .single();
     if (!error && data) {
       currentUser.role      = data.role       || 'user';
       currentUser.colorIdx  = data.color_idx  || 0;
-      currentUser.password  = data.password   || currentUser.password;
       currentUser.menuPerms = data.menu_perms || null;
       localStorage.setItem('pm_session', JSON.stringify(currentUser));
       updateUserInfoUI();
@@ -654,7 +782,7 @@ function isBlocked(t) {
 function tagHTML(tagId) {
   const tg = state.globalTags.find(x=>x.id===tagId); if (!tg) return '';
   const p = TAG_PALETTES[tg.paletteIdx%TAG_PALETTES.length];
-  return `<span class="pill" style="background:${p.bg};color:${p.color};border-color:${p.border}">${tg.name}</span>`;
+  return `<span class="pill" style="background:${p.bg};color:${p.color};border-color:${p.border}">${escHtml(tg.name)}</span>`;
 }
 
 function subtaskProgress(t) {
@@ -684,7 +812,7 @@ function updateBadges() {
     html += `<div class="nav-proj-wrap" style="position:relative;display:flex;align-items:center">
       <button class="nav-item${isActive?' active':''}" style="flex:1;padding-right:28px" onclick="switchView('project-${p.id}')">
         <i data-lucide="circle" class="nav-icon" style="width:10px;height:10px;color:${PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length]}"></i>
-        <span style="flex:1;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${p.name}</span>
+        <span style="flex:1;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escHtml(p.name)}</span>
         ${cnt?`<span class="nav-badge">${cnt}</span>`:''}
       </button>
       <button class="nav-edit-btn" onclick="openEditProject('${p.id}')" title="编辑" style="position:absolute;right:4px;width:20px;height:20px;border-radius:4px;border:none;background:transparent;cursor:pointer;color:rgba(255,255,255,.45);font-size:12px;display:none;align-items:center;justify-content:center;flex-shrink:0;transition:color .12s" onmouseover="this.style.color='rgba(255,255,255,.8)'" onmouseout="this.style.color='rgba(255,255,255,.45)'"><i data-lucide="pencil" style="width:11px;height:11px"></i></button>
@@ -876,6 +1004,7 @@ function switchView(v) {
 function onSearch(val) { searchQuery=val; render(); }
 
 function render() {
+  if (typeof activeModule !== 'undefined' && activeModule !== 'pm') return;
   if (currentView==='today') renderToday();
   else if (currentView==='tasks') renderTaskList();
   else if (currentView==='projects') renderProjects();

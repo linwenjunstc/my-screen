@@ -10,12 +10,22 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/pm.css">
 <link rel="stylesheet" href="css/finance-extra.css">
+<link rel="stylesheet" href="css/ai-panel.css">
 </head>
 <body>
 
 <div id="page-loader">
-  <div class="loader-ring"></div>
-  <div class="loader-text">LOADING...</div>
+  <div class="loader-brand">
+    <div class="loader-dots">
+      <span class="loader-dot"></span>
+      <span class="loader-dot"></span>
+      <span class="loader-dot"></span>
+    </div>
+    <div class="loader-progress-track">
+      <div class="loader-progress-bar"></div>
+    </div>
+    <div class="loader-text">LOADING</div>
+  </div>
 </div>
 
 <div class="layout" id="main-layout" style="display:none">
@@ -75,25 +85,25 @@
     </div>
     <div class="sb-section">计划报表</div>
     <nav class="sb-nav">
-      <button class="sb-item active" id="tab-t1" onclick="switchTab('t1')">
+      <button class="sb-item active" id="tab-t1" data-menu-key="fin_t1" onclick="switchTab('t1')">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="14" height="14" rx="2"/><line x1="1" y1="5.5" x2="15" y2="5.5"/><line x1="1" y1="9.5" x2="15" y2="9.5"/></svg>月度资金计划
       </button>
-      <button class="sb-item" id="tab-receipt" onclick="switchTab('receipt')">
+      <button class="sb-item" id="tab-receipt" data-menu-key="fin_receipt" onclick="switchTab('receipt')">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="1,12 5,7 8,10 11,6 15,3"/></svg>对上收款台账
       </button>
-      <button class="sb-item" id="tab-payment" onclick="switchTab('payment')">
+      <button class="sb-item" id="tab-payment" data-menu-key="fin_payment" onclick="switchTab('payment')">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="10" rx="2"/><line x1="1" y1="7" x2="15" y2="7"/></svg>对下付款计划
       </button>
-      <button class="sb-item" id="tab-t4" onclick="switchTab('t4')">
+      <button class="sb-item" id="tab-t4" data-menu-key="fin_t4" onclick="switchTab('t4')">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="2,12 5,8 8,10 11,5 14,3"/><line x1="2" y1="13" x2="14" y2="13"/></svg>完成情况
       </button>
-      <button class="sb-item" id="tab-t5" onclick="switchTab('t5')">
+      <button class="sb-item" id="tab-t5" data-menu-key="fin_t5" onclick="switchTab('t5')">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><polyline points="8,5 8,8 10,10"/></svg>实际收款明细
       </button>
-      <button class="sb-item" id="tab-t6" onclick="switchTab('t6')">
+      <button class="sb-item" id="tab-t6" data-menu-key="fin_t6" onclick="switchTab('t6')">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><polyline points="8,5 8,8 6,10"/></svg>实际支付明细
       </button>
-      <button class="sb-item" id="tab-dashboard" onclick="switchTab('dashboard')">
+      <button class="sb-item" id="tab-dashboard" data-menu-key="fin_dashboard" onclick="switchTab('dashboard')">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="9" width="4" height="6" rx="1"/><rect x="6" y="5" width="4" height="10" rx="1"/><rect x="11" y="1" width="4" height="14" rx="1"/></svg>资金看板
       </button>
     </nav>
@@ -108,9 +118,21 @@
   <main class="main">
     <!-- Top tab bar -->
     <div class="top-tab-bar" id="top-tab-bar">
-      <button class="top-tab active" id="top-tab-pm" data-menu-key="pm" onclick="switchModule('pm')"><i data-lucide="list-todo" style="width:15px;height:15px"></i>项目管理</button>
-      <button class="top-tab" id="top-tab-finance" data-menu-key="finance" onclick="switchModule('finance')"><i data-lucide="landmark" style="width:15px;height:15px"></i>资金计划</button>
+      <button class="top-tab active" id="top-tab-pm" onclick="switchModule('pm')"><i data-lucide="list-todo" style="width:15px;height:15px"></i>项目管理</button>
+      <button class="top-tab" id="top-tab-finance" onclick="switchModule('finance')"><i data-lucide="landmark" style="width:15px;height:15px"></i>资金计划</button>
       <div class="top-tab-right">
+        <!-- ── AI 助手入口 ── -->
+        <button class="ai-trigger-btn" id="ai-trigger-btn"
+          data-menu-key="ai_assistant"
+          onclick="toggleAiPanel()" title="AI 任务助手">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a7 7 0 0 1 7 7c0 2.5-1.3 4.7-3.3 6L14 21H10l-1.7-6C6.3 13.7 5 11.5 5 9a7 7 0 0 1 7-7z"/>
+            <line x1="9" y1="21" x2="15" y2="21"/>
+            <line x1="9.5" y1="17" x2="14.5" y2="17"/>
+          </svg>
+        </button>
+        <!-- ── AI 助手入口 end ── -->
         <button class="theme-toggle-btn" onclick="toggleTheme()" title="切换主题">
           <i data-lucide="sun" class="theme-icon-light" style="width:15px;height:15px"></i>
           <i data-lucide="moon" class="theme-icon-dark" style="width:15px;height:15px"></i>
@@ -212,6 +234,92 @@
 <div class="toast" id="toast"></div>
 <div class="chart-tooltip" id="chart-tooltip"></div>
 <div class="confetti-container" id="confetti-container"></div>
+<!-- ══════════ AI 助手面板 ══════════ -->
+<div id="ai-panel-overlay" onclick="closeAiPanel()"></div>
+
+<div id="ai-panel">
+  <div class="ai-panel-header">
+    <div class="ai-panel-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2a7 7 0 0 1 7 7c0 2.5-1.3 4.7-3.3 6L14 21H10l-1.7-6C6.3 13.7 5 11.5 5 9a7 7 0 0 1 7-7z"/>
+        <line x1="9" y1="21" x2="15" y2="21"/>
+        <line x1="9.5" y1="17" x2="14.5" y2="17"/>
+      </svg>
+    </div>
+    <span class="ai-panel-title">AI 任务助手</span>
+    <span class="ai-key-status" id="ai-key-status"></span>
+    <span class="ai-perm-badge" id="ai-perm-badge">PM · 资金</span>
+    <button class="ai-header-btn" id="ai-key-gear-btn" style="display:none" onclick="_toggleApiKeySettings()" title="API Key 设置">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+      </svg>
+    </button>
+    <button class="ai-header-btn" onclick="clearAiChat()" title="清空对话">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+        stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+        <path d="M10 11v6"/><path d="M14 11v6"/>
+      </svg>
+    </button>
+    <button class="ai-header-btn" onclick="closeAiPanel()" title="关闭">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+        stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- API Key 设置面板（仅 super_admin 可见） -->
+  <div class="ai-apikey-panel" id="ai-apikey-panel" style="display:none">
+    <div class="ai-apikey-label">DeepSeek API Key</div>
+    <div class="ai-apikey-row">
+      <input type="password" id="ai-apikey-input" class="ai-apikey-input"
+        placeholder="sk-..." autocomplete="off">
+      <button class="ai-apikey-save" onclick="saveAiApiKey(this)">保存</button>
+    </div>
+    <div class="ai-apikey-hint">Key 将使用 AES-GCM 加密后存入数据库，仅超级管理员可配置</div>
+  </div>
+
+  <div class="ai-quick-area">
+    <div class="ai-quick-label">快捷查询</div>
+    <div class="ai-quick-chips">
+      <button class="ai-quick-chip" onclick="askAiQuick('现在有哪些逾期任务？')">逾期任务</button>
+      <button class="ai-quick-chip" onclick="askAiQuick('本周有哪些紧急任务，分别是谁负责的？')">本周紧急</button>
+      <button class="ai-quick-chip" onclick="askAiQuick('今天有哪些任务到期？')">今日到期</button>
+      <button class="ai-quick-chip" onclick="askAiQuick('各个项目目前的进展如何，有没有延期风险？')">项目风险</button>
+    </div>
+  </div>
+
+  <div id="ai-messages"></div>
+
+  <div class="ai-input-area">
+    <div class="ai-input-wrap">
+      <textarea
+        id="ai-input"
+        rows="1"
+        placeholder="问我任何关于任务的问题..."
+        onkeydown="aiInputKeydown(event)"
+        oninput="onAiInputChange(this)"></textarea>
+      <button class="ai-send-btn" id="ai-send-btn" onclick="sendAiMsg()" title="发送 (Enter)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+      <button class="ai-stop-btn" id="ai-stop-btn" onclick="stopAiMsg()" title="停止生成" style="display:none">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+          <rect x="6" y="6" width="12" height="12" rx="2"/>
+        </svg>
+      </button>
+    </div>
+    <div class="ai-input-hint">Enter 发送 · Shift+Enter 换行</div>
+  </div>
+</div>
+<!-- ══════════ AI 助手面板 end ══════════ -->
+
 <!-- Keyboard shortcuts help -->
 <div class="shortcuts-overlay" id="shortcuts-overlay" onclick="closeShortcutsHelp()">
   <div class="shortcuts-panel" onclick="event.stopPropagation()">
@@ -251,6 +359,7 @@
 <script src="js/finance-t5t6.js"></script>
 <script src="js/finance-base.js"></script>
 <script src="js/finance-export.js"></script>
+<script src="js/pm-ai.js"></script>
 
 <script>
 // Module switching
@@ -259,10 +368,9 @@ let financeInitialized = false;
 
 window.switchModule = function(mod) {
   if (mod === activeModule) return;
-  // 权限守卫：没有对应菜单权限则不允许切换
-  var allowed = [];
-  try { allowed = getEffectiveMenuPerms(); } catch(e) {}
-  if (allowed.length && !allowed.includes(mod)) return;
+  // 权限守卫：没有对应分组菜单权限则不允许切换
+  if (mod === 'pm' && typeof hasGroupPerm === 'function' && !hasGroupPerm('pm')) return;
+  if (mod === 'finance' && typeof hasGroupPerm === 'function' && !hasGroupPerm('finance') && !hasGroupPerm('base')) return;
   activeModule = mod;
   closeMobileSidebar();
 
@@ -320,40 +428,12 @@ window.openSystemConfigModal = function() {
       <button class="btn btn-ghost btn-sm" onclick="closeModal();openRoleManageModal()"><i data-lucide="shield-check" style="width:14px;height:14px;margin-right:4px"></i>角色权限</button>
       <button class="btn btn-ghost btn-sm" onclick="closeModal();openLogsModal()"><i data-lucide="scroll-text" style="width:14px;height:14px;margin-right:4px"></i>操作日志</button>
     </div>
-    <div class="form-divider">基础设置</div>
-    <div class="form-group">
-      <label class="form-label">公司名称</label>
-      <input class="form-input" id="cfg-company" value="${(typeof finState !== 'undefined' && finState.config) ? finState.config.company_name || '' : ''}">
-    </div>
-    <div class="form-group">
-      <label class="form-label">事业部名称</label>
-      <input class="form-input" id="cfg-dept" value="${(typeof finState !== 'undefined' && finState.config) ? finState.config.dept_name || '' : ''}">
-    </div>
+    <p style="font-size:12px;color:var(--text3);text-align:center;padding:20px 0">公司/事业部名称请在「基础库配置 → 基础信息配置」中设置</p>
   </div>
   <div class="modal-footer">
     <div></div>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
-      <button class="btn btn-primary" onclick="saveSystemSettings(this)">保存</button>
-    </div>
+    <button class="btn btn-ghost" onclick="closeModal()">关闭</button>
   </div>`);
-};
-
-// Save system settings
-window.saveSystemSettings = async function(btn) {
-  const company = document.getElementById('cfg-company')?.value || '';
-  const dept = document.getElementById('cfg-dept')?.value || '';
-  setLoading(btn, true);
-  await sb.from('finance_config').upsert({ id: 'default', company_name: company, dept_name: dept });
-  if (typeof finState !== 'undefined') {
-    finState.config.company_name = company;
-    finState.config.dept_name = dept;
-    const el = document.getElementById('sb-dept-name');
-    if (el) el.textContent = dept || '资金计划模块';
-  }
-  setLoading(btn, false);
-  closeModal();
-  toast('系统配置已保存');
 };
 
 // Mobile sidebar toggle

@@ -101,10 +101,10 @@ function openEditPaymentModal(id){
   const isEdit=!!r;
   const canE=!isEdit||canEdit(r);
   const suOpts=finState.suppliers.map(s=>
-    `<option value="${s.id}" ${r&&r.supplier_id===s.id?'selected':''}>${s.name}</option>`
+    `<option value="${s.id}" ${r&&r.supplier_id===s.id?'selected':''}>${escHtml(s.name)}</option>`
   ).join('');
   const dnOpts=finState.contractsDown.map(c=>
-    `<option value="${c.id}" ${r&&r.downstream_contract_id===c.id?'selected':''}>${c.name}（${c.supplier_name||''}）</option>`
+    `<option value="${c.id}" ${r&&r.downstream_contract_id===c.id?'selected':''}>${escHtml(c.name)}（${escHtml(c.supplier_name||'')}）</option>`
   ).join('');
   // 截至上期累计已收款 from linked upstream
   const prevRec=r?getLinkedPrevReceived(r):null;

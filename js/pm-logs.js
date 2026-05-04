@@ -31,7 +31,7 @@ function getLogBadgeColor(action) {
        '新增实际收款','更新实际收款','新增实际支付','更新实际支付',
        '新增对上合同','更新对上合同','新增对下合同','更新对下合同',
        '新增客户','更新客户','新增供应商','更新供应商',
-       '导出资金报表','编辑月度计划','编辑完成情况'].includes(action))
+       '导出资金报表','编辑月度计划','编辑完成情况','编辑基础信息'].includes(action))
     return { bg: 'var(--teal-bg,#e8f7f5)', text: 'var(--teal)', border: 'var(--teal-border,#a0d8d2)' };
   if (['删除收款记录','删除付款明细','删除实际收款','删除实际支付',
        '删除对上合同','删除对下合同','删除客户','删除供应商'].includes(action))
@@ -40,7 +40,8 @@ function getLogBadgeColor(action) {
 }
 
 async function logAction(action, detail) {
-  if (!currentUser) return;
+  // 强制使用 Session 中的用户信息，不接受外部传入的用户 ID（防篡改）
+  if (!currentUser || !currentUser.id) return;
   try {
     await sb.from('logs').insert({
       id: uid(),
@@ -79,7 +80,7 @@ async function openLogsModal() {
       <div style="display:flex;gap:8px;margin-bottom:12px">
         ${_isAdmin ? `<select class="form-select" id="log-filter-user" onchange="refreshLogsList()" style="flex:1">
           <option value="">全部成员</option>
-          ${state.members.map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('')}
+          ${(_isSuperAdmin ? state.members : state.members.filter(function(m) { return m.role !== 'super_admin'; })).map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('')}
         </select>` : '<div style="flex:1;font-size:12px;color:var(--text3);display:flex;align-items:center;padding:0 4px">📋 我的操作记录</div>'}
         <select class="form-select" id="log-filter-days" onchange="refreshLogsList()" style="width:110px">
           <option value="1" selected>今天</option>
@@ -129,13 +130,14 @@ async function refreshLogsList() {
               '新增对下合同','更新对下合同','删除对下合同',
               '新增客户','更新客户','删除客户',
               '新增供应商','更新供应商','删除供应商',
-              '导出资金报表','编辑月度计划','编辑完成情况'],
+              '导出资金报表','编辑月度计划','编辑完成情况','编辑基础信息'],
     member: ['添加成员','删除成员','修改角色',
              '重置密码','修改密码','配置菜单权限'],
     login: ['用户登录'],
   };
 
   const _isSuperAdmin = currentUser && currentUser.role === 'super_admin';
+  const _isAdminUser = isAdmin();
   // 非超级管理员禁止查看登录日志
   if (window._logTab === 'login' && !_isSuperAdmin) {
     window._logTab = 'all';
@@ -144,7 +146,10 @@ async function refreshLogsList() {
     });
   }
 
-  const _isAdminUser = isAdmin();
+  // 管理员可查看的成员列表（不含超级管理员）
+  var visibleMembers = _isSuperAdmin ? state.members : state.members.filter(function(m) { return m.role !== 'super_admin'; });
+  var superAdminIds = state.members.filter(function(m) { return m.role === 'super_admin'; }).map(function(m) { return m.id; });
+
   const filterUserId = _isAdminUser
     ? (document.getElementById('log-filter-user')?.value || '')
     : (currentUser?.id || '');
@@ -169,10 +174,16 @@ async function refreshLogsList() {
     return;
   }
 
+  // 前端过滤：管理员看不到超级管理员的日志
+  var logs = data || [];
+  if (!_isSuperAdmin) {
+    logs = logs.filter(function(l) { return !superAdminIds.includes(l.user_id); });
+  }
+
   // 前端 Tab 过滤（非超级管理员隐藏登录记录）
-  var filtered = catFilter ? (data||[]).filter(l => catFilter.includes(l.action)) : (data||[]);
+  var filtered = catFilter ? logs.filter(function(l) { return catFilter.includes(l.action); }) : logs;
   if (!_isSuperAdmin && !catFilter) {
-    filtered = filtered.filter(l => l.action !== '用户登录');
+    filtered = filtered.filter(function(l) { return l.action !== '用户登录'; });
   }
 
   if (!filtered.length) {
@@ -243,7 +254,7 @@ async function refreshLogsList() {
     if (['完成任务','完成子任务'].includes(action)) return 'dot-done';
     if (action.includes('删除')) return 'dot-del';
     if (['甘特图调整','gantt_adjust'].includes(action)) return 'dot-gantt';
-    if (['导出资金报表','编辑月度计划','编辑完成情况',
+    if (['导出资金报表','编辑月度计划','编辑完成情况','编辑基础信息',
          '更新收款记录','更新付款明细','更新实际收款','更新实际支付',
          '更新对上合同','更新对下合同','更新客户','更新供应商'].includes(action)) return 'dot-fin';
     if (['添加成员','删除成员','修改角色','重置密码','修改密码','配置菜单权限','用户登录'].includes(action)) return 'dot-sys';

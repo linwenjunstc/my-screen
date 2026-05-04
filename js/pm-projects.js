@@ -14,14 +14,14 @@ function openAddProject() {
       if (!m) return '';
       return `<div class="subtask-item" style="display:flex;align-items:center;gap:8px;background:var(--surface2);padding:5px 10px;border-radius:6px;margin-bottom:5px">
         <div class="member-avatar" style="background:${memberColor(m.id)};width:20px;height:20px;font-size:10px">${memberInitial(m.id)}</div>
-        <div style="flex:1">${m.name}</div>
+        <div style="flex:1">${escHtml(m.name)}</div>
         <button class="subtask-del" onclick="removeNewProjMember('${m.id}')"><i data-lucide="x"></i></button>
       </div>`;
     }).join('');
   }
   window._buildNewProjMemberListHTML = buildNewProjMemberListHTML;
 
-  const availOptions = state.members.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+  const availOptions = state.members.map(m => `<option value="${m.id}">${escHtml(m.name)}</option>`).join('');
 
   openModal(`${modalHeader('新建项目')}
     <div class="modal-body">
@@ -116,20 +116,20 @@ function openEditProject(id) {
     if (!m) return '';
     return `<div class="subtask-item" style="display:flex; align-items:center; gap:8px; background:var(--surface2); padding:5px 10px; border-radius:6px; margin-bottom:5px;">
       <div class="member-avatar" style="background:${memberColor(m.id)}; width:20px; height:20px; font-size:10px;">${memberInitial(m.id)}</div>
-      <div style="flex:1">${m.name}</div>
+      <div style="flex:1">${escHtml(m.name)}</div>
       <button class="subtask-del" onclick="removeMemberFromProject('${id}','${m.id}')"><i data-lucide="x"></i></button>
     </div>`;
   }).join('');
 
   // 2. 获取还未加入的成员（用于下拉框）
   const availableMembers = state.members.filter(m => !(p.members || []).includes(m.id));
-  const memberOptions = availableMembers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+  const memberOptions = availableMembers.map(m => `<option value="${m.id}">${escHtml(m.name)}</option>`).join('');
 
   // 3. 构建弹窗 HTML
   const curColorIdx = p.colorIdx || 0;
   window._editProjColor = curColorIdx;
   const allMemberOptions = state.members.map(m =>
-    `<option value="${m.id}">${m.name}</option>`
+    `<option value="${m.id}">${escHtml(m.name)}</option>`
   ).join('');
 
   openModal(`${modalHeader('编辑项目')}

@@ -18,12 +18,12 @@ function taskCardHTML(t) {
       <div class="check-btn${t.done?' checked':''}"></div>
     </div>
     <div class="task-body">
-      <div class="task-title">${t.title}</div>
+      <div class="task-title">${escHtml(t.title)}</div>
       <div class="task-meta">
         ${showProj?`<span class="pill pill-project">${pn}</span>`:''}
         <span class="pill ${di.cls}">${di.text}</span>
 	        ${t.startDate?`<span class="pill pill-start">${t.startDate}</span>`:''}
-        <span class="pill ${priCls}">${t.priority}</span>
+        <span class="pill ${priCls}">${escHtml(t.priority)}</span>
         <span class="pill ${si.cls}">${si.lbl}</span>
         ${tagPills}${milestoneBadge}${blockedBadge}
         ${subProg}
@@ -92,7 +92,7 @@ function buildSubtaskListHTML(subtasks, taskId) {
   if (!subtasks.length) return '<div style="font-size:12px;color:var(--text3);padding:8px 0">暂无子任务，在下方输入框添加</div>';
   return subtasks.map(s=>`<div class="subtask-item">
     <div class="subtask-check${s.done?' done':''}" onclick="toggleSubtask('${taskId}','${s.id}')"></div>
-    <div class="subtask-text${s.done?' done':''}">${s.title}</div>
+    <div class="subtask-text${s.done?' done':''}">${escHtml(s.title)}</div>
     <button class="subtask-del" onclick="deleteSubtask('${taskId}','${s.id}')"><i data-lucide="x"></i></button>
   </div>`).join('');
 }
@@ -141,11 +141,11 @@ function modalHeader(title) {
 function openAddTask() {
   const today=new Date().toISOString().slice(0,10);
   const preProj=currentView.startsWith('project-')?currentView.slice(8):'';
-  const projOpts=state.projects.map(p=>`<option value="${p.id}"${p.id===preProj?' selected':''}>${p.name}</option>`).join('');
-  const memberOpts=state.members.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+  const projOpts=state.projects.map(p=>`<option value="${p.id}"${p.id===preProj?' selected':''}>${escHtml(p.name)}</option>`).join('');
+  const memberOpts=state.members.map(m=>`<option value="${m.id}">${escHtml(m.name)}</option>`).join('');
 
   // Tag dropdown
-  const tagSelectOpts = state.globalTags.map(tg=>`<option value="${tg.id}">${tg.name}</option>`).join('');
+  const tagSelectOpts = state.globalTags.map(tg=>`<option value="${tg.id}">${escHtml(tg.name)}</option>`).join('');
 
   openModal(`${modalHeader('新建任务')}
     <div class="modal-body">
@@ -219,8 +219,8 @@ async function submitAddTask(btn) {
 function openEditTask(id) {
   const t=state.tasks.find(x=>x.id===id); if(!t) return;
   activeTaskTab='basic';
-  const projOpts=state.projects.map(p=>`<option value="${p.id}"${p.id===t.projectId?' selected':''}>${p.name}</option>`).join('');
-  const memberOpts=state.members.map(m=>`<option value="${m.id}"${m.id===t.assignee?' selected':''}>${m.name}</option>`).join('');
+  const projOpts=state.projects.map(p=>`<option value="${p.id}"${p.id===t.projectId?' selected':''}>${escHtml(p.name)}</option>`).join('');
+  const memberOpts=state.members.map(m=>`<option value="${m.id}"${m.id===t.assignee?' selected':''}>${escHtml(m.name)}</option>`).join('');
   const logsHTML = (() => {
     const allLogs = t.logs || [];
     if (!allLogs.length) return '<div style="font-size:12px;color:var(--text3);padding:16px 0;text-align:center">暂无时间线记录</div>';
@@ -238,7 +238,7 @@ function openEditTask(id) {
   const tagChipsHTML = state.globalTags.map(tg=>{
     const p=TAG_PALETTES[tg.paletteIdx%TAG_PALETTES.length];
     const sel=(t.tags||[]).includes(tg.id);
-    return `<span class="tag-chip${sel?' selected':''}" id="edittag-${tg.id}" data-tagid="${tg.id}" onclick="toggleEditTag('${id}','${tg.id}')" style="background:${p.bg};color:${p.color};border-color:${p.border}">${tg.name}</span>`;
+    return `<span class="tag-chip${sel?' selected':''}" id="edittag-${tg.id}" data-tagid="${tg.id}" onclick="toggleEditTag('${id}','${tg.id}')" style="background:${p.bg};color:${p.color};border-color:${p.border}">${escHtml(tg.name)}</span>`;
   }).join('');
 
   // Subtasks
@@ -248,7 +248,7 @@ function openEditTask(id) {
   const otherTasks = state.tasks.filter(x=>x.id!==id&&!x.done);
   const depListHTML = otherTasks.length ? otherTasks.map(x=>`<div class="dep-item">
     <input type="checkbox" ${(t.dependencies||[]).includes(x.id)?'checked':''} onchange="toggleDep('${id}','${x.id}',this.checked)">
-    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${x.title}">${x.title}</span>
+    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(x.title)}">${escHtml(x.title)}</span>
     <span class="pill pill-gray" style="font-size:10px;flex-shrink:0">${projName(x.projectId)}</span>
   </div>`).join('') : '<div style="font-size:12px;color:var(--text3);padding:10px 12px">没有其他进行中的任务</div>';
 
@@ -373,7 +373,7 @@ async function loadTaskGanttHistory(taskId) {
         <td style="padding:6px 10px;color:${modeColor};font-weight:500">${modeLabel}</td>
         <td style="padding:6px 10px;font-family:var(--mono);font-size:12px;color:var(--text2)">${r.oldDue || '—'}</td>
         <td style="padding:6px 10px;font-family:var(--mono);font-size:12px;color:var(--text)">${r.newDue || '—'}</td>
-        <td style="padding:6px 10px;color:var(--text2)">${r.operator}</td>
+        <td style="padding:6px 10px;color:var(--text2)">${escHtml(r.operator)}</td>
         <td style="padding:6px 10px;color:var(--text3);font-size:11px">${r.time}</td>
       </tr>`;
     }).join('');
@@ -523,7 +523,7 @@ function openLog(id) {
   const t=state.tasks.find(x=>x.id===id); if(!t) return;
   openModal(`${modalHeader('记录跟进')}
     <div class="modal-body">
-      <div style="font-size:13px;color:var(--text2);padding:8px 12px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:16px">${t.title}</div>
+      <div style="font-size:13px;color:var(--text2);padding:8px 12px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:16px">${escHtml(t.title)}</div>
       <div class="form-group"><label class="form-label">跟进内容</label><textarea class="form-textarea" id="fi-log" placeholder="记录这次跟进的内容、结论、下一步行动..." autofocus></textarea></div>
       <div class="form-group">
         <label class="form-label">更新状态（可选）</label>

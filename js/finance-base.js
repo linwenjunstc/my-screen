@@ -5,17 +5,22 @@
 //  基础库配置弹框
 function openBaseLibModal(){
   var allowed = typeof getEffectiveMenuPerms === 'function' ? getEffectiveMenuPerms() : [];
+  var hasInfo = allowed.includes('basic_info');
   var libs = [
     { key: 'base_contracts',  label: '合同库',   icon: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><line x1="5" y1="5.5" x2="11" y2="5.5"/><line x1="5" y1="8" x2="11" y2="8"/></svg>', tab: 'contracts' },
     { key: 'base_customers',  label: '客户库',   icon: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 14c0-3 2.7-5 6-5s6 2 6 5"/></svg>', tab: 'customers' },
     { key: 'base_suppliers',  label: '供应商库', icon: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="6" width="10" height="8" rx="1"/><path d="M4 6V4a4 4 0 0 1 8 0v2"/></svg>', tab: 'suppliers' },
   ];
   var visibleLibs = libs.filter(function(l) { return allowed.includes(l.key); });
-  if (!visibleLibs.length) {
+  if (!visibleLibs.length && !hasInfo) {
     toast('你没有访问任何基础库的权限', 'info');
     return;
   }
-  var buttonsHTML = visibleLibs.map(function(l) {
+  var buttonsHTML = '';
+  if (hasInfo) {
+    buttonsHTML += '<button class="btn btn-ghost" style="padding:14px 20px;font-size:14px;justify-content:flex-start;display:flex;align-items:center;gap:10px;width:100%" onclick="closeModal();openBasicInfoModal()"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/></svg>基础信息配置</button>';
+  }
+  buttonsHTML += visibleLibs.map(function(l) {
     return '<button class="btn btn-ghost" style="padding:14px 20px;font-size:14px;justify-content:flex-start;display:flex;align-items:center;gap:10px;width:100%" onclick="closeModal();switchTab(\'' + l.tab + '\')">' + l.icon + l.label + '</button>';
   }).join('');
   openModal(`
@@ -30,6 +35,47 @@ function openBaseLibModal(){
     <button class="btn btn-ghost" onclick="closeModal()">关闭</button>
   </div>`);
 }
+
+//  基础信息配置弹框（公司名称 + 事业部名称）
+window.openBasicInfoModal = function() {
+  var company = (typeof finState !== 'undefined' && finState.config) ? finState.config.company_name || '' : '';
+  var dept = (typeof finState !== 'undefined' && finState.config) ? finState.config.dept_name || '' : '';
+  openModal(modalHeader('基础信息配置') +
+    '<div class="modal-body">' +
+      '<div class="form-group">' +
+        '<label class="form-label">公司名称</label>' +
+        '<input class="form-input" id="cfg-company" value="' + escHtml(company) + '">' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label class="form-label">事业部名称</label>' +
+        '<input class="form-input" id="cfg-dept" value="' + escHtml(dept) + '">' +
+      '</div>' +
+    '</div>' +
+    '<div class="modal-footer">' +
+      '<div></div>' +
+      '<div style="display:flex;gap:8px">' +
+        '<button class="btn btn-ghost" onclick="closeModal()">取消</button>' +
+        '<button class="btn btn-primary" onclick="saveBasicInfo(this)">保存</button>' +
+      '</div>' +
+    '</div>');
+};
+
+window.saveBasicInfo = async function(btn) {
+  var company = document.getElementById('cfg-company')?.value || '';
+  var dept = document.getElementById('cfg-dept')?.value || '';
+  setLoading(btn, true);
+  await sb.from('finance_config').upsert({ id: 'default', company_name: company, dept_name: dept });
+  if (typeof finState !== 'undefined') {
+    finState.config.company_name = company;
+    finState.config.dept_name = dept;
+    var el = document.getElementById('sb-dept-name');
+    if (el) el.textContent = dept || '资金计划模块';
+  }
+  setLoading(btn, false);
+  closeModal();
+  toast('基础信息已保存');
+  if (typeof finLogAction === 'function') finLogAction('编辑基础信息', '更新公司/事业部名称');
+};
 
 async function renderDashboard(){
   const c=computeTotals();
@@ -276,9 +322,9 @@ function renderContracts(){
       const progCls = rv.progress>=1?'ratio-red':rv.progress>=0.8?'ratio-amber':'ratio-green';
       return `<tr class="clickable" onclick="openEditContractModal('up','${r.id}')">
         <td style="color:var(--text3);width:28px;text-align:center">${realIdx}</td>
-        <td style="min-width:150px">${r.name}</td>
-        <td style="font-size:12px;color:var(--text2);min-width:100px">${r.main_contract_no||'—'}</td>
-        <td>${r.customer_name||'—'}</td>
+        <td style="min-width:150px">${escHtml(r.name)}</td>
+        <td style="font-size:12px;color:var(--text2);min-width:100px">${escHtml(r.main_contract_no||'—')}</td>
+        <td>${escHtml(r.customer_name||'—')}</td>
         <td class="num">${fmt(r.amount)}</td>
         <td class="num">${rv.exclTax?fmt(rv.exclTax):'—'}</td>
         <td class="num">${r.target_profit_rate?(+r.target_profit_rate*100).toFixed(1)+'%':'—'}</td>
@@ -295,12 +341,12 @@ function renderContracts(){
       const linked = r.upstream_contract_id ? finState.contractsUp.find(x=>x.id===r.upstream_contract_id) : null;
       return `<tr class="clickable" onclick="openEditContractModal('down','${r.id}')">
         <td style="color:var(--text3);width:28px;text-align:center">${realIdx}</td>
-        <td>${r.name}</td>
-        <td>${r.supplier_name||'—'}</td>
+        <td>${escHtml(r.name)}</td>
+        <td>${escHtml(r.supplier_name||'—')}</td>
         <td class="num">${fmt(r.amount)}</td>
-        <td>${linked?`<span class="linked-badge">${linked.name}</span>`:'—'}</td>
+        <td>${linked?`<span class="linked-badge">${escHtml(linked.name)}</span>`:'—'}</td>
         <td onclick="event.stopPropagation()"><select class="status-inline ${r.status==='active'?'tag-active':'tag-settled'}" onchange="updateContractStatus('down','${r.id}',this)"><option value="active" ${r.status!=='settled'?'selected':''}>执行中</option><option value="settled" ${r.status==='settled'?'selected':''}>已结算</option></select></td>
-        <td style="font-size:12px;color:var(--text3)">${r.remark||'—'}</td>
+        <td style="font-size:12px;color:var(--text3)">${escHtml(r.remark||'—')}</td>
       </tr>`;
     }
   }).join('') : `<tr><td colspan="${isUp?15:7}"><div class="empty"><i data-lucide="file-text" class="empty-icon"></i>暂无合同，点击右上角新增</div></td></tr>`;
@@ -482,9 +528,9 @@ function openEditContractModal(dir,id){
   const arr  = isUp?finState.contractsUp:finState.contractsDown;
   const r    = id?arr.find(x=>x.id===id):null;
   const isEdit = !!r;
-  const cuOpts = finState.customers.map(c=>`<option value="${c.id}" ${r&&r.customer_id===c.id?'selected':''}>${c.name}</option>`).join('');
-  const suOpts = finState.suppliers.map(s=>`<option value="${s.id}" ${r&&r.supplier_id===s.id?'selected':''}>${s.name}</option>`).join('');
-  const upOpts = finState.contractsUp.map(c=>`<option value="${c.id}" ${r&&r.upstream_contract_id===c.id?'selected':''}>${c.name}</option>`).join('');
+  const cuOpts = finState.customers.map(c=>`<option value="${c.id}" ${r&&r.customer_id===c.id?'selected':''}>${escHtml(c.name)}</option>`).join('');
+  const suOpts = finState.suppliers.map(s=>`<option value="${s.id}" ${r&&r.supplier_id===s.id?'selected':''}>${escHtml(s.name)}</option>`).join('');
+  const upOpts = finState.contractsUp.map(c=>`<option value="${c.id}" ${r&&r.upstream_contract_id===c.id?'selected':''}>${escHtml(c.name)}</option>`).join('');
 
   // 年份下拉（考核周期）
   const curY = new Date().getFullYear();
@@ -889,10 +935,10 @@ function renderCustomers(){
     const activeCount     = activeContracts.length;
     return `<tr class="clickable" onclick="openEditCustomerModal('${r.id}')">
       <td style="color:var(--text3);width:32px;text-align:center">${i + 1}</td>
-      <td style="font-weight:500">${r.name}</td>
-      <td style="color:var(--text2)">${r.short_name || '—'}</td>
-      <td>${r.contact || '—'}</td>
-      <td style="font-family:var(--mono);font-size:12px">${r.phone || '—'}</td>
+      <td style="font-weight:500">${escHtml(r.name)}</td>
+      <td style="color:var(--text2)">${escHtml(r.short_name || '—')}</td>
+      <td>${escHtml(r.contact || '—')}</td>
+      <td style="font-family:var(--mono);font-size:12px">${escHtml(r.phone || '—')}</td>
       <td class="num">${allContracts.length || '—'}</td>
       <td class="num">${totalAmt ? fmt(totalAmt) + ' <span class="unit">元</span>' : '—'}</td>
       <td style="text-align:center">
@@ -953,7 +999,7 @@ function openCustomerContractsModal(customerId, customerName){
     const rv = computeContractRevenue(c, window._contractYear||new Date().getFullYear().toString());
     return `<tr class="clickable" onclick="closeModal();window._contractTab='up';switchTab('contracts');setTimeout(()=>openEditContractModal('up','${c.id}'),100)">
       <td style="color:var(--text3);width:28px;text-align:center">${i+1}</td>
-      <td style="font-weight:500">${c.name}</td>
+      <td style="font-weight:500">${escHtml(c.name)}</td>
       <td class="num">${fmt(c.amount)} 元</td>
       <td class="num">${rv.exclTax?fmt(rv.exclTax)+' 元':'—'}</td>
       <td class="num" style="color:${rv.progress>=0.8?'var(--amber)':'var(--green)'}">${rv.exclTax?(rv.progress*100).toFixed(1)+'%':'—'}</td>
@@ -1064,11 +1110,11 @@ function renderSuppliers(){
   const tbody = rows.length ? rows.map((r,i)=>`
     <tr class="clickable" onclick="openEditSupplierModal('${r.id}')">
       <td style="color:var(--text3);width:32px;text-align:center">${i+1}</td>
-      <td style="font-weight:500">${r.name}</td>
-      <td style="color:var(--text2)">${r.short_name||'—'}</td>
-      <td>${r.contact||'—'}</td>
-      <td style="font-family:var(--mono);font-size:12px">${r.phone||'—'}</td>
-      <td style="font-size:12px;color:var(--text3)">${r.remark||'—'}</td>
+      <td style="font-weight:500">${escHtml(r.name)}</td>
+      <td style="color:var(--text2)">${escHtml(r.short_name||'—')}</td>
+      <td>${escHtml(r.contact||'—')}</td>
+      <td style="font-family:var(--mono);font-size:12px">${escHtml(r.phone||'—')}</td>
+      <td style="font-size:12px;color:var(--text3)">${escHtml(r.remark||'—')}</td>
     </tr>`).join('')
     :`<tr><td colspan="6"><div class="empty"><i data-lucide="building" class="empty-icon"></i>暂无供应商，点击右上角新增</div></td></tr>`;
 

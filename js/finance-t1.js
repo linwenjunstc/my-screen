@@ -14,8 +14,8 @@ function renderT1(){
       <div style="font-size:14px;font-weight:600">月度资金计划</div>
       <div style="font-size:12px;color:var(--text3);margin-top:2px">
         ${yr}年${parseInt(mn)}月 &nbsp;·&nbsp;
-        ${finState.config.company_name||'—'} &nbsp;·&nbsp;
-        ${finState.config.dept_name||'—'} &nbsp;·&nbsp; 单位：万元
+        ${escHtml(finState.config.company_name||'—')} &nbsp;·&nbsp;
+        ${escHtml(finState.config.dept_name||'—')} &nbsp;·&nbsp; 单位：万元
       </div>
     </div>
     ${isAdmin()?`<button class="btn btn-ghost btn-sm" onclick="openT1EditModal()">✎ 编辑固定项</button>`:''}

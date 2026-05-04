@@ -50,7 +50,7 @@ function renderToday() {
       const color = PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length];
       html += `<div class="proj-progress-row" onclick="showProjectTaskList('${p.id}')" style="cursor:pointer" title="点击查看任务明细">
         <div class="proj-progress-label">
-          <span class="proj-progress-name" style="cursor:pointer" onclick="event.stopPropagation();switchView('project-${p.id}')">${p.name}</span>
+          <span class="proj-progress-name" style="cursor:pointer" onclick="event.stopPropagation();switchView('project-${p.id}')">${escHtml(p.name)}</span>
           <span class="proj-progress-pct">${doneCnt}/${tasks.length} · ${pct}%</span>
         </div>
         <div class="proj-progress-track">
@@ -74,7 +74,7 @@ function renderToday() {
       html += `<div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
           <div class="member-avatar" style="background:${color};width:24px;height:24px;font-size:11px">${memberInitial(m.id)}</div>
-          <span style="font-size:13px;font-weight:600;color:var(--text)">${m.name}</span>
+          <span style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(m.name)}</span>
           <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${myTasks.length} 个任务${urgentCnt?` · <span style="color:var(--red)">${urgentCnt} 紧急</span>`:''}   </span>
         </div>
         <div style="display:flex;flex-direction:column;gap:5px">
@@ -82,9 +82,9 @@ function renderToday() {
             const di=dueInfo(t), si=statusInfo(t.status);
             const priCls=t.priority==='紧急'?'pill-red':t.priority==='重要'?'pill-amber':'pill-gray';
             return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:background .12s" onclick="openEditTask('${t.id}')" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">
-              <div style="flex:1;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.title}</div>
+              <div style="flex:1;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(t.title)}</div>
               <span class="pill ${di.cls}" style="font-size:10px">${di.text}</span>
-              <span class="pill ${priCls}" style="font-size:10px">${t.priority}</span>
+              <span class="pill ${priCls}" style="font-size:10px">${escHtml(t.priority)}</span>
               <span class="pill ${si.cls}" style="font-size:10px">${si.lbl}</span>
             </div>`;
           }).join('')}
@@ -128,7 +128,7 @@ function showDashboardTaskList(groupKey) {
     const pn = projName(t.projectId);
     return `<div class="task-card" style="cursor:default" onclick="closeModal();openEditTask('${t.id}')">
       <div class="task-body">
-        <div class="task-title">${t.title}</div>
+        <div class="task-title">${escHtml(t.title)}</div>
         <div class="task-meta">
           <span class="pill pill-project">${pn}</span>
           <span class="pill ${di.cls}">${di.text}</span>
@@ -163,13 +163,13 @@ function renderTaskList() {
   }).sort((a,b) => urgencyOf(a)-urgencyOf(b) || priorityOrder(a.priority)-priorityOrder(b.priority));
 
   const projChips = state.projects.map(p=>
-    `<span class="filter-chip${filterProject===p.id?' on':''}" onclick="filterProject='${p.id}';filterStatus='all';render()">${p.name}</span>`
+    `<span class="filter-chip${filterProject===p.id?' on':''}" onclick="filterProject='${p.id}';filterStatus='all';render()">${escHtml(p.name)}</span>`
   ).join('');
   const statusChips = [['all','全部'],['todo','待启动'],['doing','进行中'],['waiting','待反馈'],['done','已完成']].map(([v,l])=>
     `<span class="filter-chip${filterStatus===v?' on':''}" onclick="filterStatus='${v}';render()">${l}</span>`
   ).join('');
   const assigneeChips = state.members.map(m=>`<span class="filter-chip${filterAssignee===m.id?' on':''}" onclick="filterAssignee='${m.id}';render()" style="${filterAssignee===m.id?'':''}">
-    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:14px;border-radius:50%;background:${memberColor(m.id)};display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#fff;flex-shrink:0">${memberInitial(m.id)}</span>${m.name}</span>
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:14px;border-radius:50%;background:${memberColor(m.id)};display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#fff;flex-shrink:0">${memberInitial(m.id)}</span>${escHtml(m.name)}</span>
   </span>`).join('');
 
   let html = `<div class="view-pane">
@@ -197,7 +197,7 @@ function renderProjects() {
     const memberAvatars = (p.members||[]).slice(0,4).map(mid=>`<div class="member-avatar" style="background:${memberColor(mid)}" title="${memberName(mid)}">${memberInitial(mid)}</div>`).join('');
     html += `<div class="project-card stagger-in" onclick="switchView('project-${p.id}')">
       <div class="proj-header">
-        <div><div class="proj-name" style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;background:${color};border-radius:50%;display:inline-block;flex-shrink:0"></span>${p.name}</div></div>
+        <div><div class="proj-name" style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;background:${color};border-radius:50%;display:inline-block;flex-shrink:0"></span>${escHtml(p.name)}</div></div>
         <div class="proj-actions" onclick="event.stopPropagation()">
           <button class="icon-btn" onclick="openEditProject('${p.id}')" title="编辑"><i data-lucide="pencil" style="width:13px;height:13px"></i></button>
           <button class="icon-btn" onclick="confirmDeleteProject('${p.id}')" title="删除"><i data-lucide="x" style="width:13px;height:13px"></i></button>
@@ -346,9 +346,9 @@ function renderCharts() {
       const doneCnt = tasks.filter(t=>t.done).length;
       const pct = tasks.length?Math.round(doneCnt/tasks.length*100):0;
       const color = PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length];
-      projBarsHTML += `<div class="proj-progress-row" onclick="showProjectTaskList('${p.id}')" data-tip="${p.name}: ${doneCnt}/${tasks.length} 完成 · ${pct}%" style="cursor:pointer" title="点击查看详情">
+      projBarsHTML += `<div class="proj-progress-row" onclick="showProjectTaskList('${p.id}')" data-tip="${escHtml(p.name)}: ${doneCnt}/${tasks.length} 完成 · ${pct}%" style="cursor:pointer" title="点击查看详情">
         <div class="proj-progress-label">
-          <span class="proj-progress-name">${p.name}</span>
+          <span class="proj-progress-name">${escHtml(p.name)}</span>
           <span class="proj-progress-pct">${doneCnt}/${tasks.length} · ${pct}%</span>
         </div>
         <div class="proj-progress-track" style="height:10px">
@@ -389,8 +389,8 @@ function renderCharts() {
       const pct = Math.round(doneCnt/totalMine*100);
       const w = Math.max(2, Math.round(cnt/maxTask*100));
       const color = memberColor(m.id);
-      return `<div class="chart-bar-row" onclick="showMemberTaskList('${m.id}')" data-tip="${m.name}: ${cnt} 个待办任务 · 完成率 ${pct}%" style="cursor:pointer" title="点击查看详情">
-        <span class="chart-bar-label" style="display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>${m.name}</span>
+      return `<div class="chart-bar-row" onclick="showMemberTaskList('${m.id}')" data-tip="${escHtml(m.name)}: ${cnt} 个待办任务 · 完成率 ${pct}%" style="cursor:pointer" title="点击查看详情">
+        <span class="chart-bar-label" style="display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>${escHtml(m.name)}</span>
         <div class="chart-bar-track"><div class="chart-bar-fill" style="width:${w}%;background:${color}"></div></div>
         <span class="chart-bar-val" style="font-size:11px">${cnt} 待办 · ${pct}% 完成</span>
       </div>`;
@@ -401,7 +401,7 @@ function renderCharts() {
 
   // Burndown
   const burndownOpts = `<option value="all">全部项目</option>` +
-    state.projects.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+    state.projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
 
   let html = `<div class="view-pane">
     <div class="chart-grid">
@@ -686,7 +686,7 @@ function showProjectTaskList(projectId) {
     ? tasks.map(t => `<tr>
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.title)}">${escHtml(t.title)}</td>
       <td style="white-space:nowrap">${statusLabels[t.status]||t.status}</td>
-      <td style="white-space:nowrap">${t.priority}</td>
+      <td style="white-space:nowrap">${escHtml(t.priority)}</td>
       <td style="white-space:nowrap">${escHtml(memberMap[t.assignee]||'—')}</td>
       <td style="white-space:nowrap">${t.due||'—'}</td>
       <td>${t.done?'✅':'—'}</td>
@@ -715,7 +715,7 @@ function showMemberTaskList(memberId) {
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.title)}">${escHtml(t.title)}</td>
       <td style="white-space:nowrap">${escHtml(projMap[t.projectId]||'—')}</td>
       <td style="white-space:nowrap">${statusLabels[t.status]||t.status}</td>
-      <td style="white-space:nowrap">${t.priority}</td>
+      <td style="white-space:nowrap">${escHtml(t.priority)}</td>
       <td style="white-space:nowrap">${t.due||'—'}</td>
       <td>${t.done?'✅':'—'}</td>
     </tr>`).join('')
@@ -857,7 +857,7 @@ async function renderGantt() {
   groups.forEach(g => {
     if (!g.tasks.length) return;
     const color = PROJ_COLORS[(g.proj.colorIdx||0)%PROJ_COLORS.length];
-    leftHTML += `<div class="gantt-group-header" style="border-left:3px solid ${color}">${g.proj.name}</div>`;
+    leftHTML += `<div class="gantt-group-header" style="border-left:3px solid ${color}">${escHtml(g.proj.name)}</div>`;
     rightHTML += `<div class="gantt-group-header-right" style="width:${chartWidth}px"></div>`;
 
     g.tasks.forEach(t => {
@@ -875,10 +875,10 @@ async function renderGantt() {
       const blocked = isBlocked(t);
 
       const canDrag = canAdjustGantt(t);
-      leftHTML += `<div class="gantt-row-name${t.done?' done-row':''}${t.milestone?' milestone-row':''}" onclick="openEditTask('${t.id}')" title="${t.title}  |  ${startStr} ~ ${endStr}">${t.milestone?'◆ ':''}${blocked?'⚠ ':''}${t.title}</div>`;
+      leftHTML += `<div class="gantt-row-name${t.done?' done-row':''}${t.milestone?' milestone-row':''}" onclick="openEditTask('${t.id}')" title="${escHtml(t.title)}  |  ${startStr} ~ ${endStr}">${t.milestone?'◆ ':''}${blocked?'⚠ ':''}${escHtml(t.title)}</div>`;
       rightHTML += `<div style="position:relative;height:44px;border-bottom:1px solid var(--border);width:${chartWidth}px;background:${t.done?'transparent':'var(--surface)'}">
-        <div class="gantt-bar" data-task-id="${t.id}" data-start-offset="${startOffset}" data-dur-days="${durDays}" title="${t.title}  |  ${startStr} ~ ${endStr}" ondblclick="openEditTask('${t.id}')" style="position:absolute;top:10px;left:${left}px;width:${width}px;height:24px;background:${barColor};opacity:${t.done?.5:1};border-radius:${t.milestone?'3px':'5px'};cursor:${canDrag?'grab':'default'};display:flex;align-items:center;padding:0 8px;overflow:hidden;transition:none;${isOverdue?'outline:1.5px solid var(--red);':''}${t.milestone?'outline:2px solid '+barColor+';outline-offset:2px;':''}" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='${t.done?.5:1}'">
-          <span style="font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;pointer-events:none">${t.milestone?'◆ ':''}${t.title}</span>
+        <div class="gantt-bar" data-task-id="${t.id}" data-start-offset="${startOffset}" data-dur-days="${durDays}" title="${escHtml(t.title)}  |  ${startStr} ~ ${endStr}" ondblclick="openEditTask('${t.id}')" style="position:absolute;top:10px;left:${left}px;width:${width}px;height:24px;background:${barColor};opacity:${t.done?.5:1};border-radius:${t.milestone?'3px':'5px'};cursor:${canDrag?'grab':'default'};display:flex;align-items:center;padding:0 8px;overflow:hidden;transition:none;${isOverdue?'outline:1.5px solid var(--red);':''}${t.milestone?'outline:2px solid '+barColor+';outline-offset:2px;':''}" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='${t.done?.5:1}'">
+          <span style="font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;pointer-events:none">${t.milestone?'◆ ':''}${escHtml(t.title)}</span>
           ${canDrag?`<div class="gantt-resize-handle" data-task-id="${t.id}" style="position:absolute;right:0;top:0;width:8px;height:100%;cursor:ew-resize;background:rgba(255,255,255,.25);border-radius:0 5px 5px 0" title="拖动调整截止日期"></div>`:''}
         </div>
         ${t.milestone?`<div style="position:absolute;left:${left+width}px;top:50%;transform:translate(-50%,-50%) rotate(45deg);width:12px;height:12px;background:var(--amber);border:2px solid #fff;box-shadow:0 0 0 1.5px var(--amber);pointer-events:none;z-index:2"></div>`:''}
