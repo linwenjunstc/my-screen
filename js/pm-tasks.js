@@ -7,7 +7,8 @@ function taskCardHTML(t) {
   const priCls=t.priority==='紧急'?'pill-red':t.priority==='重要'?'pill-amber':'pill-gray';
   const showProj = currentView!=='project-'+t.projectId;
   const blocked = isBlocked(t);
-  const assigneeHTML = t.assignee ? `<div class="member-avatar" style="width:20px;height:20px;font-size:10px;background:${memberColor(t.assignee)}" title="${memberName(t.assignee)}">${memberInitial(t.assignee)}</div>` : '';
+  const assigneeMember = t.assignee ? state.members.find(m=>m.id===t.assignee) : null;
+  const assigneeHTML = assigneeMember ? renderAvatar(assigneeMember, 'avatar-sm') : '';
   const tagPills = (t.tags||[]).map(tid=>tagHTML(tid)).join('');
   const subProg = subtaskProgress(t);
   const milestoneBadge = t.milestone ? '<span class="pill pill-amber" style="font-size:10px">◆ 里程碑</span>' : '';
@@ -66,6 +67,7 @@ async function toggleDone(id) {
       addTimelineEntry(t, '重新打开', '重新打开任务');
     }
     await syncTask(t);
+    _lastLoadTime = Date.now();
     render();
     if (t.done) logAction('完成任务', `标记「${t.title}」为已完成`);
   }
@@ -78,6 +80,7 @@ function toggleSubtask(taskId, subtaskId) {
   const willDone = !s.done;
   s.done = willDone;
   syncTask(t);
+  _lastLoadTime = Date.now();
   renderModalSubtasks(taskId);
   if (willDone) logAction('完成子任务', `「${t.title}」→ 子任务「${s.title}」已完成`);
 }

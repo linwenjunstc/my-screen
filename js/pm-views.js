@@ -32,10 +32,10 @@ function renderToday() {
       <button class="vmtab" onclick="window._todayViewMode='week';renderWeekGrid()">本周</button>
     </div>
     <div class="stats-grid">
-      <div class="stat-card sc-red" style="cursor:${g0.length?'pointer':'default'}" ${g0.length?`onclick="showDashboardTaskList('g0')"`:''}><div class="stat-label">紧急 / 逾期</div><div class="stat-val${g0.length?' red':''}">${g0.length}</div></div>
-      <div class="stat-card sc-amber" style="cursor:${g1.length?'pointer':'default'}" ${g1.length?`onclick="showDashboardTaskList('g1')"`:''}><div class="stat-label">3 天内到期</div><div class="stat-val${g1.length?' amber':''}">${g1.length}</div></div>
-      <div class="stat-card sc-blue" style="cursor:${g2.length?'pointer':'default'}" ${g2.length?`onclick="showDashboardTaskList('g2')"`:''}><div class="stat-label">本周内</div><div class="stat-val">${g2.length}</div></div>
-      <div class="stat-card sc-green" style="cursor:${done.length?'pointer':'default'}" ${done.length?`onclick="showDashboardTaskList('done')"`:''}><div class="stat-label">今日已完成</div><div class="stat-val${done.length?' green':''}">${done.length}</div><div class="stat-sub" style="font-size:10px">今天标记完成的任务</div></div>
+      <div class="stat-card sc-red" style="cursor:${g0.length?'pointer':'default'}" ${g0.length?`onclick="showDashboardTaskList('g0')"`:''}><div class="stat-icon"><i data-lucide="alert-circle" style="width:16px;height:16px"></i></div><div class="stat-label">紧急 / 逾期</div><div class="stat-val${g0.length?' red':''}">${g0.length}</div></div>
+      <div class="stat-card sc-amber" style="cursor:${g1.length?'pointer':'default'}" ${g1.length?`onclick="showDashboardTaskList('g1')"`:''}><div class="stat-icon"><i data-lucide="clock" style="width:16px;height:16px"></i></div><div class="stat-label">3 天内到期</div><div class="stat-val${g1.length?' amber':''}">${g1.length}</div></div>
+      <div class="stat-card sc-blue" style="cursor:${g2.length?'pointer':'default'}" ${g2.length?`onclick="showDashboardTaskList('g2')"`:''}><div class="stat-icon"><i data-lucide="calendar-check" style="width:16px;height:16px"></i></div><div class="stat-label">本周内</div><div class="stat-val">${g2.length}</div></div>
+      <div class="stat-card sc-green" style="cursor:${done.length?'pointer':'default'}" ${done.length?`onclick="showDashboardTaskList('done')"`:''}><div class="stat-icon"><i data-lucide="check-circle-2" style="width:16px;height:16px"></i></div><div class="stat-label">今日已完成</div><div class="stat-val${done.length?' green':''}">${done.length}</div><div class="stat-sub" style="font-size:10px">今天标记完成的任务</div></div>
     </div>`;
 
   // Project progress mini chart
@@ -107,7 +107,8 @@ function renderToday() {
     if (!g.tasks.length) return; anyTask = true;
     html += `<div class="task-group"><div class="group-header"><div class="group-dot" style="background:${g.dot}"></div><span class="group-title">${g.label}</span><span class="group-count">${g.tasks.length}</span></div>${g.tasks.map(t=>taskCardHTML(t)).join('')}</div>`;
   });
-  if (!anyTask) html += `<div class="empty-state"><i data-lucide="check" class="empty-icon"></i>今天没有待推进的任务<div class="empty-hint">一切尽在掌握</div><div class="empty-action"><button class="btn btn-primary btn-sm" onclick="openAddTask()"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建任务</button></div></div>`;
+  /* UI-V18: TASK-UI-13 */
+  if (!anyTask) html += renderEmptyState({icon:'sun',title:'今日没有待办任务',desc:'点击「快速添加任务」开始安排今天的工作',action:'<div class="empty-action"><button class="btn btn-primary btn-sm" onclick="openAddTask()"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建任务</button></div>'});
   html += '</div>';
   document.getElementById('main-content').innerHTML = html;
 
@@ -177,7 +178,7 @@ function renderTaskList() {
     <div class="filter-bar" style="margin-top:-12px">${statusChips}</div>
     <div class="filter-bar" style="margin-top:-12px"><span class="filter-chip${filterAssignee==='all'?' on':''}" onclick="filterAssignee='all';render()">全部成员</span>${assigneeChips}</div>
     ${(filterProject!=='all' || filterStatus!=='all' || filterAssignee!=='all') ? `<div style="margin-top:-8px;margin-bottom:4px"><button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--text3)" onclick="filterProject='all';filterStatus='all';filterAssignee='all';localStorage.removeItem('pm_task_filters');render()">✕ 清除所有筛选</button></div>` : ''}
-    ${tasks.length ? tasks.map(t=>taskCardHTML(t)).join('') : '<div class="empty-state"><i data-lucide="search" class="empty-icon"></i>没有匹配的任务<div class="empty-hint">试试调整筛选条件</div></div>'}
+    ${tasks.length ? tasks.map(t=>taskCardHTML(t)).join('') : renderEmptyState({icon:'list-checks',title:'还没有任务',desc:'创建第一个任务来开始项目管理'})}
   </div>`;
   document.getElementById('main-content').innerHTML = html;
 }
@@ -217,7 +218,8 @@ function renderProjects() {
       ${memberAvatars?`<div style="display:flex;gap:4px;margin-top:12px">${memberAvatars}</div>`:''}
     </div>`;
   });
-  if (!state.projects.length) html += '<div class="empty-state"><i data-lucide="folder-open" class="empty-icon"></i>还没有项目<div class="empty-hint">创建项目来组织你的任务</div><div class="empty-action"><button class="btn btn-primary btn-sm" onclick="openAddProject()"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建项目</button></div></div>';
+  /* UI-V18: TASK-UI-13 */
+  if (!state.projects.length) html += renderEmptyState({icon:'folder-open',title:'还没有项目',desc:'创建项目来组织你的任务',action:'<div class="empty-action"><button class="btn btn-primary btn-sm" onclick="openAddProject()"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建项目</button></div>'});
   html += '</div></div>';
   document.getElementById('main-content').innerHTML = html;
 }
@@ -339,7 +341,7 @@ function renderCharts() {
   // Project progress bars
   let projBarsHTML = '<div class="proj-progress-list">';
   if (!state.projects.length) {
-    projBarsHTML += '<div class="empty-state" style="padding:28px 20px"><i data-lucide="bar-chart-3" class="empty-icon" style="width:32px;height:32px"></i>暂无项目数据<div class="empty-hint">创建项目后这里会展示进度</div></div>';
+    projBarsHTML += renderEmptyState({icon:'bar-chart-3',title:'暂无项目数据',desc:'创建项目后这里会展示进度'});
   } else {
     state.projects.forEach(p => {
       const tasks = state.tasks.filter(t=>t.projectId===p.id);
@@ -955,6 +957,11 @@ async function renderGantt() {
 
   const html = `<div class="view-pane">
     <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div class="gantt-week-group">
+          <button class="gantt-week-btn" onclick="ganttJumpToWeek(0)">本周</button>
+          <button class="gantt-week-btn" onclick="ganttJumpToWeek(1)">下周</button>
+        </div>
+        
       <span style="font-size:12px;color:var(--text3)">缩放：</span>
       <button class="btn btn-ghost btn-sm" onclick="setGanttZoom(20)">小</button>
       <button class="btn btn-ghost btn-sm" onclick="setGanttZoom(30)">中</button>
@@ -1476,4 +1483,27 @@ window.renderWeekGrid = function() {
   document.getElementById('main-content').innerHTML =
     '<div class="view-pane">' + tabsHtml + summaryHtml + '<div class="week-grid">' + colsHTML + '</div></div>';
   lucide.createIcons();
+};
+
+/* TASK-GANTT-WEEK-NAV */
+window.ganttJumpToWeek = function(offsetWeeks) {
+  const minDate = window._ganttMinDate;
+  if (!minDate) return;
+
+  const today = new Date();
+  const dayOfWeek = today.getDay() || 7;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - dayOfWeek + 1 + offsetWeeks * 7);
+  monday.setHours(0, 0, 0, 0);
+
+  const minDateNorm = new Date(minDate);
+  minDateNorm.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((monday - minDateNorm) / 86400000);
+
+  const scrollLeft = diffDays * ganttDayW - 16;
+
+  const rightCol = document.querySelector('#gantt-right-scroll');
+  if (rightCol) {
+    rightCol.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'smooth' });
+  }
 };

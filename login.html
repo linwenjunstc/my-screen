@@ -60,6 +60,7 @@ body {
   background: var(--sb-bg);
   z-index: 0;
   /* 微妙的噪点质感 */
+  overflow: hidden;
   background-image:
     radial-gradient(ellipse 80% 60% at 20% 50%, rgba(37,99,235,.12) 0%, transparent 70%),
     radial-gradient(ellipse 60% 80% at 80% 80%, rgba(37,99,235,.06) 0%, transparent 60%);
@@ -123,10 +124,10 @@ body {
 
 /* ── 左侧品牌区 ─────────────────────────────────────────────────── */
 .brand-panel {
-  position: fixed;
-  left: 0; top: 0; bottom: 0;
-  width: 42%;
-  z-index: 5;
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -135,106 +136,56 @@ body {
   gap: 0;
 }
 
+/* UI-V18: TASK-UI-11 */
 .brand-logo {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 56px; height: 56px;
-  margin-bottom: 24px;
-  position: relative;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 16px;
 }
-.brand-logo svg {
-  width: 56px; height: 56px;
-  position: relative;
-  z-index: 1;
-}
-.brand-logo-ring {
-  position: absolute;
-  inset: -8px;
-  border-radius: 50%;
-  border: 1px solid rgba(37,99,235,.25);
-  animation: logoPulse 3s ease-in-out infinite;
-}
-.brand-logo-ring-2 {
-  inset: -16px;
-  border-color: rgba(37,99,235,.1);
-  animation-delay: .6s;
-}
-@keyframes logoPulse {
-  0%, 100% { opacity: .5; transform: scale(1); }
-  50%       { opacity: 1; transform: scale(1.04); }
-}
-
 .brand-name {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 600;
   color: #f0ede6;
+  margin-bottom: 6px;
   letter-spacing: -.3px;
-  margin-bottom: 8px;
-  text-align: center;
 }
-.brand-sub {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--sb-text2);
-  letter-spacing: .12em;
-  text-align: center;
-  margin-bottom: 40px;
+.brand-desc {
+  font-size: 12px;
+  color: #475569;
+  margin-bottom: 24px;
+  line-height: 1.6;
 }
-
-/* 系统状态指示 */
-.status-list {
+.brand-features {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  max-width: 200px;
+  gap: 8px;
+  margin-bottom: 24px;
 }
-.status-item {
+.brand-feature {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--sb-text2);
-  letter-spacing: .04em;
+  gap: 8px;
+  font-size: 12px;
+  color: #64748b;
 }
-.status-dot {
-  width: 6px; height: 6px;
+.brand-feature-dot {
+  width: 5px; height: 5px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 6px var(--accent);
+  background: #2563eb;
   flex-shrink: 0;
-  animation: dotBlink 2.5s ease-in-out infinite;
 }
-.status-dot.amber {
-  background: #a06020;
-  box-shadow: 0 0 6px #a06020;
-  animation-delay: .5s;
-}
-.status-dot.blue {
-  background: #1a52a0;
-  box-shadow: 0 0 6px #1a52a0;
-  animation-delay: 1s;
-}
-@keyframes dotBlink {
-  0%, 100% { opacity: .5; }
-  50%       { opacity: 1; }
-}
-.status-bar-fill {
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(to right, rgba(255,255,255,.08), transparent);
-}
-
 .brand-version {
-  position: absolute;
-  bottom: 28px;
+  font-size: 10px;
+  color: #1e3a5f;
   font-family: var(--mono);
-  font-size: 9px;
-  color: var(--sb-text2);
-  letter-spacing: .08em;
-  opacity: .6;
+  letter-spacing: .06em;
 }
 
 /* ── 右侧登录表单 ────────────────────────────────────────────────── */
@@ -263,6 +214,28 @@ body {
 @keyframes cardIn {
   from { opacity: 0; transform: translateY(20px) scale(.98); }
   to   { opacity: 1; transform: none; }
+}
+
+/* UI-V18: TASK-UI-11 — card elevation */
+.login-card-inner {
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 28px 28px 24px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.1), 0 2px 8px rgba(0,0,0,.06);
+  width: 100%;
+  max-width: 320px;
+}
+.login-card-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+  letter-spacing: -.2px;
+}
+.login-card-subtitle {
+  font-size: 12px;
+  color: var(--text3);
+  margin-bottom: 20px;
 }
 
 /* 卡片顶部 teal 线 */
@@ -478,65 +451,104 @@ body {
   .bg-right { width: 100%; }
   .form-panel { width: 100%; padding: 24px; }
 }
+
+/* TASK-LOGIN-ANIM: Layer 1 — 浮动光晕球 */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+  animation: orbFloat linear infinite;
+}
+.orb-1 {
+  width: 280px; height: 280px;
+  background: radial-gradient(circle, rgba(37,99,235,.55) 0%, transparent 70%);
+  top: 5%; left: -8%;
+  animation-duration: 18s;
+  animation-delay: 0s;
+  opacity: .45;
+}
+.orb-2 {
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(79,70,229,.5) 0%, transparent 70%);
+  top: 45%; left: 15%;
+  animation-duration: 24s;
+  animation-delay: -8s;
+  opacity: .35;
+}
+.orb-3 {
+  width: 160px; height: 160px;
+  background: radial-gradient(circle, rgba(14,165,233,.45) 0%, transparent 70%);
+  top: 72%; left: -5%;
+  animation-duration: 20s;
+  animation-delay: -14s;
+  opacity: .3;
+}
+
+@keyframes orbFloat {
+  0%   { transform: translate(0, 0)        scale(1);    }
+  25%  { transform: translate(18px, -24px) scale(1.06); }
+  50%  { transform: translate(30px,  10px) scale(.96);  }
+  75%  { transform: translate(8px,   32px) scale(1.04); }
+  100% { transform: translate(0, 0)        scale(1);    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb { animation: none; }
+}
+
 </style>
 </head>
 <body>
 
 <!-- 背景 -->
-<div class="bg-left"></div>
+<div class="bg-left">
+  <!-- TASK-LOGIN-ANIM: 光晕球 -->
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <!-- TASK-LOGIN-ANIM: 粒子 canvas -->
+  <canvas id="particle-canvas" style="
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+    opacity: .7;
+  "></canvas>
+  <!-- 左侧品牌面板 -->
+  <div class="brand-panel">
+  <div class="brand-logo">PM</div>
+  <div class="brand-name">PM Board</div>
+  <div class="brand-desc">项目管理 · 资金计划<br>一站式业务协作平台</div>
+  <div class="brand-features">
+    <div class="brand-feature">
+      <div class="brand-feature-dot"></div>
+      实时任务协作与甘特图
+    </div>
+    <div class="brand-feature">
+      <div class="brand-feature-dot"></div>
+      资金台账与偏差分析
+    </div>
+    <div class="brand-feature">
+      <div class="brand-feature-dot"></div>
+      AI 智能助手（DeepSeek）
+    </div>
+  </div>
+  <div class="brand-version">V17 · Powered by DeepSeek AI</div>
+</div>
+</div>
 <div class="bg-right"></div>
 <div class="dot dot-1"></div>
 <div class="dot dot-2"></div>
 <div class="dot dot-3"></div>
 
-<!-- 左侧品牌面板 -->
-<div class="brand-panel">
-  <div class="brand-logo">
-    <div class="brand-logo-ring"></div>
-    <div class="brand-logo-ring brand-logo-ring-2"></div>
-    <svg viewBox="0 0 56 56" fill="none">
-      <circle cx="28" cy="28" r="24" stroke="rgba(37,99,235,.2)" stroke-width="1.5"/>
-      <rect x="14" y="15" width="12" height="12" rx="3" fill="rgba(37,99,235,.8)"/>
-      <rect x="30" y="15" width="12" height="12" rx="3" fill="rgba(37,99,235,.4)"/>
-      <rect x="14" y="31" width="12" height="10" rx="3" fill="rgba(37,99,235,.4)"/>
-      <rect x="30" y="31" width="12" height="10" rx="3" fill="rgba(37,99,235,.9)"/>
-    </svg>
-  </div>
-
-  <div class="brand-name">PM 协作看板</div>
-  <div class="brand-sub">COLLABORATIVE TASK MANAGER</div>
-
-  <div class="status-list">
-    <div class="status-item">
-      <div class="status-dot"></div>
-      <span>DATABASE</span>
-      <div class="status-bar-fill"></div>
-      <span style="color:rgba(37,99,235,.8)">ONLINE</span>
-    </div>
-    <div class="status-item">
-      <div class="status-dot amber"></div>
-      <span>REALTIME</span>
-      <div class="status-bar-fill"></div>
-      <span style="color:rgba(160,96,32,.8)">ACTIVE</span>
-    </div>
-    <div class="status-item">
-      <div class="status-dot blue"></div>
-      <span>SECURE</span>
-      <div class="status-bar-fill"></div>
-      <span style="color:rgba(26,82,160,.8)">ENABLED</span>
-    </div>
-  </div>
-
-  <div class="brand-version">ACCESS CONTROL v2.0 · PM BOARD v4</div>
-</div>
-
 <!-- 右侧登录表单 -->
 <div class="form-panel">
-  <div class="card">
-    <div class="card-header">
-      <div class="card-title">欢迎回来</div>
-      <div class="card-subtitle">输入你的账号和密码以继续</div>
-    </div>
+  <div class="card login-card-inner">
+    <div class="login-card-title">欢迎回来</div>
+    <div class="login-card-subtitle">输入你的账号和密码以继续</div>
 
     <div class="form-group">
       <label class="form-label">账号名</label>
@@ -663,14 +675,11 @@ try {
   // 检查 Remember Me（5 天有效）
   const _r = JSON.parse(localStorage.getItem('pm_remember') || 'null');
   if (_r && _r.expires && Date.now() < _r.expires) {
-    // 如果是退出登录后回到登录页，预填表单而不自动跳转
-    if (_r.loggedOut) {
+    // 退出登录 / 无 Session 时一律预填表单，只有 Session 有效才自动跳转
+    if (_r.loggedOut || !_s || !_s.id) {
       document.getElementById('login-user').value = _r.name || '';
       document.getElementById('login-pass').value = _r.password || '';
       document.getElementById('remember-me').checked = true;
-      // 清除 loggedOut 标记，下次可直接自动登录
-      delete _r.loggedOut;
-      localStorage.setItem('pm_remember', JSON.stringify(_r));
     } else {
       window.location.href = 'projectManage.html';
     }
@@ -858,5 +867,135 @@ async function doLogin() {
 }
 </script>
 <script>document.addEventListener("DOMContentLoaded",function(){if(typeof lucide!=="undefined")lucide.createIcons()})</script>
+
+<script>
+/* TASK-LOGIN-ANIM: Layer 2 — 粒子连线网络 */
+(function () {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const canvas = document.getElementById('particle-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const COUNT    = 22;
+  const MAX_DIST = 110;
+  const SPEED    = 0.28;
+  const R        = 1.5;
+
+  let W, H, pts = [];
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    W = canvas.width  = rect.width;
+    H = canvas.height = rect.height;
+  }
+
+  function mkPt() {
+    return {
+      x:  Math.random() * W,
+      y:  Math.random() * H,
+      vx: (Math.random() - .5) * SPEED * 2,
+      vy: (Math.random() - .5) * SPEED * 2,
+    };
+  }
+
+  function init() { resize(); pts = Array.from({ length: COUNT }, mkPt); }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    for (const p of pts) {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0 || p.x > W) p.vx *= -1;
+      if (p.y < 0 || p.y > H) p.vy *= -1;
+    }
+
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const dx = pts[i].x - pts[j].x;
+        const dy = pts[i].y - pts[j].y;
+        const d  = Math.sqrt(dx * dx + dy * dy);
+        if (d < MAX_DIST) {
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(148,163,184,${((1 - d / MAX_DIST) * .22).toFixed(3)})`;
+          ctx.lineWidth = .6;
+          ctx.moveTo(pts[i].x, pts[i].y);
+          ctx.lineTo(pts[j].x, pts[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    for (const p of pts) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, R, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(148,163,184,.42)';
+      ctx.fill();
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  let t;
+  window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(resize, 150); });
+
+  init();
+  draw();
+})();
+</script>
+
+<script>
+/* TASK-LOGIN-ANIM: Layer 3 — 登录卡视差跟随 */
+(function () {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const card = document.querySelector('.login-card-inner')
+             || document.querySelector('.login-box')
+             || document.querySelector('form');
+  if (!card) return;
+
+  const MAX_TILT  = 3;
+  const MAX_SHIFT = 5;
+  const EASE      = 0.08;
+
+  let tRx = 0, tRy = 0, tTx = 0, tTy = 0;
+  let cRx = 0, cRy = 0, cTx = 0, cTy = 0;
+
+  card.style.willChange = 'transform';
+
+  function onMove(e) {
+    const nx = (e.clientX / window.innerWidth)  * 2 - 1;
+    const ny = (e.clientY / window.innerHeight) * 2 - 1;
+    tRx = -ny * MAX_TILT;
+    tRy =  nx * MAX_TILT;
+    tTx =  nx * MAX_SHIFT;
+    tTy =  ny * MAX_SHIFT;
+  }
+
+  function onLeave() { tRx = tRy = tTx = tTy = 0; }
+
+  function tick() {
+    cRx += (tRx - cRx) * EASE;
+    cRy += (tRy - cRy) * EASE;
+    cTx += (tTx - cTx) * EASE;
+    cTy += (tTy - cTy) * EASE;
+    card.style.transform =
+      `perspective(900px) rotateX(${cRx.toFixed(3)}deg) rotateY(${cRy.toFixed(3)}deg) translate(${cTx.toFixed(2)}px,${cTy.toFixed(2)}px)`;
+    requestAnimationFrame(tick);
+  }
+
+  let last = 0;
+  document.addEventListener('mousemove', e => {
+    const now = Date.now();
+    if (now - last < 16) return;
+    last = now;
+    onMove(e);
+  });
+  document.addEventListener('mouseleave', onLeave);
+
+  tick();
+})();
+</script>
+
 </body>
 </html>

@@ -1,4 +1,4 @@
-/* ════════════════════════════════════════════════
+﻿/* ════════════════════════════════════════════════
  * finance-core.js  —  finState / init / auth / loadAll / helpers / tab routing
  * ════════════════════════════════════════════════ */
 
@@ -220,7 +220,7 @@ function switchTab(tab){
   var allowed = typeof getEffectiveMenuPerms === 'function' ? getEffectiveMenuPerms() : [];
   if (permKey && !allowed.includes(permKey)) {
     // 切换到第一个有权限的 Tab
-    var tabs = ['t1','receipt','payment','t4','t5','t6','dashboard'];
+    var tabs = ['t1','receipt','payment','t4','t5','t6','dashboard','contracts','customers','suppliers'];
     var found = false;
     for (var i = 0; i < tabs.length; i++) {
       var pk = TAB_PERM_MAP[tabs[i]];

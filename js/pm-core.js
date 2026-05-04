@@ -137,16 +137,51 @@ const TAG_PALETTES = [
 ];
 const PROJ_COLORS = ['#2e7dd1','#27ae60','#d4842a','#e74c3c','#8b4de8','#0ea57c','#e04080','#c06020','#a8a59e'];
 
+/* UI-V18: TASK-UI-10 */
+window.renderAvatar = function(member, sizeClass) {
+  if (!member) return '';
+  sizeClass = sizeClass || '';
+  var initial = (member.name || '?').charAt(0).toUpperCase();
+  var colorIdx = member.colorIdx || 0;
+  var bg = MEMBER_COLORS[colorIdx % MEMBER_COLORS.length];
+  return '<span class="avatar ' + sizeClass + '" style="background:' + bg + '" title="' + escHtml(member.name || '') + '">' + escHtml(initial) + '</span>';
+};
+
+/* UI-V18: TASK-UI-13 */
+window.renderEmptyState = function(opts) {
+  opts = opts || {};
+  var icon = opts.icon || 'inbox';
+  var title = opts.title || '暂无数据';
+  var desc = opts.desc || '';
+  var action = opts.action || '';
+  return '<div class="empty-state">' +
+    '<div class="empty-state-icon"><i data-lucide="' + escHtml(icon) + '" style="width:22px;height:22px"></i></div>' +
+    '<div class="empty-state-title">' + escHtml(title) + '</div>' +
+    (desc ? '<div class="empty-state-desc">' + escHtml(desc) + '</div>' : '') +
+    action +
+    '</div>';
+};
+
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 
 // 【读取】从云端获取最新数据
 let _loadingState = false;
 let _lastLoadTime = 0;
+/* UI-V18: TASK-UI-14 */
+function renderSkeleton() {
+  var content = document.getElementById('main-content');
+  if (content && !content.children.length) {
+    var card = '<div class="skeleton-card"><div class="skeleton skeleton-line medium"></div><div class="skeleton skeleton-line short thin"></div></div>';
+    content.innerHTML = card + card + card + card + card;
+  }
+}
+
 async function loadState(force) {
   if (_loadingState) return;
   if (!force && Date.now() - _lastLoadTime < 800) return;
   _loadingState = true;
+  renderSkeleton();
   try {
     const [tasksRes, projsRes, memsRes, tagsRes] = await Promise.all([
       sb.from('tasks').select('*'),
@@ -971,6 +1006,8 @@ function switchView(v) {
   }
   currentView = v;
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  const matchedNav = document.querySelector('.nav-item[data-view="' + v + '"]');
+  if (matchedNav) matchedNav.classList.add('active');
 
   const setDisplay = (id, val) => {
     const el = document.getElementById(id);

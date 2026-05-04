@@ -2,8 +2,9 @@
  * finance-base.js  —  资金看板 / 合同库 / 客户库 / 供应商库 / deleteRow / finLogAction / modal utils
  * ════════════════════════════════════════════════ */
 
-//  基础库配置弹框
+// TASK-FIN-BASE-NAV: deprecated — 库入口已移至侧边栏导航，此函数暂保留防止遗漏调用报错
 function openBaseLibModal(){
+  console.warn('openBaseLibModal is deprecated, use switchTab instead');
   var allowed = typeof getEffectiveMenuPerms === 'function' ? getEffectiveMenuPerms() : [];
   var hasInfo = allowed.includes('basic_info');
   var libs = [
@@ -349,7 +350,7 @@ function renderContracts(){
         <td style="font-size:12px;color:var(--text3)">${escHtml(r.remark||'—')}</td>
       </tr>`;
     }
-  }).join('') : `<tr><td colspan="${isUp?15:7}"><div class="empty"><i data-lucide="file-text" class="empty-icon"></i>暂无合同，点击右上角新增</div></td></tr>`;
+  }).join('') : `<tr><td colspan="${isUp?15:7}">${renderEmptyState({icon:'file-text',title:'暂无合同',desc:'请点击右上角按钮新增合同'})}</td></tr>`;
 
   // ── Pagination HTML ──
   let pageHTML = '';
@@ -950,7 +951,7 @@ function renderCustomers(){
       <td style="font-size:12px;color:var(--text3)">${r.remark || '—'}</td>
     </tr>`;
   }).join('')
-  : `<tr><td colspan="9"><div class="empty"><i data-lucide="users" class="empty-icon"></i>${custName ? '无匹配客户' : '暂无客户，点击右上角新增'}</div></td></tr>`;
+  : `<tr><td colspan="9">${renderEmptyState({icon:'users',title:custName?'无匹配客户':'暂无客户',desc:custName?'请尝试其他搜索条件':'请点击右上角按钮新增客户'})}</td></tr>`;
 
   // 筛选行
   const filterHTML = `<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
@@ -1116,7 +1117,7 @@ function renderSuppliers(){
       <td style="font-family:var(--mono);font-size:12px">${escHtml(r.phone||'—')}</td>
       <td style="font-size:12px;color:var(--text3)">${escHtml(r.remark||'—')}</td>
     </tr>`).join('')
-    :`<tr><td colspan="6"><div class="empty"><i data-lucide="building" class="empty-icon"></i>暂无供应商，点击右上角新增</div></td></tr>`;
+    :`<tr><td colspan="6">${renderEmptyState({icon:'building',title:'暂无供应商',desc:'请点击右上角按钮新增供应商'})}</td></tr>`;
 
   const filterHTML = `<div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
     <input class="form-input" id="f-supplier-name" placeholder="供应商名称..." style="width:200px;padding:5px 10px;font-size:12px" value="${window._filters.supplier_name||''}">
