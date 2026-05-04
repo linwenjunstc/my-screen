@@ -948,3 +948,135 @@ function _aiCanManagePerms() {
 | `finance-t1.js` | 2 | `company_name`, `dept_name` |
 | `finance-t2.js` | 2 | `c.name`, `customer_name` |
 | `finance-t3.js` | 2 | `s.name`, `supplier_name` |
+
+---
+
+## V17 迭代更新（2026-05-04）
+
+### 1. PM 侧边栏激活状态修复
+
+**位置**：`pm-core.js` — `switchView()`
+
+**问题**：PM 侧边栏菜单项点击后不显示激活色（active class 丢失），而 Finance 侧边栏正常。
+
+**根因**：`switchView()` 移除了所有 `.nav-item` 的 `active` class 后没有恢复，而 Finance 的 `switchTab()` 使用 `classList.toggle('active', t===tab)` 模式。
+
+**修复**：
+```js
+currentView = v;
+document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+const matchedNav = document.querySelector('.nav-item[data-view="' + v + '"]');
+if (matchedNav) matchedNav.classList.add('active');
+```
+
+### 2. 看板任务完成双重刷新修复
+
+**位置**：`pm-tasks.js` — `toggleDone()` / `toggleSubtask()`
+
+**问题**：勾选任务完成时，`render()` 和 Supabase 实时回调 `loadState()` → `render()` 竞态导致连续两次刷新。
+
+**修复**：在 `toggleDone()` 和 `toggleSubtask()` 的 `render()` 调用前设置 `_lastLoadTime = Date.now()`，利用 `loadState()` 中 800ms 防抖阻止实时回调的二次渲染。
+
+```js
+// toggleDone (line 70):
+await syncTask(t);
+_lastLoadTime = Date.now();  // 阻止实时 loadState 800ms 内二次触发
+render();
+
+// toggleSubtask (line 82):
+syncTask(t);
+_lastLoadTime = Date.now();
+renderModalSubtasks(taskId);
+```
+
+### 3. 登录页刷新闪烁修复
+
+**位置**：`login.html`
+
+**问题**：刷新登录页时在 `login.html` 和 `projectManage.html` 之间无限跳转闪烁。
+
+**根因**：退出登录时 `pm_remember` 设置 `loggedOut: true`。login.html 检测到此标记后预填表单，然后**清除了 `loggedOut` 标记**并保存。下次刷新时 `loggedOut` 已消失 → 自动跳转 projectManage.html → 无有效 session → 跳回 login.html → 无限循环。
+
+**修复**：预填表单时**不再清除** `loggedOut` 标记，仅 `doLogin()` 登录成功后才清除。
+
+```js
+// 修复后：loggedOut 或 无有效 session → 仅预填表单，不清除 loggedOut
+if (_r.loggedOut || !_s || !_s.id) {
+  document.getElementById('login-user').value = _r.name || '';
+  document.getElementById('login-pass').value = _r.password || '';
+  document.getElementById('remember-me').checked = true;
+} else {
+  window.location.href = 'projectManage.html';
+}
+```
+
+### 4. TASK-LOGIN-ANIM · 登录页 3 层动态视觉效果
+
+**位置**：`login.html`
+
+**Layer 1 — 光晕球**：3 个 CSS 渐变大 orb（蓝/靛/天蓝），`@keyframes orbFloat` 漂浮动画（18s/24s/20s 不同周期），`filter: blur(60px)` 模糊效果。降动画偏好时 `animation: none`。
+
+**Layer 2 — 粒子网络**：Canvas + requestAnimationFrame，22 个粒子在左侧面板内移动并距离 < 110px 时连线（透明度随距离衰减），灰蓝色调。窗口 resize 防抖 150ms 重建。
+
+**Layer 3 — 卡片视差**：mousemove 驱动 `.login-card-inner` 的 3D 倾斜（max 3°）+ 位移（max 5px），ease 缓动系数 0.08。throttle 到 60fps。
+
+**HTML 结构调整**：`.brand-panel` 移入 `.bg-left` 内部，CSS 从 `position: fixed` 改为 `position: relative; z-index: 2`。`.bg-left` 新增 `overflow: hidden`。
+
+### 5. TASK-FIN-BASE-NAV · 基础库升级为侧边栏主导航
+
+**位置**：`projectManage.html`、`finance-core.js`、`finance-base.js`
+
+**变更**：合同库/客户库/供应商库从隐藏弹窗（`openBaseLibModal()`）提升为 Finance 侧边栏一级导航项。
+
+**HTML**（`projectManage.html`）：在资金看板按钮后添加 `.sb-section` 分隔标题「基础库」和 3 个 `.sb-item` 按钮（`tab-contracts` / `tab-customers` / `tab-suppliers`），各有独立 SVG 图标。底部按钮从「基础库配置」改为「基础信息配置」（`openBasicInfoModal()`）。
+
+**JS 适配**：
+- `finance-core.js` `switchTab()` fallback 数组新增 `'contracts','customers','suppliers'`
+- `finance-base.js` `openBaseLibModal()` 标记为 deprecated（保留函数体防止旧调用报错）
+- `TAB_PERM_MAP`、`finRender()`、`TAB_TITLES`、`ADD_LABELS` 已天然支持这些 tab key，无需新增渲染函数
+
+### 6. TASK-GANTT-WEEK-NAV · 甘特图周导航快捷跳转
+
+**位置**：`js/pm-views.js`、`css/pm.css`
+
+**HTML**：甘特图工具栏新增 `[今天] [本周] [下周]` 胶囊按钮组（`.gantt-week-group`），「今天」复用 `ganttScrollToday()`，「本周」「下周」使用 `ganttJumpToWeek(0/1)`。
+
+**JS**：新增 `window.ganttJumpToWeek(offsetWeeks)` 函数：
+- 读取 `window._ganttMinDate` 和全局 `ganttDayW`
+- 计算目标周周一（`getDay() || 7` 将周日转 7，周一起始）
+- 全程使用本地时间方法，不使用 `toISOString()`
+- `scrollLeft = diffDays * ganttDayW - 16`，容器为 `#gantt-right-scroll`
+- `scrollTo({ behavior: 'smooth' })` 平滑滚动，`Math.max(0, scrollLeft)` 保护
+
+**CSS**：`.gantt-week-group`（inline-flex + 圆角边框）+ `.gantt-week-btn`（透明背景 + hover 高亮 + active 缩放）
+
+### 8. Edit 工具中文文件处理约定
+
+**位置**：`CLAUDE.md` 已知注意事项
+
+**发现**：Windows 环境下 Edit 工具对含中文或混合 tab/space 缩进的文件匹配不稳定。
+
+**策略**：修改 `projectManage.html`、`pm-views.js`、`login.html` 等含中文文件时，优先使用 PowerShell `[System.IO.File]::ReadAllText/WriteAllText` 做替换，Encoding UTF8。
+
+### 9. 资金计划页面移除新建任务等 PM 专属按钮
+
+**位置**：`projectManage.html` — `updateHeaderForModule()`
+
+**问题**：从 PM 任务/项目视图切换到资金计划时，`#header-add-btn`（新建任务）、`#header-add-proj-btn`（新建项目）、`#header-gantt-today-btn`（甘特图今天）、`#task-search-wrap`（任务搜索）等 PM 专属按钮未被隐藏。
+
+**修复**：`updateHeaderForModule()` 中在切换模块时统一隐藏所有 PM 专属顶部按钮。切换到 PM 时由 `switchView()` 负责按需显示正确的按钮。
+
+### 新增全局函数
+
+| 函数 | 位置 | 说明 |
+|------|------|------|
+| `ganttJumpToWeek(offsetWeeks)` | pm-views.js | 甘特图跳转到本周(0)/下周(1)周一位置 |
+
+### 新增 CSS class
+
+| Class | 文件 | 说明 |
+|-------|------|------|
+| `.gantt-week-group` | pm.css | 周导航胶囊容器 |
+| `.gantt-week-btn` | pm.css | 周导航按钮 |
+| `.orb` / `.orb-1~3` | login.html | 登录页光晕球 |
+| `#particle-canvas` | login.html | 粒子网络画布 |

@@ -229,7 +229,6 @@
         <button class="btn btn-ghost btn-sm" id="header-export-btn" onclick="exportCSV()" style="display:none"><i data-lucide="download" style="width:13px;height:13px;margin-right:3px"></i>导出 CSV</button>
         <button class="btn btn-primary btn-sm" id="header-add-btn" onclick="openAddTask()" style="display:none"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建任务</button>
         <button class="btn btn-primary btn-sm" id="header-add-proj-btn" onclick="openAddProject()" style="display:none"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建项目</button>
-        <button class="btn btn-ghost btn-sm" id="header-gantt-today-btn" onclick="ganttScrollToday()" style="display:none">今天</button>
         <!-- Finance header buttons -->
         <button class="btn btn-green btn-sm" id="export-btn" onclick="exportXlsx()" style="display:none"><i data-lucide="download" style="width:13px;height:13px;margin-right:3px"></i>导出 Excel</button>
         <button class="btn btn-primary btn-sm" id="add-btn" onclick="openAddModal()" style="display:none"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新增</button>
@@ -426,7 +425,7 @@ function updateHeaderForModule(mod) {
   });
 
   // 资金计划页面不需要 PM 的新建任务/项目等按钮
-  const pmOnlyElements = ['header-add-btn', 'header-add-proj-btn', 'header-gantt-today-btn', 'task-search-wrap'];
+  const pmOnlyElements = ['header-add-btn', 'header-add-proj-btn', 'task-search-wrap'];
   pmOnlyElements.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';

@@ -1018,7 +1018,6 @@ function switchView(v) {
   setDisplay('header-add-btn', (v === 'tasks' || v.startsWith('project-')) ? 'block' : 'none');
   setDisplay('header-add-proj-btn', v === 'projects' ? 'block' : 'none');
   setDisplay('header-export-btn', v === 'tasks' ? 'block' : 'none');
-  setDisplay('header-gantt-today-btn', v === 'gantt' ? 'block' : 'none');
 
   searchQuery = '';
   const inp = document.getElementById('task-search-input');
