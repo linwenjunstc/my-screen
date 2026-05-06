@@ -1,4 +1,4 @@
-/* ════════════════════════════════════════════════
+﻿/* ════════════════════════════════════════════════
  * pm-projects.js  —  项目 CRUD
  * ════════════════════════════════════════════════ */
 
@@ -26,7 +26,7 @@ function openAddProject() {
   openModal(`${modalHeader('新建项目')}
     <div class="modal-body">
       <div class="form-group">
-        <label class="form-label">项目名称</label>
+        <label class="form-label">项目名称 <span style="color:var(--red)">*</span></label>
         <input class="form-input" id="fi-pname" placeholder="输入项目名称...">
       </div>
       <div class="form-group">
@@ -36,7 +36,7 @@ function openAddProject() {
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">项目成员</label>
+        <label class="form-label">项目成员 <span style="color:var(--red)">*</span></label>
         <div id="new-proj-member-list" style="margin-bottom:10px">${buildNewProjMemberListHTML()}</div>
         <div style="display:flex;gap:8px">
           <select class="form-select" id="new-proj-member-sel" style="flex:1">
@@ -90,7 +90,17 @@ function selectProjColor(idx, mode) {
 
 async function submitAddProject(btn) {
   const name = document.getElementById('fi-pname').value.trim();
-  if (!name) return;
+  let hasError = false;
+  if (!name) { document.getElementById('fi-pname').style.borderColor='var(--red)'; hasError = true; }
+
+  const members = window._newProjMembers || [];
+  if (!members.length) {
+    const listEl = document.getElementById('new-proj-member-list');
+    if (listEl) listEl.style.border = '2px dashed var(--red)';
+    hasError = true;
+  }
+
+  if (hasError) return;
   setLoading(btn, true);
   const p = {
     id: uid(), name,
@@ -135,7 +145,7 @@ function openEditProject(id) {
   openModal(`${modalHeader('编辑项目')}
     <div class="modal-body">
       <div class="form-group">
-        <label class="form-label">项目名称</label>
+        <label class="form-label">项目名称 <span style="color:var(--red)">*</span></label>
         <input class="form-input" id="fi-pname" value="${p.name}">
       </div>
       <div class="form-group">
@@ -145,7 +155,7 @@ function openEditProject(id) {
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">项目成员</label>
+        <label class="form-label">项目成员 <span style="color:var(--red)">*</span></label>
         <div id="proj-member-list" style="margin-bottom:10px">${joinedMembersHTML || '<div style="font-size:12px;color:var(--text3)">暂无成员</div>'}</div>
         <div style="display:flex;gap:8px">
           <select class="form-select" id="proj-add-member-sel" style="flex:1">
@@ -224,3 +234,111 @@ async function confirmDeleteProject(id) {
     }
   }, {danger: true, confirmLabel: '删除'});
 }
+
+
+// ─── V20 模块管理 ─────────────────────────────────────────────────────
+window.openAddModule = function(projectId) {
+  if (!isAdmin() && !getEffectiveMenuPerms().includes('add_task')) {
+    toast('权限不足', 'error'); return;
+  }
+  openModal(modalHeader('新建模块') +
+    '<div class="modal-body">' +
+      '<div class="form-group">' +
+        '<label class="form-label">模块名称 <span style="color:var(--red)">*</span></label>' +
+        '<input class="form-input" id="mod-name" placeholder="例如：设计阶段、开发阶段...">' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label class="form-label">模块描述（可选）</label>' +
+        '<textarea class="form-input" id="mod-desc" rows="2" placeholder="简要描述本模块的工作内容"></textarea>' +
+      '</div>' +
+    '</div>' +
+    '<div class="modal-footer">' +
+      '<div></div>' +
+      '<div style="display:flex;gap:8px">' +
+        '<button class="btn btn-ghost" onclick="closeModal()">取消</button>' +
+        '<button class="btn btn-primary" onclick="submitAddModule(this,\'' + projectId + '\')">创建</button>' +
+      '</div>' +
+    '</div>'
+  );
+  setTimeout(function() { var el = document.getElementById('mod-name'); if (el) el.focus(); }, 80);
+};
+
+window.submitAddModule = async function(btn, projectId) {
+  var name = (document.getElementById('mod-name').value || '').trim();
+  if (!name) { document.getElementById('mod-name').style.borderColor = 'var(--red)'; return; }
+  var desc = (document.getElementById('mod-desc') || {}).value || '';
+  var existing = state.modules.filter(function(m) { return m.projectId === projectId; });
+  var maxOrder = existing.reduce(function(acc, m) { return Math.max(acc, m.sortOrder || 0); }, -1);
+  var mod = {
+    id: uid(), projectId: projectId, project_id: projectId,
+    name: name, description: desc, sortOrder: maxOrder + 1, sort_order: maxOrder + 1
+  };
+  setLoading(btn, true);
+  var ok = await syncModule(mod);
+  if (!ok) { setLoading(btn, false); return; }
+  state.modules.push(mod);
+  setLoading(btn, false);
+  closeModal();
+  render();
+  toast('模块已创建', 'success');
+  var proj = state.projects.find(function(p) { return p.id === projectId; });
+  logAction('添加模块', '新建模块「' + name + '」，项目「' + (proj ? proj.name : projectId) + '」');
+};
+
+window.openEditModule = function(moduleId) {
+  var mod = state.modules.find(function(m) { return m.id === moduleId; });
+  if (!mod) return;
+  var canDelete = isAdmin();
+  var taskCount = state.tasks.filter(function(t) { return t.moduleId === moduleId; }).length;
+  openModal(modalHeader('编辑模块') +
+    '<div class="modal-body">' +
+      '<div class="form-group">' +
+        '<label class="form-label">模块名称 <span style="color:var(--red)">*</span></label>' +
+        '<input class="form-input" id="mod-name" value="' + escHtml(mod.name) + '">' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label class="form-label">模块描述</label>' +
+        '<textarea class="form-input" id="mod-desc" rows="2">' + escHtml(mod.description || '') + '</textarea>' +
+      '</div>' +
+    '</div>' +
+    '<div class="modal-footer">' +
+      (canDelete ? '<button class="btn btn-danger" onclick="confirmDeleteModule(\'' + moduleId + '\')">删除模块</button>' : '<div></div>') +
+      '<button class="btn btn-primary" onclick="submitEditModule(\'' + moduleId + '\')">保存修改</button>' +
+    '</div>'
+  );
+};
+
+window.submitEditModule = async function(moduleId) {
+  var mod = state.modules.find(function(m) { return m.id === moduleId; });
+  if (!mod) return;
+  var name = (document.getElementById('mod-name').value || '').trim();
+  if (!name) { document.getElementById('mod-name').style.borderColor = 'var(--red)'; return; }
+  mod.name = name;
+  mod.description = (document.getElementById('mod-desc') || {}).value || '';
+  var ok = await syncModule(mod);
+  if (!ok) return;
+  closeModal(); render();
+  toast('模块已更新', 'success');
+  logAction('编辑模块', '更新模块「' + name + '」');
+};
+
+window.confirmDeleteModule = async function(moduleId) {
+  var mod = state.modules.find(function(m) { return m.id === moduleId; });
+  if (!mod) return;
+  var taskCount = state.tasks.filter(function(t) { return t.moduleId === moduleId; }).length;
+  var msg = taskCount > 0
+    ? '该模块下有 ' + taskCount + ' 个任务，删除后将归入未分类。确认删除？'
+    : '确认删除模块「' + mod.name + '」？';
+  showConfirm('删除模块', msg, async function() {
+    var success = await deleteFromCloud('modules', moduleId);
+    if (success) {
+      state.tasks.forEach(function(t) {
+        if (t.moduleId === moduleId) { t.moduleId = null; t.module_id = null; }
+      });
+      state.modules = state.modules.filter(function(m) { return m.id !== moduleId; });
+      closeModal(); render();
+      toast('模块已删除', 'success');
+      logAction('删除模块', '删除模块「' + mod.name + '」（含 ' + taskCount + ' 个任务）');
+    }
+  }, { danger: true, confirmLabel: '删除' });
+};

@@ -223,8 +223,8 @@ async function renderDashboard(){
 window._contractTab='up';
 // ── 合同库 ──────────────────────────────────────────────────────────────────
 window._contractTab  = 'up';
-window._contractYear = new Date().getFullYear().toString();
-window._revenueYear  = new Date().getFullYear().toString();
+window._contractYear = 'all';
+window._revenueYear  = 'all';
 
 // 计算对上合同的所有营收指标
 // 年累计 = actual_receipts 中 upstream_contract_id 匹配的当年收款汇总（自动，只读）
@@ -249,8 +249,8 @@ function computeContractRevenue(r, year){
 function renderContracts(){
   const tab   = window._contractTab || 'up';
   const isUp  = tab === 'up';
-  const year  = window._contractYear || new Date().getFullYear().toString();
-  const revYear = window._revenueYear || new Date().getFullYear().toString();
+  const year  = window._contractYear || 'all';
+  const revYear = window._revenueYear || 'all';
 
   // Init pagination state
   if (!window._pageSize) window._pageSize = 20;
@@ -269,19 +269,19 @@ function renderContracts(){
   const curY = new Date().getFullYear();
   for(let y=curY-2;y<=curY+2;y++) if(!existYears.includes(String(y))) existYears.push(String(y));
   existYears.sort();
-  const yearOpts = existYears.map(y=>`<option value="${y}" ${y===year?'selected':''}>${y}年</option>`).join('');
+  const yearOpts = `<option value="all" ${year==='all'?'selected':''}>全部年份</option>` + existYears.map(y=>`<option value="${y}" ${y===year?'selected':''}>${y}年</option>`).join('');
 
   // 营收确认维度年份下拉
   const existRevYears = [...new Set(finState.contractsUp.map(r=>r.revenue_assessment_year||'').filter(Boolean))];
   for(let y=curY-2;y<=curY+2;y++) if(!existRevYears.includes(String(y))) existRevYears.push(String(y));
   existRevYears.sort();
-  const revYearOpts = existRevYears.map(y=>`<option value="${y}" ${y===revYear?'selected':''}>${y}年</option>`).join('');
+  const revYearOpts = `<option value="all" ${revYear==='all'?'selected':''}>全部年份</option>` + existRevYears.map(y=>`<option value="${y}" ${y===revYear?'selected':''}>${y}年</option>`).join('');
 
   // 对上合同：按两个考核周期筛选
   let rawRows = isUp
     ? finState.contractsUp.filter(r => {
-        const matchSign = !r.assessment_year || r.assessment_year === year;
-        const matchRev  = !r.revenue_assessment_year || r.revenue_assessment_year === revYear;
+        const matchSign = year === 'all' || r.assessment_year === year;
+        const matchRev  = revYear === 'all' || r.revenue_assessment_year === revYear;
         return matchSign && matchRev;
       })
     : finState.contractsDown;

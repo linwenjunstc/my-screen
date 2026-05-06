@@ -40,6 +40,17 @@
       </div>
       <div class="logo-sub" id="sidebar-date-label">加载中...</div>
     </div>
+    <!-- 模块切换 -->
+    <div class="sb-module-switch" id="sb-switch-pm">
+      <button class="sb-mod-btn active" id="sb-mod-btn-pm" onclick="switchModule('pm')">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+        项目管理
+      </button>
+      <button class="sb-mod-btn" id="sb-mod-btn-finance" onclick="switchModule('finance')">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="9" width="4" height="6" rx="1"/><rect x="6" y="5" width="4" height="10" rx="1"/><rect x="11" y="1" width="4" height="14" rx="1"/></svg>
+        资金计划
+      </button>
+    </div>
     <div class="sidebar-date">导航</div>
     <nav class="sidebar-nav">
       <button class="nav-item active" data-view="today" data-menu-key="today" onclick="switchView('today')">
@@ -78,6 +89,17 @@
     <div class="sb-logo">
       <div class="sb-logo-text"><div class="sb-logo-icon">PM</div>PM Board</div>
       <div class="sb-sub" id="sb-dept-name">资金计划模块</div>
+    </div>
+    <!-- 模块切换 -->
+    <div class="sb-module-switch" id="sb-switch-fin">
+      <button class="sb-mod-btn" id="sb-mod-btn-pm2" onclick="switchModule('pm')">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+        项目管理
+      </button>
+      <button class="sb-mod-btn active" id="sb-mod-btn-finance2" onclick="switchModule('finance')">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="9" width="4" height="6" rx="1"/><rect x="6" y="5" width="4" height="10" rx="1"/><rect x="11" y="1" width="4" height="14" rx="1"/></svg>
+        资金计划
+      </button>
     </div>
     <div class="month-picker">
       <div class="month-label">月份</div>
@@ -126,9 +148,9 @@
 
   <!-- ══════════ 主内容区 ══════════ -->
   <main class="main">
-    <!-- Top tab bar -->
+    <!-- Top tab bar (模块切换已移至侧边栏；此处仅保留工具区) -->
     <div class="top-tab-bar" id="top-tab-bar">
-      <div class="top-tab-group">
+      <div class="top-tab-group" style="display:none">
         <button class="top-tab active" id="top-tab-pm" onclick="switchModule('pm')"><i data-lucide="list-todo" style="width:15px;height:15px"></i>项目管理</button>
         <button class="top-tab" id="top-tab-finance" onclick="switchModule('finance')"><i data-lucide="landmark" style="width:15px;height:15px"></i>资金计划</button>
       </div>
@@ -389,6 +411,14 @@ window.switchModule = function(mod) {
   const finSidebar = document.getElementById('sidebar-finance');
   const topTabPM = document.getElementById('top-tab-pm');
   const topTabFin = document.getElementById('top-tab-finance');
+
+  // 同步侧边栏模块切换按钮 active 状态
+  document.querySelectorAll('.sb-mod-btn').forEach(b => b.classList.remove('active'));
+  if (mod === 'pm') {
+    ['sb-mod-btn-pm','sb-mod-btn-pm2'].forEach(id => { const el=document.getElementById(id); if(el) el.classList.add('active'); });
+  } else {
+    ['sb-mod-btn-finance','sb-mod-btn-finance2'].forEach(id => { const el=document.getElementById(id); if(el) el.classList.add('active'); });
+  }
 
   if (mod === 'pm') {
     pmSidebar.style.display = 'flex';

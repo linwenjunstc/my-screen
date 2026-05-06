@@ -248,7 +248,7 @@ async function refreshLogsList() {
   // 节点样式映射
   function getTlDotClass(action) {
     if (!action) return 'dot-sys';
-    if (['添加任务','添加子任务','添加项目','添加成员','添加标签',
+    if (['添加任务','添加子任务','添加项目','添加模块','添加成员','添加标签',
          '新增收款记录','新增付款明细','新增实际收款','新增实际支付',
          '新增对上合同','新增对下合同','新增客户','新增供应商'].includes(action)) return 'dot-add';
     if (['完成任务','完成子任务'].includes(action)) return 'dot-done';

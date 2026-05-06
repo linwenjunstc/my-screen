@@ -4,7 +4,7 @@
  * ════════════════════════════════════════════════ */
 
 /* ── Finance sidebar (class names differ from PM's .nav-*) ────── */
-.sidebar.fin-sidebar { width: 204px; }
+.sidebar.fin-sidebar { width: var(--sidebar-w); }
 .sb-logo { padding: 16px 16px 12px; border-bottom: 1px solid var(--sb-border); }
 .sb-logo-text { font-size: 13px; font-weight: 600; color: #f0ede6; display: flex; align-items: center; gap: 8px; }
 /* UI-V18: TASK-UI-06 */

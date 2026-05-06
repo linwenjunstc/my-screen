@@ -1,4 +1,4 @@
-/* ════════════════════════════════════════════════
+﻿/* ════════════════════════════════════════════════
  * pm-tasks.js  —  任务卡片 / 增删改 / 子任务 / 依赖 / 任务日志
  * ════════════════════════════════════════════════ */
 
@@ -7,8 +7,15 @@ function taskCardHTML(t) {
   const priCls=t.priority==='紧急'?'pill-red':t.priority==='重要'?'pill-amber':'pill-gray';
   const showProj = currentView!=='project-'+t.projectId;
   const blocked = isBlocked(t);
-  const assigneeMember = t.assignee ? state.members.find(m=>m.id===t.assignee) : null;
-  const assigneeHTML = assigneeMember ? renderAvatar(assigneeMember, 'avatar-sm') : '';
+  const assigneeIds = t.assignees && t.assignees.length ? t.assignees : (t.assignee ? [t.assignee] : []);
+  const assigneeMembers = assigneeIds.map(function(id) { return state.members.find(function(m) { return m.id === id; }); }).filter(Boolean);
+  var assigneeHTML = '';
+  if (assigneeMembers.length <= 3) {
+    assigneeHTML = assigneeMembers.map(function(m) { return renderAvatar(m, 'avatar-sm'); }).join('');
+  } else {
+    assigneeHTML = assigneeMembers.slice(0, 2).map(function(m) { return renderAvatar(m, 'avatar-sm'); }).join('') +
+      '<span class="avatar-extra" title="' + assigneeMembers.slice(2).map(function(m) { return escHtml(m.name); }).join(', ') + '">+' + (assigneeMembers.length - 2) + '</span>';
+  }
   const tagPills = (t.tags||[]).map(tid=>tagHTML(tid)).join('');
   const subProg = subtaskProgress(t);
   const milestoneBadge = t.milestone ? '<span class="pill pill-amber" style="font-size:10px">◆ 里程碑</span>' : '';
@@ -67,6 +74,12 @@ async function toggleDone(id) {
       addTimelineEntry(t, '重新打开', '重新打开任务');
     }
     await syncTask(t);
+    if (t.done && !wasDone && typeof pushNotification === 'function' && t.assignee) {
+      pushNotification({ recipientId:t.assignee, type:'task_done',
+        title:'「' + t.title + '」已完成',
+        body:(currentUser?.name||'系统') + ' 标记此任务为已完成',
+        navType:'task', navId:t.id });
+    }
     _lastLoadTime = Date.now();
     render();
     if (t.done) logAction('完成任务', `标记「${t.title}」为已完成`);
@@ -140,10 +153,97 @@ function modalHeader(title) {
   return `<div class="modal-header"><span class="modal-title">${title}</span><button class="modal-close" onclick="closeModal()"><i data-lucide="x"></i></button></div>`;
 }
 
+// ─── V20 模块辅助 ──────────────────────────────────────────────────────────────
+function getModuleOptsForProject(projectId) {
+  var mods = state.modules.filter(function(m) { return m.projectId === projectId; });
+  return mods.map(function(m) {
+    return '<option value="' + m.id + '">' + escHtml(m.name) + '</option>';
+  }).join('');
+}
+
+window.updateModuleOpts = function(projectId) {
+  var sel = document.getElementById('fi-module');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">不归类</option>' + getModuleOptsForProject(projectId);
+};
+
+// ─── V20 Multi-select assignee helpers ─────────────────────────────────────────
+function buildTaskAssigneeListHTML() {
+  if (!window._newTaskAssignees || !window._newTaskAssignees.length) return '<div style="font-size:12px;color:var(--text3)">暂未选择</div>';
+  return window._newTaskAssignees.map(function(mid) {
+    var m = state.members.find(function(x) { return x.id === mid; });
+    if (!m) return '';
+    return '<div class="subtask-item" style="display:flex;align-items:center;gap:8px;background:var(--surface2);padding:5px 10px;border-radius:6px;margin-bottom:5px">' +
+      '<div class="member-avatar" style="background:' + memberColor(m.id) + ';width:20px;height:20px;font-size:10px">' + memberInitial(m.id) + '</div>' +
+      '<div style="flex:1">' + escHtml(m.name) + '</div>' +
+      '<button class="subtask-del" onclick="removeTaskAssignee(\'' + m.id + '\')"><i data-lucide="x"></i></button></div>';
+  }).join('');
+}
+window.buildTaskAssigneeListHTML = buildTaskAssigneeListHTML;
+
+window.addTaskAssignee = function() {
+  var sel = document.getElementById('fi-assignee-sel');
+  if (!sel || !sel.value) return;
+  if (!window._newTaskAssignees) window._newTaskAssignees = [];
+  if (!window._newTaskAssignees.includes(sel.value)) {
+    window._newTaskAssignees.push(sel.value);
+    sel.value = '';
+    var listEl = document.getElementById('fi-assignee-list');
+    if (listEl) { listEl.innerHTML = buildTaskAssigneeListHTML(); if (typeof lucide !== "undefined") lucide.createIcons(); }
+  }
+};
+
+window.removeTaskAssignee = function(mid) {
+  window._newTaskAssignees = (window._newTaskAssignees || []).filter(function(x) { return x !== mid; });
+  var listEl = document.getElementById('fi-assignee-list');
+  if (listEl) { listEl.innerHTML = buildTaskAssigneeListHTML(); if (typeof lucide !== "undefined") lucide.createIcons(); }
+};
+
+window.renderEditTaskAssigneeList = function() {
+  var ids = window._editTaskAssignees || [];
+  var listEl = document.getElementById('fi-assignee-list');
+  if (!listEl) return;
+  if (!ids.length) {
+    listEl.innerHTML = '<div style="font-size:12px;color:var(--text3)">暂未选择</div>';
+    return;
+  }
+  listEl.innerHTML = ids.map(function(mid) {
+    var m = state.members.find(function(x) { return x.id === mid; });
+    if (!m) return '';
+    return '<div class="subtask-item" style="display:flex;align-items:center;gap:8px;background:var(--surface2);padding:5px 10px;border-radius:6px;margin-bottom:5px">' +
+      '<div class="member-avatar" style="background:' + memberColor(m.id) + ';width:20px;height:20px;font-size:10px">' + memberInitial(m.id) + '</div>' +
+      '<div style="flex:1">' + escHtml(m.name) + '</div>' +
+      '<button class="subtask-del" onclick="removeEditTaskAssignee(\'' + m.id + '\')"><i data-lucide="x"></i></button></div>';
+  }).join(''); if (typeof lucide !== 'undefined') lucide.createIcons();
+};
+
+window.buildEditTaskAssigneeHTML = function(taskId) {
+  var t = state.tasks.find(function(x) { return x.id === taskId; });
+  window._editTaskAssignees = t ? ((t.assignees && t.assignees.length) ? t.assignees : (t.assignee ? [t.assignee] : [])).slice() : [];
+  return ''; // 实际渲染由 renderEditTaskAssigneeList 在 modal 打开后完成
+};
+
+window.addEditTaskAssignee = function(taskId) {
+  var sel = document.getElementById('fi-assignee-sel');
+  if (!sel || !sel.value) return;
+  if (!window._editTaskAssignees) window._editTaskAssignees = [];
+  if (!window._editTaskAssignees.includes(sel.value)) {
+    window._editTaskAssignees.push(sel.value);
+    sel.value = '';
+    window.renderEditTaskAssigneeList();
+  }
+};
+
+window.removeEditTaskAssignee = function(mid) {
+  window._editTaskAssignees = (window._editTaskAssignees || []).filter(function(x) { return x !== mid; });
+  window.renderEditTaskAssigneeList();
+};
+
 // ─── Add Task ─────────────────────────────────────────────────────────────────
-function openAddTask() {
+function openAddTask(preProjectId, preModuleId) {
+  window._newTaskAssignees = [];
   const today=new Date().toISOString().slice(0,10);
-  const preProj=currentView.startsWith('project-')?currentView.slice(8):'';
+  const preProj=preProjectId || (currentView.startsWith('project-')?currentView.slice(8):'');
   const projOpts=state.projects.map(p=>`<option value="${p.id}"${p.id===preProj?' selected':''}>${escHtml(p.name)}</option>`).join('');
   const memberOpts=state.members.map(m=>`<option value="${m.id}">${escHtml(m.name)}</option>`).join('');
 
@@ -152,14 +252,22 @@ function openAddTask() {
 
   openModal(`${modalHeader('新建任务')}
     <div class="modal-body">
-      <div class="form-group"><label class="form-label">任务名称</label><input class="form-input" id="fi-title" placeholder="输入任务名称..." autofocus></div>
+      <div class="form-group"><label class="form-label">任务名称 <span style="color:var(--red)">*</span></label><input class="form-input" id="fi-title" placeholder="输入任务名称..." autofocus></div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">所属项目</label><select class="form-select" id="fi-proj"><option value="">未分类</option>${projOpts}</select></div>
-        <div class="form-group"><label class="form-label">负责人</label><select class="form-select" id="fi-assignee"><option value="">未分配</option>${memberOpts}</select></div>
+        <div class="form-group"><label class="form-label">所属项目 <span style="color:var(--red)">*</span></label><select class="form-select" id="fi-proj"><option value="">未分类</option>${projOpts}</select></div>
+        <div class="form-group">
+          <label class="form-label">负责人 <span style="color:var(--red)">*</span></label>
+          <div id="fi-assignee-list" style="margin-bottom:8px;max-height:120px;overflow-y:auto">${buildTaskAssigneeListHTML()}</div>
+          <div style="display:flex;gap:8px">
+            <select class="form-select" id="fi-assignee-sel" style="flex:1"><option value="">选择成员...</option>${memberOpts}</select>
+            <button class="btn btn-ghost btn-sm" onclick="addTaskAssignee()" style="white-space:nowrap">添加</button>
+          </div>
+        </div>
       </div>
+      <div class="form-group"><label class="form-label">所属模块</label><select class="form-select" id="fi-module"><option value="">不归类</option>${getModuleOptsForProject(preProj)}</select></div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">开始时间</label><input class="form-input" type="date" id="fi-start-date"></div>
-        <div class="form-group"><label class="form-label">截止日期</label><input class="form-input" type="date" id="fi-due" value="${today}"></div>
+        <div class="form-group"><label class="form-label">开始时间</label><input class="form-input" type="date" id="fi-start-date" autocomplete="off"></div>
+        <div class="form-group"><label class="form-label">截止日期</label><input class="form-input" type="date" id="fi-due" autocomplete="off"></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">优先级</label><select class="form-select" id="fi-pri"><option>紧急</option><option selected>重要</option><option>普通</option></select></div>
@@ -179,7 +287,20 @@ function openAddTask() {
       </div>
     </div>`);
   window._addTagSel = [];
-  setTimeout(()=>document.getElementById('fi-title').focus(),80);
+  requestAnimationFrame(() => {
+    const startEl = document.getElementById('fi-start-date');
+    if (startEl) startEl.value = '';
+    var projSel = document.getElementById('fi-proj');
+    if (projSel) {
+      projSel.addEventListener('change', function() { updateModuleOpts(this.value); });
+    }
+    if (preModuleId) {
+      var modSel = document.getElementById('fi-module');
+      if (modSel) modSel.value = preModuleId;
+    }
+  });
+  setTimeout(()=>{ document.getElementById('fi-title').focus(); },80);
+
 }
 
 // toggleAddTag removed: tags now use dropdown in add-task modal
@@ -187,9 +308,29 @@ function openAddTask() {
 async function submitAddTask(btn) {
   const titleEl = document.getElementById('fi-title');
   const title = titleEl ? titleEl.value.trim() : "";
-  if (!title) { if(titleEl) titleEl.style.borderColor='var(--red)'; return; }
+  let hasError = false;
+  if (!title) { if(titleEl) titleEl.style.borderColor='var(--red)'; hasError = true; }
+
+  // 必选：所属项目
+  const projEl = document.getElementById('fi-proj');
+  const projectId = projEl ? projEl.value : '';
+  if (!projectId) { if(projEl) projEl.style.borderColor='var(--red)'; hasError = true; }
+
+  // V20: 多选负责人
+  var assignees = window._newTaskAssignees || [];
+  var assignee = assignees.length > 0 ? assignees[0] : '';
+  if (!assignee) {
+    var listEl = document.getElementById('fi-assignee-list');
+    if (listEl) listEl.style.border = '2px dashed var(--red)';
+    hasError = true;
+  }
+
+  if (hasError) return;
   setLoading(btn, true);
-  
+
+  // V20: 读取模块选择
+  var moduleId = (document.getElementById('fi-module') || {}).value || null;
+
   // 增加安全检查，如果元素不存在则给默认值，防止报错
   const getVal = (id, def = "") => document.getElementById(id) ? document.getElementById(id).value : def;
 
@@ -197,8 +338,9 @@ async function submitAddTask(btn) {
     id: uid(),
     title: title,
     project_id: getVal('fi-proj'),
-    assignee: getVal('fi-assignee', ''),
-    due: getVal('fi-due', new Date().toISOString().slice(0,10)),
+    assignee: assignee,
+    assignees: assignees,
+    due: getVal('fi-due', ''),
     priority: getVal('fi-pri', '重要'),
     status: getVal('fi-status', 'todo'),
     done: false,
@@ -206,7 +348,9 @@ async function submitAddTask(btn) {
     subtasks: [],
     start_date: document.getElementById('fi-start-date')?.value || null,
       milestone: document.getElementById('fi-milestone')?.classList.contains('on') || false,
-    created_at: new Date().toISOString().slice(0,10)
+    created_at: new Date().toISOString().slice(0,10),
+    moduleId: moduleId || null,
+    module_id: moduleId || null
   };
 
   addTimelineEntry(newTask, '创建任务', '创建了任务');
@@ -223,7 +367,7 @@ function openEditTask(id) {
   const t=state.tasks.find(x=>x.id===id); if(!t) return;
   activeTaskTab='basic';
   const projOpts=state.projects.map(p=>`<option value="${p.id}"${p.id===t.projectId?' selected':''}>${escHtml(p.name)}</option>`).join('');
-  const memberOpts=state.members.map(m=>`<option value="${m.id}"${m.id===t.assignee?' selected':''}>${escHtml(m.name)}</option>`).join('');
+  const memberOpts=state.members.map(m=>`<option value="${m.id}">${escHtml(m.name)}</option>`).join('');
   const logsHTML = (() => {
     const allLogs = t.logs || [];
     if (!allLogs.length) return '<div style="font-size:12px;color:var(--text3);padding:16px 0;text-align:center">暂无时间线记录</div>';
@@ -268,9 +412,17 @@ function openEditTask(id) {
       <div id="tab-pane-basic">
         <div class="form-group"><label class="form-label">任务名称</label><input class="form-input" id="fi-title" value="${t.title.replace(/"/g,'&quot;')}"></div>
         <div class="form-row">
-          <div class="form-group"><label class="form-label">所属项目</label><select class="form-select" id="fi-proj"><option value="">未分类</option>${projOpts}</select></div>
-          <div class="form-group"><label class="form-label">负责人</label><select class="form-select" id="fi-assignee"><option value="">未分配</option>${memberOpts}</select></div>
+          <div class="form-group"><label class="form-label">所属项目 <span style="color:var(--red)">*</span></label><select class="form-select" id="fi-proj"><option value="">未分类</option>${projOpts}</select></div>
+          <div class="form-group">
+            <label class="form-label">负责人 <span style="color:var(--red)">*</span></label>
+            <div id="fi-assignee-list" style="margin-bottom:8px;max-height:120px;overflow-y:auto">${buildEditTaskAssigneeHTML(id)}</div>
+            <div style="display:flex;gap:8px">
+              <select class="form-select" id="fi-assignee-sel" style="flex:1"><option value="">选择成员...</option>${memberOpts}</select>
+              <button class="btn btn-ghost btn-sm" onclick="addEditTaskAssignee('${id}')" style="white-space:nowrap">添加</button>
+            </div>
+          </div>
         </div>
+        <div class="form-group"><label class="form-label">所属模块</label><select class="form-select" id="fi-module"><option value="">不归类</option>${getModuleOptsForProject(t.projectId)}</select></div>
         <div class="form-row">
           <div class="form-group"><label class="form-label">开始时间</label><input class="form-input" type="date" id="fi-start-date" value="${t.startDate||''}"></div>
           <div class="form-group"><label class="form-label">截止日期</label><input class="form-input" type="date" id="fi-due" value="${t.due}"></div>
@@ -314,6 +466,16 @@ function openEditTask(id) {
         <button class="btn btn-primary" onclick="submitEditTask('${t.id}', this)">保存</button>
       </div>
     </div>`);
+  // V20: 联动模块下拉框 + 预填模块值 + 渲染负责人列表
+  requestAnimationFrame(function() {
+    var projSel = document.getElementById('fi-proj');
+    if (projSel) {
+      projSel.addEventListener('change', function() { updateModuleOpts(this.value); });
+    }
+    var modSel = document.getElementById('fi-module');
+    if (modSel && t.moduleId) modSel.value = t.moduleId;
+    window.renderEditTaskAssigneeList();
+  });
 }
 
 function switchTaskTab(tab, taskId) {
@@ -458,22 +620,27 @@ async function submitEditTask(id, btn) {
 
   // 更新本地对象数据
   const newProjId = document.getElementById('fi-proj').value;
-  const newAssignee = document.getElementById('fi-assignee').value;
+  const newAssignees = window._editTaskAssignees || [];
+  const newAssignee = newAssignees.length > 0 ? newAssignees[0] : '';
   const newDue = document.getElementById('fi-due').value;
   const newStart = document.getElementById('fi-start-date')?.value || '';
   const newPriority = document.getElementById('fi-pri').value;
   const newStatus = document.getElementById('fi-status').value;
   const newMilestone = document.getElementById('fi-milestone')?.classList.contains('on') || false;
+  const newModuleId = (document.getElementById('fi-module') || {}).value || null;  // V20
 
   t.title = title;
   t.project_id = newProjId;
   t.assignee = newAssignee;
+  t.assignees = newAssignees;
   t.due = newDue;
   t.startDate = newStart || null;
   t.priority = newPriority;
   t.status = newStatus;
   t.done = newStatus === 'done';
   t.milestone = newMilestone;
+  t.moduleId = newModuleId || null;      // V20
+  t.module_id = t.moduleId;             // V20
 
   // 完成/取消完成
   if (newStatus === 'done' && oldStatus !== 'done') {
@@ -500,6 +667,34 @@ async function submitEditTask(id, btn) {
   if (newMilestone !== oldMilestone) addTimelineEntry(t, newMilestone?'设为里程碑':'取消里程碑', '');
 
   await syncTask(t);
+  if (typeof pushNotification === 'function' && t.assignee) {
+    var _si2 = function(s) { return ({todo:'待启动',doing:'进行中',waiting:'待反馈',done:'已完成'}[s]||s); };
+    var _changer = currentUser?.name || '系统';
+    if (newStatus !== oldStatus) {
+      pushNotification({ recipientId:t.assignee, type:'task_changed',
+        title:'「' + t.title + '」状态已变更',
+        body:_changer + ' 将状态从「' + _si2(oldStatus) + '」改为「' + _si2(newStatus) + '」',
+        navType:'task', navId:t.id });
+    }
+    if (newDue !== (oldDue||'') && newDue) {
+      pushNotification({ recipientId:t.assignee, type:'task_changed',
+        title:'「' + t.title + '」截止日已调整',
+        body:_changer + ' 将截止日从「' + (oldDue||'无') + '」改为「' + newDue + '」',
+        navType:'task', navId:t.id });
+    }
+    if (newPriority !== oldPriority && newPriority === '紧急') {
+      pushNotification({ recipientId:t.assignee, type:'task_changed',
+        title:'「' + t.title + '」已标记为紧急',
+        body:_changer + ' 将优先级升为「紧急」',
+        navType:'task', navId:t.id });
+    }
+  }
+  if (typeof pushNotification === 'function' && newAssignee && newAssignee !== (oldAssignee||'')) {
+    pushNotification({ recipientId:newAssignee, type:'task_assigned',
+      title:'你被分配了任务「' + t.title + '」',
+      body:(currentUser?.name||'系统') + ' 将此任务分配给你',
+      navType:'task', navId:t.id });
+  }
   setLoading(btn, false);
   closeModal();
   render();
@@ -515,6 +710,7 @@ async function confirmDeleteTask(id) {
     if (success) {
       state.tasks = state.tasks.filter(x => x.id !== id);
       closeModal();
+      _lastLoadTime = Date.now(); // 阻止实时 loadState 800ms 内二次触发
       render();
       toast('任务已永久删除', 'success');
       logAction('删除任务', `删除任务「${title}」`);

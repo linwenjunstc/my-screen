@@ -127,7 +127,7 @@ function openEditReceiptModal(id){
     <div class="form-group"><label class="form-label">备注</label><input class="form-input" id="r-remark" value="${r?r.remark||'':''}" ${!canE?'disabled':''}></div>
   </div>
   <div class="modal-footer">
-    ${isEdit&&canE?`<button class="btn btn-danger btn-sm" onclick="deleteRow('receipt','${r.id}')">删除</button>`:'<div></div>'}
+    ${isEdit&&canE?`<button class="btn btn-danger btn-sm" onclick="deleteRow('receipt_records','${r.id}')">删除</button>`:'<div></div>'}
     <div class="modal-footer-right">
       <button class="btn btn-ghost" onclick="closeModal()">取消</button>
       ${canE?`<button class="btn btn-primary" onclick="saveReceipt(${isEdit?`'${r.id}'`:'null'},this)">${isEdit?'保存':'创建'}</button>`:''}
@@ -193,7 +193,7 @@ window.openQuickReceiptEntry = function(receiptRecordId) {
         '</div>' +
       '</div>' +
       '<div class="form-group"><label class="form-label">实际到款日期 <span style="color:var(--red)">*</span></label>' +
-        '<input type="date" class="form-input" id="qr-date" value="' + todayStr + '"></div>' +
+        '<input type="date" class="form-input" id="qr-date" autocomplete="off" value="' + todayStr + '"></div>' +
       '<div class="form-group"><label class="form-label">实际到款金额（元）<span style="color:var(--red)">*</span></label>' +
         '<input type="number" class="form-input" id="qr-amount" placeholder="请输入金额" min="0" step="0.01"></div>' +
       '<div class="form-group"><label class="form-label">备注</label>' +
@@ -204,6 +204,11 @@ window.openQuickReceiptEntry = function(receiptRecordId) {
         '<button class="btn btn-ghost" onclick="closeModal()">取消</button>' +
         '<button class="btn btn-primary" onclick="saveQuickReceiptEntry(\'' + receiptRecordId + '\',this)">确认录入</button>' +
       '</div></div>');
+  // 防止浏览器表单历史覆盖日期
+  requestAnimationFrame(function() {
+    var dateEl = document.getElementById('qr-date');
+    if (dateEl) dateEl.value = todayStr;
+  });
 };
 
 window.saveQuickReceiptEntry = async function(receiptRecordId, btn) {

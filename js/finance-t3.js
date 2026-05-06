@@ -292,7 +292,7 @@ window.openQuickPaymentEntry = function(paymentPlanId) {
           '<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="radio" name="qp-type" value="supply"> 供应链</label>' +
         '</div></div>' +
       '<div class="form-group"><label class="form-label">实际付款日期 <span style="color:var(--red)">*</span></label>' +
-        '<input type="date" class="form-input" id="qp-date" value="' + todayStr + '"></div>' +
+        '<input type="date" class="form-input" id="qp-date" autocomplete="off" value="' + todayStr + '"></div>' +
       '<div class="form-group"><label class="form-label">实际付款金额（元）<span style="color:var(--red)">*</span></label>' +
         '<input type="number" class="form-input" id="qp-amount" placeholder="请输入金额" min="0" step="0.01"></div>' +
       '<div class="form-group"><label class="form-label">备注</label>' +
@@ -303,6 +303,11 @@ window.openQuickPaymentEntry = function(paymentPlanId) {
         '<button class="btn btn-ghost" onclick="closeModal()">取消</button>' +
         '<button class="btn btn-primary" onclick="saveQuickPaymentEntry(\'' + paymentPlanId + '\',this)">确认录入</button>' +
       '</div></div>');
+  // 防止浏览器表单历史覆盖日期
+  requestAnimationFrame(function() {
+    var dateEl = document.getElementById('qp-date');
+    if (dateEl) dateEl.value = todayStr;
+  });
 };
 
 window.saveQuickPaymentEntry = async function(paymentPlanId, btn) {

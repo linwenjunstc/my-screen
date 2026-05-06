@@ -1,4 +1,4 @@
-/* ════════════════════════════════════════════════
+﻿/* ════════════════════════════════════════════════
  * pm-members.js  —  成员管理 / 标签管理 / 角色管理 / 菜单权限
  * ════════════════════════════════════════════════ */
 
@@ -34,7 +34,7 @@ function buildMembersListHTML() {
   if (!state.members.length) return '<div style="font-size:13px;color:var(--text3);padding:15px 0;text-align:center;">暂无协作成员</div>';
   
   return state.members.map(m => {
-    const taskCnt = state.tasks.filter(t => t.assignee === m.id).length;
+    const taskCnt = state.tasks.filter(t => (t.assignee === m.id || (t.assignees||[]).includes(m.id))).length;
     const isMe = currentUser && currentUser.id === m.id; // 标记当前登录的自己
     
     return `<div class="subtask-item" style="display: flex; align-items: center; padding: 10px; background: var(--surface2); border-radius: 8px; margin-bottom: 6px;">
@@ -111,7 +111,7 @@ async function deleteMember(id) {
   if (!m) return;
   
   // 安全检查：如果成员还有任务，不建议直接删除
-  const taskCnt = state.tasks.filter(t => t.assignee === id).length;
+  const taskCnt = state.tasks.filter(t => (t.assignee === id || (t.assignees||[]).includes(id))).length;
   if (taskCnt > 0) {
     toast(`无法删除：${m.name} 还有 ${taskCnt} 个任务未处理`, 'warning');
     return;
@@ -135,7 +135,7 @@ function buildMembersListHTML() {
   if (!state.members.length) return '<div style="font-size:13px;color:var(--text3);padding:8px 0">暂无成员</div>';
   const _isAdminUser = isAdmin();
   return state.members.map(m=>{
-    const taskCnt = state.tasks.filter(t=>t.assignee===m.id).length;
+    const taskCnt = state.tasks.filter(t=>t.assignee===m.id || (t.assignees||[]).includes(m.id)).length;
     const hasTask = taskCnt > 0;
     const isMe = currentUser && m.id === currentUser.id;
     const role = m.role || 'user';
@@ -486,6 +486,12 @@ async function saveMenuPerms(memberId, btn) {
   }
 
   toast(`✓ 已更新「${m.name}」的菜单权限`, 'success');
+  if (typeof pushNotification === 'function') {
+    pushNotification({ recipientId:memberId, type:'perm_changed',
+      title:'你的菜单权限已变更',
+      body:(currentUser?.name||'管理员') + ' 重新配置了你的系统访问权限，刷新页面后生效',
+      navType:'member', navId:memberId });
+  }
   logAction('配置菜单权限', `为「${m.name}」配置了 ${finalPerms.length} 项菜单权限`);
   openRoleManageModal();
 }

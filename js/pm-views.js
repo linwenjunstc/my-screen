@@ -4,6 +4,12 @@
 
 window._todayViewMode = window._todayViewMode || 'today';
 
+// V20: 格式化任务负责人名（多选支持）
+window.assigneeNamesStr = function(t, memberMap) {
+  var ids = (t.assignees && t.assignees.length) ? t.assignees : (t.assignee ? [t.assignee] : []);
+  return ids.map(function(id) { return memberMap[id] || id; }).join(', ') || '—';
+};
+
 function renderToday() {
   if (window._todayViewMode === 'week') {
     renderWeekGrid();
@@ -67,7 +73,7 @@ function renderToday() {
       <div class="today-proj-title">负责人任务概览</div>
       <div style="display:flex;flex-direction:column;gap:14px">`;
     state.members.forEach(m => {
-      const myTasks = active.filter(t=>t.assignee===m.id);
+      const myTasks = active.filter(t=>t.assignee===m.id || (t.assignees||[]).includes(m.id));
       if (!myTasks.length) return;
       const urgentCnt = myTasks.filter(t=>urgencyOf(t)<=1).length;
       const color = memberColor(m.id);
@@ -158,7 +164,7 @@ function renderTaskList() {
   let tasks = state.tasks.filter(t => {
     if (filterProject!=='all' && t.projectId!==filterProject) return false;
     if (filterStatus!=='all' && t.status!==filterStatus) return false;
-    if (filterAssignee!=='all' && t.assignee!==filterAssignee) return false;
+    if (filterAssignee!=='all' && t.assignee!==filterAssignee && !(t.assignees||[]).includes(filterAssignee)) return false;
     if (searchQuery && !t.title.includes(searchQuery)) return false;
     return true;
   }).sort((a,b) => urgencyOf(a)-urgencyOf(b) || priorityOrder(a.priority)-priorityOrder(b.priority));
@@ -268,6 +274,29 @@ function renderProjectView(pid) {
       <div class="progress-track" style="height:7px"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
     </div>`;
 
+  // V20: 模块面板
+  var canManage = isAdmin() || getEffectiveMenuPerms().includes('add_task');
+  var mods = state.modules
+    .filter(function(m) { return m.projectId === pid; })
+    .sort(function(a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0); });
+  var modChips = mods.map(function(m) {
+    return '<div class="module-chip">' + escHtml(m.name) +
+      (canManage ? '<span class="edit-btn" onclick="event.stopPropagation();openEditModule(\'' + m.id + '\')"><i data-lucide="pencil" style="width:11px;height:11px"></i></span>' : '') +
+      '</div>';
+  }).join('');
+  var addBtn = canManage
+    ? '<button class="btn btn-ghost btn-sm" onclick="openAddModule(\'' + pid + '\')">+ 新建模块</button>'
+    : '';
+  var modulePanel = '<div class="modules-panel">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">' +
+      '<span style="font-size:13px;font-weight:600;color:var(--text2)">模块 (' + mods.length + ')</span>' +
+      addBtn +
+    '</div>' +
+    '<div class="module-list">' +
+      (modChips || '<span style="font-size:12px;color:var(--text3)">暂无模块，点击右侧新建</span>') +
+    '</div>' +
+  '</div>';
+
   let contentHTML = '';
 
   if (mode === 'kanban') {
@@ -303,17 +332,43 @@ function renderProjectView(pid) {
         ${colsHTML}
       </div>`;
   } else {
-    const active = tasks.filter(t=>!t.done).sort((a,b)=>urgencyOf(a)-urgencyOf(b)||priorityOrder(a.priority)-priorityOrder(b.priority));
-    const doneT = tasks.filter(t=>t.done);
-    if (active.length) contentHTML += active.map(t=>taskCardHTML(t)).join('');
-    if (doneT.length) contentHTML += `<div class="task-group" style="margin-top:20px"><div class="group-header"><div class="group-dot" style="background:#b8b5ae"></div><span class="group-title">已完成</span><span class="group-count">${doneT.length}</span></div>${doneT.map(t=>taskCardHTML(t)).join('')}</div>`;
-    if (!tasks.length) contentHTML += '<div class="empty-state"><i data-lucide="clipboard-list" class="empty-icon"></i>这个项目还没有任务<div class="empty-hint">开始规划第一个任务吧</div><div class="empty-action"><button class="btn btn-primary btn-sm" onclick="openAddTask()"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建任务</button></div></div>';
+    // V20: 按模块分组渲染任务列表
+    var groups = mods.concat([{ id: null, name: '未分类' }]);
+    groups.forEach(function(grp) {
+      var grpTasks = tasks.filter(function(t) { return (t.moduleId || null) === grp.id; });
+      // 过滤：已完成的任务只在未分类组展示
+      if (grp.id !== null) grpTasks = grpTasks.filter(function(t) { return !t.done; });
+      var activeGrp = grpTasks.filter(function(t) { return !t.done; });
+      var doneGrp = grpTasks.filter(function(t) { return t.done; });
+      var isVirtual = grp.id === null;
+      var editBtn = (!isVirtual && canManage)
+        ? '<button class="icon-btn" onclick="event.stopPropagation();openEditModule(\'' + grp.id + '\')" title="编辑模块"><i data-lucide="pencil" style="width:13px;height:13px"></i></button>'
+        : '';
+      // 未分类组：先活跃后完成
+      if (isVirtual) {
+        var sortedActive = activeGrp.sort(function(a,b) { return urgencyOf(a)-urgencyOf(b)||priorityOrder(a.priority)-priorityOrder(b.priority); });
+        if (sortedActive.length) contentHTML += sortedActive.map(taskCardHTML).join('');
+        if (doneGrp.length) contentHTML += '<div class="task-group" style="margin-top:20px"><div class="group-header"><div class="group-dot" style="background:#b8b5ae"></div><span class="group-title">已完成</span><span class="group-count">' + doneGrp.length + '</span></div>' + doneGrp.map(taskCardHTML).join('') + '</div>';
+      } else {
+        contentHTML += '<div class="module-group">' +
+          '<div class="module-group-header">' +
+            '<span class="module-group-name">' + escHtml(grp.name) + '</span>' +
+            '<span class="module-task-count">' + grpTasks.length + '</span>' +
+            editBtn +
+            '<button class="module-add-task-btn" onclick="openAddTask(\'' + pid + '\',\'' + (grp.id || '') + '\')">+ 新建任务</button>' +
+          '</div>' +
+          (grpTasks.length ? grpTasks.sort(function(a,b) { return urgencyOf(a)-urgencyOf(b)||priorityOrder(a.priority)-priorityOrder(b.priority); }).map(taskCardHTML).join('') : '<div class="module-empty">暂无任务</div>') +
+        '</div>';
+      }
+    });
+    if (!tasks.length) contentHTML += '<div class="empty-state"><i data-lucide="clipboard-list" class="empty-icon"></i>这个项目还没有任务<div class="empty-hint">开始规划第一个任务吧</div><div class="empty-action"><button class="btn btn-primary btn-sm" onclick="openAddTask(\'' + pid + '\')"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建任务</button></div></div>';
   }
 
   document.getElementById('main-content').innerHTML = `
     <div class="view-pane">
       ${viewToggle}
       ${progressBar}
+      ${modulePanel}
       ${contentHTML}
     </div>`;
   if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -382,11 +437,11 @@ function renderCharts() {
   let membersHTML = '';
   if (state.members.length) {
     const active = state.tasks.filter(t=>!t.done);
-    const maxTask = Math.max(1, ...state.members.map(m => active.filter(t=>t.assignee===m.id).length));
+    const maxTask = Math.max(1, ...state.members.map(m => active.filter(t=>t.assignee===m.id || (t.assignees||[]).includes(m.id)).length));
     membersHTML = state.members.map(m => {
-      const myTasks = active.filter(t=>t.assignee===m.id);
+      const myTasks = active.filter(t=>t.assignee===m.id || (t.assignees||[]).includes(m.id));
       const cnt = myTasks.length;
-      const doneCnt = state.tasks.filter(t=>t.assignee===m.id&&t.done).length;
+      const doneCnt = state.tasks.filter(t=>(t.assignee===m.id || (t.assignees||[]).includes(m.id))&&t.done).length;
       const totalMine = cnt + doneCnt || 1;
       const pct = Math.round(doneCnt/totalMine*100);
       const w = Math.max(2, Math.round(cnt/maxTask*100));
@@ -636,7 +691,7 @@ function showStatusTaskList(status) {
     ? tasks.map(t => `<tr>
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.title)}">${escHtml(t.title)}</td>
       <td style="white-space:nowrap">${escHtml(projMap[t.projectId]||'—')}</td>
-      <td style="white-space:nowrap">${escHtml(memberMap[t.assignee]||'—')}</td>
+      <td style="white-space:nowrap">${escHtml(assigneeNamesStr(t, memberMap))}</td>
       <td style="white-space:nowrap">${t.due||'—'}</td>
       <td>${t.done?'✅':'—'}</td>
     </tr>`).join('')
@@ -661,7 +716,7 @@ function showPriorityTaskList(priority) {
     ? tasks.map(t => `<tr>
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.title)}">${escHtml(t.title)}</td>
       <td style="white-space:nowrap">${escHtml(projMap[t.projectId]||'—')}</td>
-      <td style="white-space:nowrap">${escHtml(memberMap[t.assignee]||'—')}</td>
+      <td style="white-space:nowrap">${escHtml(assigneeNamesStr(t, memberMap))}</td>
       <td style="white-space:nowrap">${t.due||'—'}</td>
       <td><span style="display:inline-block;padding:2px 6px;border-radius:3px;font-size:11px;background:var(--surface2)">${priority}</span></td>
     </tr>`).join('')
@@ -689,7 +744,7 @@ function showProjectTaskList(projectId) {
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.title)}">${escHtml(t.title)}</td>
       <td style="white-space:nowrap">${statusLabels[t.status]||t.status}</td>
       <td style="white-space:nowrap">${escHtml(t.priority)}</td>
-      <td style="white-space:nowrap">${escHtml(memberMap[t.assignee]||'—')}</td>
+      <td style="white-space:nowrap">${escHtml(assigneeNamesStr(t, memberMap))}</td>
       <td style="white-space:nowrap">${t.due||'—'}</td>
       <td>${t.done?'✅':'—'}</td>
     </tr>`).join('')
@@ -706,7 +761,7 @@ function showProjectTaskList(projectId) {
 
 function showMemberTaskList(memberId) {
   const member = state.members.find(m => m.id === memberId);
-  const tasks = state.tasks.filter(t => t.assignee === memberId);
+  const tasks = state.tasks.filter(t => t.assignee === memberId || (t.assignees||[]).includes(memberId));
   const projMap = {};
   state.projects.forEach(p => { projMap[p.id] = p.name; });
   const doneCnt = tasks.filter(t => t.done).length;
@@ -750,7 +805,7 @@ function showDayTaskList(date, type) {
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.title)}">${escHtml(t.title)}</td>
       <td style="white-space:nowrap">${escHtml(projMap[t.projectId]||'—')}</td>
       <td style="white-space:nowrap">${statusLabels[t.status]||t.status}</td>
-      <td style="white-space:nowrap">${escHtml(memberMap[t.assignee]||'—')}</td>
+      <td style="white-space:nowrap">${escHtml(assigneeNamesStr(t, memberMap))}</td>
       <td style="white-space:nowrap">${t.due||'—'}</td>
     </tr>`).join('')
     : `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:24px">暂无数据</td></tr>`;
@@ -780,7 +835,7 @@ function showBurndownDayTasks(projId, date) {
     ? tasks.map(t => `<tr>
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.title)}">${escHtml(t.title)}</td>
       <td style="white-space:nowrap">${escHtml(projMap[t.projectId]||'—')}</td>
-      <td style="white-space:nowrap">${escHtml(memberMap[t.assignee]||'—')}</td>
+      <td style="white-space:nowrap">${escHtml(assigneeNamesStr(t, memberMap))}</td>
       <td style="white-space:nowrap">${t.due||'—'}</td>
     </tr>`).join('')
     : `<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:24px">暂无待办任务</td></tr>`;
@@ -797,6 +852,11 @@ function showBurndownDayTasks(projId, date) {
 // ─── Gantt ────────────────────────────────────────────────────────────────────
 let ganttDayW = 42;
 var projectViewMode = {}; // { [pid]: 'list' | 'kanban' }
+// Gantt 排序 / 筛选 / 折叠状态（跨重渲染保持）
+window._ganttSort           = window._ganttSort           || 'due';  // due|priority|status|title
+window._ganttFilterStatus   = window._ganttFilterStatus   || '';     // ''=全部 | todo|doing|waiting|done
+window._ganttFilterAssignee = window._ganttFilterAssignee || '';     // ''=全部 | member id
+if (window._ganttCollapsed === undefined) window._ganttCollapsed = null; // null=首次渲染时自动折叠
 
 async function renderGantt() {
   document.getElementById('header-title').textContent = '甘特图';
@@ -856,37 +916,73 @@ async function renderGantt() {
   const uncat = state.tasks.filter(t=>!t.projectId);
   if (uncat.length) groups.push({proj:{id:'',name:'未分类',colorIdx:8}, tasks:uncat});
 
+  // ── 首次渲染：自动折叠所有项目组 ──────────────────────────────────────────
+  if (window._ganttCollapsed === null) {
+    window._ganttCollapsed = {};
+    groups.forEach(g => {
+      window._ganttCollapsed[g.proj.id || '__uncat'] = true;
+    });
+  }
+
+  // ── 优先级映射（用于排序） ─────────────────────────────────────────────────
+  const _PRIO_ORDER = { urgent: 0, high: 1, medium: 2, low: 3 };
+  const _STATUS_ORDER = { todo: 0, doing: 1, waiting: 2, done: 3 };
+
   groups.forEach(g => {
-    if (!g.tasks.length) return;
+    // ── 筛选 ─────────────────────────────────────────────────────────────────
+    let tasks = g.tasks;
+    if (window._ganttFilterStatus)   tasks = tasks.filter(t => t.status === window._ganttFilterStatus);
+    if (window._ganttFilterAssignee) tasks = tasks.filter(t => t.assignee === window._ganttFilterAssignee || (t.assignees||[]).includes(window._ganttFilterAssignee));
+    if (!tasks.length) return;
+
+    // ── 排序 ─────────────────────────────────────────────────────────────────
+    tasks = [...tasks].sort((a, b) => {
+      if (window._ganttSort === 'due')      return (a.due || '9999-12-31') > (b.due || '9999-12-31') ? 1 : -1;
+      if (window._ganttSort === 'priority') return (_PRIO_ORDER[a.priority] ?? 2) - (_PRIO_ORDER[b.priority] ?? 2);
+      if (window._ganttSort === 'status')   return (_STATUS_ORDER[a.status] ?? 0) - (_STATUS_ORDER[b.status] ?? 0);
+      return (a.title || '') > (b.title || '') ? 1 : -1; // title
+    });
+
     const color = PROJ_COLORS[(g.proj.colorIdx||0)%PROJ_COLORS.length];
-    leftHTML += `<div class="gantt-group-header" style="border-left:3px solid ${color}">${escHtml(g.proj.name)}</div>`;
+    const collapseKey = g.proj.id || '__uncat';
+    const isCollapsed = !!window._ganttCollapsed[collapseKey];
+    const arrow = isCollapsed ? '▶' : '▼';
+    const visCount = tasks.length;
+
+    leftHTML += `<div class="gantt-group-header gantt-group-toggle" style="border-left:3px solid ${color}" onclick="window._ganttCollapsed['${collapseKey}']=!window._ganttCollapsed['${collapseKey}'];renderGantt()">
+      <span class="gantt-collapse-arrow">${arrow}</span>
+      ${escHtml(g.proj.name)}
+      <span class="gantt-group-count">${visCount}</span>
+    </div>`;
     rightHTML += `<div class="gantt-group-header-right" style="width:${chartWidth}px"></div>`;
 
-    g.tasks.forEach(t => {
-      const startD = (t.startDate || t.createdAt) ? new Date(t.startDate || t.createdAt) : (() => { const d=new Date(t.due); d.setDate(d.getDate()-5); return d; })();
-      const endD = new Date(t.due);
-      startD.setHours(0,0,0,0); endD.setHours(0,0,0,0);
-      const startStr = startD.getFullYear()+'-'+String(startD.getMonth()+1).padStart(2,'0')+'-'+String(startD.getDate()).padStart(2,'0');
-      const endStr = endD.getFullYear()+'-'+String(endD.getMonth()+1).padStart(2,'0')+'-'+String(endD.getDate()).padStart(2,'0');
-      const startOffset = Math.round((startD-minDate)/86400000);
-      const durDays = Math.max(1, Math.round((endD-startD)/86400000)+1);
-      const left = Math.max(0, startOffset)*ganttDayW;
-      const width = Math.max(ganttDayW-2, durDays*ganttDayW-2);
-      const barColor = t.done ? '#b8b5ae' : color;
-      const isOverdue = !t.done && new Date(t.due)<today;
-      const blocked = isBlocked(t);
+    if (!isCollapsed) {
+      tasks.forEach(t => {
+        const startD = (t.startDate || t.createdAt) ? new Date(t.startDate || t.createdAt) : (() => { const d=new Date(t.due); d.setDate(d.getDate()-5); return d; })();
+        const endD = new Date(t.due);
+        startD.setHours(0,0,0,0); endD.setHours(0,0,0,0);
+        const startStr = startD.getFullYear()+'-'+String(startD.getMonth()+1).padStart(2,'0')+'-'+String(startD.getDate()).padStart(2,'0');
+        const endStr = endD.getFullYear()+'-'+String(endD.getMonth()+1).padStart(2,'0')+'-'+String(endD.getDate()).padStart(2,'0');
+        const startOffset = Math.round((startD-minDate)/86400000);
+        const durDays = Math.max(1, Math.round((endD-startD)/86400000)+1);
+        const left = Math.max(0, startOffset)*ganttDayW;
+        const width = Math.max(ganttDayW-2, durDays*ganttDayW-2);
+        const barColor = t.done ? '#b8b5ae' : color;
+        const isOverdue = !t.done && new Date(t.due)<today;
+        const blocked = isBlocked(t);
 
-      const canDrag = canAdjustGantt(t);
-      leftHTML += `<div class="gantt-row-name${t.done?' done-row':''}${t.milestone?' milestone-row':''}" onclick="openEditTask('${t.id}')" title="${escHtml(t.title)}  |  ${startStr} ~ ${endStr}">${t.milestone?'◆ ':''}${blocked?'⚠ ':''}${escHtml(t.title)}</div>`;
-      rightHTML += `<div style="position:relative;height:44px;border-bottom:1px solid var(--border);width:${chartWidth}px;background:${t.done?'transparent':'var(--surface)'}">
-        <div class="gantt-bar" data-task-id="${t.id}" data-start-offset="${startOffset}" data-dur-days="${durDays}" title="${escHtml(t.title)}  |  ${startStr} ~ ${endStr}" ondblclick="openEditTask('${t.id}')" style="position:absolute;top:10px;left:${left}px;width:${width}px;height:24px;background:${barColor};opacity:${t.done?.5:1};border-radius:${t.milestone?'3px':'5px'};cursor:${canDrag?'grab':'default'};display:flex;align-items:center;padding:0 8px;overflow:hidden;transition:none;${isOverdue?'outline:1.5px solid var(--red);':''}${t.milestone?'outline:2px solid '+barColor+';outline-offset:2px;':''}" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='${t.done?.5:1}'">
-          <span style="font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;pointer-events:none">${t.milestone?'◆ ':''}${escHtml(t.title)}</span>
-          ${canDrag?`<div class="gantt-resize-handle" data-task-id="${t.id}" style="position:absolute;right:0;top:0;width:8px;height:100%;cursor:ew-resize;background:rgba(255,255,255,.25);border-radius:0 5px 5px 0" title="拖动调整截止日期"></div>`:''}
-        </div>
-        ${t.milestone?`<div style="position:absolute;left:${left+width}px;top:50%;transform:translate(-50%,-50%) rotate(45deg);width:12px;height:12px;background:var(--amber);border:2px solid #fff;box-shadow:0 0 0 1.5px var(--amber);pointer-events:none;z-index:2"></div>`:''}
-        ${t.due===todayStr?`<div style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--red);font-weight:600">今</div>`:''}
-      </div>`;
-    });
+        const canDrag = canAdjustGantt(t);
+        leftHTML += `<div class="gantt-row-name${t.done?' done-row':''}${t.milestone?' milestone-row':''}" onclick="openEditTask('${t.id}')" title="${escHtml(t.title)}  |  ${startStr} ~ ${endStr}">${t.milestone?'◆ ':''}${blocked?'⚠ ':''}${escHtml(t.title)}</div>`;
+        rightHTML += `<div style="position:relative;height:44px;border-bottom:1px solid var(--border);width:${chartWidth}px;background:${t.done?'transparent':'var(--surface)'}">
+          <div class="gantt-bar" data-task-id="${t.id}" data-start-offset="${startOffset}" data-dur-days="${durDays}" title="${escHtml(t.title)}  |  ${startStr} ~ ${endStr}" ondblclick="openEditTask('${t.id}')" style="position:absolute;top:10px;left:${left}px;width:${width}px;height:24px;background:${barColor};opacity:${t.done?.5:1};border-radius:${t.milestone?'3px':'5px'};cursor:${canDrag?'grab':'default'};display:flex;align-items:center;padding:0 8px;overflow:hidden;transition:none;${isOverdue?'outline:1.5px solid var(--red);':''}${t.milestone?'outline:2px solid '+barColor+';outline-offset:2px;':''}" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='${t.done?.5:1}'">
+            <span style="font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;pointer-events:none">${t.milestone?'◆ ':''}${escHtml(t.title)}</span>
+            ${canDrag?`<div class="gantt-resize-handle" data-task-id="${t.id}" style="position:absolute;right:0;top:0;width:8px;height:100%;cursor:ew-resize;background:rgba(255,255,255,.25);border-radius:0 5px 5px 0" title="拖动调整截止日期"></div>`:''}
+          </div>
+          ${t.milestone?`<div style="position:absolute;left:${left+width}px;top:50%;transform:translate(-50%,-50%) rotate(45deg);width:12px;height:12px;background:var(--amber);border:2px solid #fff;box-shadow:0 0 0 1.5px var(--amber);pointer-events:none;z-index:2"></div>`:''}
+          ${t.due===todayStr?`<div style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--red);font-weight:600">今</div>`:''}
+        </div>`;
+      });
+    }
   });
 
   if (!state.tasks.length) {
@@ -955,22 +1051,67 @@ async function renderGantt() {
   // Store records for client-side filtering
   window._ganttAdjRecords = adjRecords;
 
+  // ── 构建筛选下拉选项 ───────────────────────────────────────────────────────
+  const _ganttMemberOpts = state.members.map(m =>
+    `<option value="${m.id}" ${window._ganttFilterAssignee===m.id?'selected':''}>${escHtml(m.name)}</option>`
+  ).join('');
+  const _ganttStatusLabels = {todo:'待启动',doing:'进行中',waiting:'待反馈',done:'已完成'};
+  const _ganttStatusOpts = Object.entries(_ganttStatusLabels).map(([v,l]) =>
+    `<option value="${v}" ${window._ganttFilterStatus===v?'selected':''}>${l}</option>`
+  ).join('');
+  const _ganttSortLabels = {due:'截止日期',priority:'优先级',status:'状态',title:'任务名称'};
+  const _ganttSortOpts = Object.entries(_ganttSortLabels).map(([v,l]) =>
+    `<option value="${v}" ${window._ganttSort===v?'selected':''}>${l}</option>`
+  ).join('');
+  // 计算当前筛选结果数量
+  let _ganttVisibleCount = 0;
+  groups.forEach(g => {
+    let t = g.tasks;
+    if (window._ganttFilterStatus)   t = t.filter(x => x.status === window._ganttFilterStatus);
+    if (window._ganttFilterAssignee) t = t.filter(x => x.assignee === window._ganttFilterAssignee || (x.assignees||[]).includes(window._ganttFilterAssignee));
+    _ganttVisibleCount += t.length;
+  });
+  const _hasFilter = window._ganttFilterStatus || window._ganttFilterAssignee;
+
   const html = `<div class="view-pane">
-    <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <div class="gantt-toolbar">
+      <div class="gantt-toolbar-left">
         <div class="gantt-week-group">
           <button class="gantt-week-btn" onclick="ganttScrollToday()">今天</button>
           <button class="gantt-week-btn" onclick="ganttJumpToWeek(0)">本周</button>
           <button class="gantt-week-btn" onclick="ganttJumpToWeek(1)">下周</button>
         </div>
-        
-      <span style="font-size:12px;color:var(--text3)">缩放：</span>
-      <button class="btn btn-ghost btn-sm" onclick="setGanttZoom(20)">小</button>
-      <button class="btn btn-ghost btn-sm" onclick="setGanttZoom(30)">中</button>
-      <button class="btn btn-ghost btn-sm" onclick="setGanttZoom(44)">大</button>
-      <span style="font-size:11px;color:var(--text3);margin-left:12px;display:flex;align-items:center;gap:4px">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text3)" stroke-width="1.5"><path d="M5 3v10M11 3v10M3 8h10"/></svg>
-        拖动时间条或右边缘可调整日期
-      </span>
+        <div class="gantt-divider"></div>
+        <span class="gantt-ctrl-label">筛选</span>
+        <select class="gantt-ctrl-select" title="按状态筛选" onchange="window._ganttFilterStatus=this.value;renderGantt()">
+          <option value="" ${!window._ganttFilterStatus?'selected':''}>全部状态</option>
+          ${_ganttStatusOpts}
+        </select>
+        <select class="gantt-ctrl-select" title="按负责人筛选" onchange="window._ganttFilterAssignee=this.value;renderGantt()">
+          <option value="" ${!window._ganttFilterAssignee?'selected':''}>全部成员</option>
+          ${_ganttMemberOpts}
+        </select>
+        ${_hasFilter ? `<button class="gantt-ctrl-clear" onclick="window._ganttFilterStatus='';window._ganttFilterAssignee='';renderGantt()" title="清除筛选">✕ 清除</button>` : ''}
+        <div class="gantt-divider"></div>
+        <span class="gantt-ctrl-label">排序</span>
+        <select class="gantt-ctrl-select" onchange="window._ganttSort=this.value;renderGantt()">
+          ${_ganttSortOpts}
+        </select>
+        <div class="gantt-divider"></div>
+        <span class="gantt-ctrl-label">缩放</span>
+        <button class="gantt-zoom-btn${ganttDayW===20?' active':''}" onclick="setGanttZoom(20)">小</button>
+        <button class="gantt-zoom-btn${ganttDayW===30?' active':''}" onclick="setGanttZoom(30)">中</button>
+        <button class="gantt-zoom-btn${ganttDayW===42?' active':''}" onclick="setGanttZoom(42)">大</button>
+      </div>
+      <div class="gantt-toolbar-right">
+        <button class="gantt-ctrl-expand" onclick="ganttExpandAll()" title="展开所有项目">展开全部</button>
+        <button class="gantt-ctrl-expand" onclick="ganttCollapseAll()" title="折叠所有项目">折叠全部</button>
+        ${_hasFilter ? `<span class="gantt-filter-badge">${_ganttVisibleCount} 个任务</span>` : ''}
+        <span class="gantt-drag-hint">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3v10M11 3v10M3 8h10"/></svg>
+          拖动可调整日期
+        </span>
+      </div>
     </div>
     <div class="gantt-wrap" id="gantt-wrap">
       <div class="gantt-inner">
@@ -995,6 +1136,21 @@ function setGanttZoom(w) {
   ganttDayW = w;
   renderGantt();
 }
+
+// 展开 / 折叠全部项目组
+window.ganttExpandAll = function() {
+  if (!window._ganttCollapsed) window._ganttCollapsed = {};
+  Object.keys(window._ganttCollapsed).forEach(k => { window._ganttCollapsed[k] = false; });
+  renderGantt();
+};
+window.ganttCollapseAll = function() {
+  if (!window._ganttCollapsed) window._ganttCollapsed = {};
+  Object.keys(window._ganttCollapsed).forEach(k => { window._ganttCollapsed[k] = true; });
+  // 也把当前所有项目组折叠（包含新增项目）
+  state.projects.forEach(p => { window._ganttCollapsed[p.id] = true; });
+  window._ganttCollapsed['__uncat'] = true;
+  renderGantt();
+};
 
 function ganttScrollToday() {
   const sc = document.getElementById('gantt-right-scroll');
@@ -1231,7 +1387,7 @@ function canAdjustGantt(task) {
     if (proj && (proj.members || []).indexOf(currentUser.id) >= 0) return true;
   }
   // 任务负责人
-  if (task.assignee === currentUser.id) return true;
+  if (task.assignee === currentUser.id || (task.assignees||[]).includes(currentUser.id)) return true;
   return false;
 }
 
@@ -1433,13 +1589,21 @@ window.renderWeekGrid = function() {
       var title = (t.title || '');
       var projName = window.projName ? window.projName(t.projectId) : (t.projectId || '');
       var statusInfo = window.statusInfo ? window.statusInfo(t.status) : {lbl: t.status||'', cls: ''};
-      var assigneeName = '';
-      var assigneeInitial = '';
-      var assigneeColor = '';
-      if (t.assignee && window.memberName && window.memberColor) {
-        assigneeName = window.memberName(t.assignee);
-        assigneeInitial = window.memberInitial ? window.memberInitial(t.assignee) : (assigneeName||'?')[0];
-        assigneeColor = window.memberColor(t.assignee);
+      var assigneeIds = (t.assignees && t.assignees.length) ? t.assignees : (t.assignee ? [t.assignee] : []);
+      var assigneeHTML = '';
+      if (assigneeIds.length === 1) {
+        var aName = window.memberName ? window.memberName(assigneeIds[0]) : '';
+        var aColor = window.memberColor ? window.memberColor(assigneeIds[0]) : '#a09e98';
+        var aInit = window.memberInitial ? window.memberInitial(assigneeIds[0]) : (aName||'?')[0];
+        assigneeHTML = '<span class="wti-member" title="' + escHtml(aName) + '"><span class="wti-avatar" style="background:' + aColor + '">' + escHtml(aInit) + '</span>' + escHtml(aName) + '</span>';
+      } else if (assigneeIds.length > 1) {
+        var names2 = assigneeIds.map(function(id) { return window.memberName ? window.memberName(id) : id; });
+        assigneeHTML = assigneeIds.slice(0, 2).map(function(id) {
+          var c = window.memberColor ? window.memberColor(id) : '#a09e98';
+          var ini = window.memberInitial ? window.memberInitial(id) : '?';
+          return '<span class="wti-avatar" style="background:' + c + '" title="' + escHtml(names2.join(', ')) + '">' + escHtml(ini) + '</span>';
+        }).join('');
+        if (assigneeIds.length > 2) assigneeHTML += '<span class="wti-avatar" style="background:var(--surface3);color:var(--text2);font-size:8px" title="' + escHtml(names2.join(', ')) + '">+' + (assigneeIds.length - 2) + '</span>';
       }
       var priDot = t.priority==='紧急'?'#ef4444':t.priority==='重要'?'#f59e0b':'#94a3b8';
       return '<div class="' + cls + '" onclick="openEditTask(\'' + t.id + '\')" title="' + escHtml(title) + '">' +
@@ -1450,7 +1614,7 @@ window.renderWeekGrid = function() {
         '<div class="wti-title">' + escHtml(title) + '</div>' +
         '<div class="wti-meta">' +
           (projName ? '<span class="wti-proj">' + escHtml(projName) + '</span>' : '') +
-          (assigneeName ? '<span class="wti-member" title="' + escHtml(assigneeName) + '"><span class="wti-avatar" style="background:' + assigneeColor + '">' + escHtml(assigneeInitial) + '</span>' + escHtml(assigneeName) + '</span>' : '') +
+          assigneeHTML +
         '</div>' +
       '</div>';
     }).join('');

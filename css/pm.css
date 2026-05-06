@@ -1,4 +1,4 @@
-/* ════════════════════════════════════════════════
+﻿/* ════════════════════════════════════════════════
  * pm.css — 项目管理模块全部样式  v2
  * ════════════════════════════════════════════════ */
 
@@ -84,6 +84,16 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline-offset:-
 .sidebar-util-btn:hover{background:var(--sb-hover);color:var(--sb-text);border-color:rgba(255,255,255,.12)}
 
 /* ── A4: Sidebar collapse ─────────────────────────────────── */
+/* ── 侧边栏模块切换器 ───────────────────────────────────────────────────────── */
+.sb-module-switch{display:flex;gap:3px;padding:8px 10px 6px;border-bottom:1px solid var(--sb-border);flex-shrink:0}
+.sb-mod-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:6px 4px;border-radius:6px;font-size:11.5px;font-weight:500;color:var(--sb-text2);background:transparent;border:1px solid transparent;cursor:pointer;font-family:var(--font);transition:background .15s,color .15s,border-color .15s;white-space:nowrap;line-height:1}
+.sb-mod-btn svg{opacity:.7;flex-shrink:0;transition:opacity .15s}
+.sb-mod-btn:hover{background:var(--sb-hover);color:var(--sb-text)}
+.sb-mod-btn:hover svg{opacity:1}
+.sb-mod-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sb-mod-btn.active svg{opacity:1;stroke:#fff}
+[data-theme="dark"] .sb-mod-btn.active{background:var(--accent)}
+
 .sidebar-collapse-btn{width:28px;height:28px;border-radius:4px;border:1px solid rgba(255,255,255,.08);background:transparent;cursor:pointer;color:var(--sb-text2);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
 .sidebar-collapse-btn:hover{background:var(--sb-hover);color:var(--sb-text);border-color:rgba(255,255,255,.16)}
 .sidebar.collapsed{width:56px}
@@ -290,8 +300,29 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline-offset:-
 .gantt-row-name{height:42px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;font-size:13px;color:var(--text);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;transition:background .1s}
 .gantt-row-name:hover{background:var(--surface2)}
 .gantt-row-name.done-row{opacity:.45;text-decoration:line-through;color:var(--text3)}
-.gantt-group-header{height:30px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;padding:0 16px;font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.06em}
-.gantt-group-header-right{height:30px;border-bottom:1px solid var(--border);background:var(--surface2)}
+.gantt-group-header{height:32px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;padding:0 12px;font-size:10.5px;font-weight:600;color:var(--text2);letter-spacing:.04em;gap:6px}
+.gantt-group-toggle{cursor:pointer;user-select:none;transition:background .12s}
+.gantt-group-toggle:hover{background:var(--surface3)}
+.gantt-collapse-arrow{font-size:8px;color:var(--text3);flex-shrink:0;transition:transform .15s;width:10px;text-align:center}
+.gantt-group-count{margin-left:auto;font-size:10px;font-weight:400;color:var(--text3);background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:1px 7px;flex-shrink:0}
+.gantt-group-header-right{height:32px;border-bottom:1px solid var(--border);background:var(--surface2)}
+/* ── Gantt Toolbar ─────────────────────────────────────────────────────────── */
+.gantt-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px}
+.gantt-toolbar-left{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.gantt-toolbar-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.gantt-divider{width:1px;height:20px;background:var(--border);margin:0 2px;flex-shrink:0}
+.gantt-ctrl-label{font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0}
+.gantt-ctrl-select{height:28px;padding:0 22px 0 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);color:var(--text);cursor:pointer;outline:none;transition:border-color .15s;appearance:auto}
+.gantt-ctrl-select:hover{border-color:var(--accent)}
+.gantt-ctrl-clear{height:28px;padding:0 10px;font-size:11px;border:1px solid var(--red-border);border-radius:var(--radius-sm);background:var(--red-bg);color:var(--red);cursor:pointer;white-space:nowrap;transition:all .15s}
+.gantt-ctrl-clear:hover{background:var(--red);color:#fff}
+.gantt-ctrl-expand{height:28px;padding:0 10px;font-size:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);color:var(--text2);cursor:pointer;white-space:nowrap;transition:all .15s}
+.gantt-ctrl-expand:hover{background:var(--surface3);color:var(--text)}
+.gantt-zoom-btn{height:28px;padding:0 10px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);color:var(--text2);cursor:pointer;transition:all .15s}
+.gantt-zoom-btn:hover{background:var(--surface3);color:var(--text)}
+.gantt-zoom-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.gantt-filter-badge{font-size:11px;color:var(--accent);font-weight:500;background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:10px;padding:2px 8px;white-space:nowrap}
+.gantt-drag-hint{font-size:11px;color:var(--text3);display:flex;align-items:center;gap:4px;white-space:nowrap}
 .gantt-resize-handle{opacity:0;transition:opacity .15s}
 .gantt-bar:hover .gantt-resize-handle{opacity:1}
 
@@ -682,6 +713,10 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline-offset:-
 [data-theme="dark"] .sec-head { background:var(--surface2); }
 [data-theme="dark"] .gantt-wrap { background:var(--surface); border-color:var(--border); }
 [data-theme="dark"] .gantt-header-row,[data-theme="dark"] .gantt-name-header,[data-theme="dark"] .gantt-group-header,[data-theme="dark"] .gantt-group-header-right { background:var(--surface2); }
+[data-theme="dark"] .gantt-toolbar { background:var(--surface); border-color:var(--border); }
+[data-theme="dark"] .gantt-ctrl-select { background:var(--surface2); color:var(--text); }
+[data-theme="dark"] .gantt-zoom-btn,[data-theme="dark"] .gantt-ctrl-expand { background:var(--surface2); }
+[data-theme="dark"] .gantt-group-toggle:hover { background:rgba(255,255,255,.04); }
 [data-theme="dark"] .gantt-row-name:hover { background:var(--surface2); }
 /* UI-V18: TASK-UI-02 dark */
 [data-theme="dark"] .modal-overlay { background:rgba(2,6,23,.55); backdrop-filter:blur(10px) saturate(1.1); -webkit-backdrop-filter:blur(10px) saturate(1.1); }
@@ -1363,6 +1398,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline-offset:-
 /* UI-V18: TASK-UI-10 — Avatar */
 .avatar{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;flex-shrink:0;user-select:none}
 .avatar-sm{width:20px;height:20px;font-size:9px}
+.avatar-extra{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;background:var(--surface3);color:var(--text2);flex-shrink:0;cursor:help}
 .avatar-lg{width:32px;height:32px;font-size:13px}
 
 /* UI-V18: TASK-UI-13 — Empty State */
@@ -1380,3 +1416,76 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline-offset:-
 .skeleton-line.medium{width:65%}
 .skeleton-line.full{width:100%}
 .skeleton-line.thin{height:9px}
+
+
+/* ─── V20 Module Styles ──────────────────────────────── */
+.modules-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.module-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.module-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: var(--blue-bg);
+  border: 1px solid var(--blue-border);
+  font-size: 13px;
+  color: var(--accent);
+}
+.module-chip .edit-btn {
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity .15s;
+  display: inline-flex;
+  align-items: center;
+}
+.module-chip:hover .edit-btn { opacity: 1; }
+.module-group { margin-bottom: 20px; }
+.module-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.module-group-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+}
+.module-task-count {
+  font-size: 12px;
+  color: var(--text3);
+  background: var(--surface3);
+  border-radius: 10px;
+  padding: 1px 7px;
+}
+.module-add-task-btn {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+.module-add-task-btn:hover {
+  background: var(--blue-bg);
+}
+.module-empty {
+  font-size: 12px;
+  color: var(--text3);
+  padding: 10px 0;
+}

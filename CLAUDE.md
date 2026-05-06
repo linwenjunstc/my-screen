@@ -1080,3 +1080,266 @@ if (_r.loggedOut || !_s || !_s.id) {
 | `.gantt-week-btn` | pm.css | 周导航按钮 |
 | `.orb` / `.orb-1~3` | login.html | 登录页光晕球 |
 | `#particle-canvas` | login.html | 粒子网络画布 |
+
+---
+
+## V18 迭代更新（2026-05-05）
+
+### 10. 新建任务截止日期不再预填
+
+**位置**：`js/pm-tasks.js` — `openAddTask()`
+
+移除截止日期 `<input type="date" id="fi-due">` 的 `value="${today}"` 默认值，同时删除 `requestAnimationFrame` 中显式设置今日日期的代码块。新建任务时截止日期和开始时间均为空白。
+
+### 11. PM/Finance 侧边栏宽度统一
+
+**位置**：`css/finance-extra.css`
+
+**问题**：切换 PM ↔ Finance 时侧边栏宽度从 236px 跳到 204px，内容区布局晃动。
+
+**修复**：`.sidebar.fin-sidebar { width: 204px; }` → `.sidebar.fin-sidebar { width: var(--sidebar-w); }`（236px），与 PM 侧边栏一致。
+
+### 12. 甘特图 header「今天」按钮移除
+
+**位置**：`projectManage.html`、`js/pm-core.js`
+
+移除顶部 header 的 `#header-gantt-today-btn` 按钮（HTML 元素及 `switchView()` 中的 `setDisplay` 控制、`updateHeaderForModule()` 中的引用）。甘特图工具栏胶囊 `[今天] [本周] [下周]` 中的「今天」保留不变。
+
+### 13. 新建任务必填验证
+
+**位置**：`js/pm-tasks.js` — `submitAddTask()` / `openAddTask()`
+
+| 字段 | 类型 | 验证 |
+|------|------|------|
+| 任务名称 | 必填 | 空则红色边框，阻止提交 |
+| 所属项目 | 必选 | 未选则红色边框，阻止提交 |
+| 负责人 | 必选 | 未选则红色边框，阻止提交 |
+
+未通过验证时所有缺失字段同时高亮，不逐个提示。标签旁有红色 `*` 标记。
+
+### 14. 新建项目必填验证
+
+**位置**：`js/pm-projects.js` — `submitAddProject()` / `openAddProject()`
+
+| 字段 | 类型 | 验证 |
+|------|------|------|
+| 项目名称 | 必填 | 空则红色边框，阻止提交 |
+| 项目成员 | 必选 | 至少一人，空则红色虚线边框，阻止提交 |
+
+标签旁有红色 `*` 标记。
+
+---
+
+## V19 迭代更新（2026-05-04）
+
+根据 `V19_MESG_PRD.md` 完成全部 8 项变更：5 项 Bug 修复 + 3 项功能增强。
+
+### FIX-01 · 合同库年份筛选不生效（已完成）
+
+**位置**：`js/finance-base.js`
+
+- `_contractYear` / `_revenueYear` 初始值改为 `'all'`
+- 兜底读取改为 `'all'`
+- 下拉选项头部增加「全部年份」选项
+- 筛选逻辑改为严格匹配：`year === 'all' || r.assessment_year === year`
+
+### FIX-02 · 删除任务双刷新（已完成）
+
+**位置**：`js/pm-tasks.js` — `confirmDeleteTask()`
+
+在 `render()` 调用前设置 `_lastLoadTime = Date.now()`，利用 `loadState()` 的 800ms 防抖阻止实时回调的二次渲染。
+
+### FIX-03 · 对上收款台账删不掉（已完成）
+
+**位置**：`js/finance-t2.js` 第 130 行
+
+表名从 `'receipt'` 改为 `'receipt_records'`，匹配 `finance-base.js` 中 `deleteRow` 的 `tblMap` 映射。
+
+### FIX-04 · 新建表单日期字段不重置（已完成）
+
+**4a · 新建任务弹窗**（`js/pm-tasks.js`）：
+- 给 `#fi-due` 和 `#fi-start-date` 加 `autocomplete="off"`
+- `#fi-due` 保留 `value="${today}"` 默认今天
+- 在 `openModal()` 后通过 `requestAnimationFrame` 显式重置日期字段，防止浏览器表单历史覆盖
+
+**4b · 快捷录入收款弹窗**（`js/finance-t2.js`）：
+- 给 `#qr-date` 加 `autocomplete="off"`
+- `openModal()` 后 `requestAnimationFrame` 重置日期
+
+**4c · 快捷录入支付弹窗**（`js/finance-t3.js`）：
+- 给 `#qp-date` 加 `autocomplete="off"`
+- `openModal()` 后 `requestAnimationFrame` 重置日期
+
+### FIX-05 · 甘特图成员筛选字段名错误（已完成）
+
+**位置**：`js/pm-views.js` — `renderGantt` 函数
+
+两处筛选从 `t.assigneeId` 改为 `t.assignee`（匹配 `loadState()` 中的实际字段名）。
+
+### FEAT-01 · 甘特图：默认折叠 + 排序 + 筛选（已完成）
+
+**位置**：`js/pm-views.js`、`css/pm.css`
+
+**全部状态变量**：
+- `window._ganttCollapsed` — 折叠状态（null 表示需要初始化）
+- `window._ganttSort` — 排序（due/priority/status/title）
+- `window._ganttFilterStatus` — 状态筛选
+- `window._ganttFilterAssignee` — 成员筛选
+
+**groups.forEach 改造**：
+- 首次渲染自动折叠所有项目组
+- 筛选 + 排序后再渲染每个 group header
+- 项目组 header 可点击切换折叠，显示计数 badge
+
+**辅助函数**：`window.ganttExpandAll()` / `window.ganttCollapseAll()`
+
+**工具栏**：左侧 — 周导航 + 筛选下拉框（状态/成员） + 清除 + 排序 + 缩放按钮；右侧 — 展开/折叠全部 + 筛选结果计数 + 拖拽提示
+
+**CSS**：`.gantt-group-header`、`.gantt-group-toggle`、`.gantt-collapse-arrow`、`.gantt-group-count`、`.gantt-toolbar` 等完整样式
+
+### FEAT-02 · 模块切换移到左侧侧边栏（已完成）
+
+**位置**：`projectManage.html`、`css/pm.css`
+
+**HTML**：
+- PM 侧边栏：在「导航」前添加 `.sb-module-switch` 含「项目管理」「资金计划」按钮
+- Finance 侧边栏：在 `.month-picker` 前添加同样的模块切换器
+- 顶部模块切换胶囊 `.top-tab-group` 隐藏
+
+**JS**：`switchModule()` 开头同步侧边栏按钮 active 状态（双向同步两个侧边栏的按钮）
+
+**CSS**：`.sb-module-switch`（flex + 底部边框）、`.sb-mod-btn`（透明背景 + hover 高亮 + active 蓝色实心）
+
+### FEAT-03 · 云端事件通知系统（⚠️ 代码已完成，消息推送存在问题）
+
+**位置**：`js/pm-core.js`、`js/pm-tasks.js`、`js/pm-members.js`
+
+**前置**：需在 Supabase SQL Editor 执行 `supabase/migrations/004_notifications.sql` 建表。
+
+**核心函数（pm-core.js）**：
+| 函数 | 说明 |
+|------|------|
+| `window.pushNotification({recipientId, type, title, body, navType, navId})` | 写入通知到 Supabase notifications 表（不给自己推送） |
+| `window.loadCloudNotifications()` | 拉取当前用户未读通知，映射为铃铛面板格式，合并到 `_cloudNotifItems` |
+| `window.markCloudNotifRead(dbId)` | 标记单条通知为已读 |
+
+**buildNotifItems 增强**：在排序前合并 `_cloudNotifItems`（过滤已读），排序规则扩展支持 green/purple 类型，同级按时间倒序。
+
+**loadState 增强**：`refreshNotifs()` 后调用 `loadCloudNotifications()`。
+
+**notifNavigate 增强**：标记本地已读后，同步标记云端为已读并从 `_cloudNotifItems` 中移除。
+
+**markAllNotifsRead 增强**：批量更新 Supabase 通知为已读，清空 `_cloudNotifItems`。
+
+**通知推送触发点**：
+
+| 触发位置 | 类型 | 触发条件 |
+|---------|------|---------|
+| `submitEditTask()` (pm-tasks.js) | `task_changed` | 状态变更 / 截止日调整 / 优先级升为紧急 |
+| `submitEditTask()` (pm-tasks.js) | `task_assigned` | 负责人变更（通知新负责人） |
+| `toggleDone()` (pm-tasks.js) | `task_done` | 任务被标记为完成 |
+| `saveMenuPerms()` (pm-members.js) | `perm_changed` | 成员菜单权限被修改 |
+
+### FEAT-03 待排查（2026-05-05）
+
+**现象**：修改某成员权限后，对方铃铛未收到推送通知。
+
+**已修复的问题**：
+1. `loadState()` 中 `loadCloudNotifications()` 调用加 `await` — 确保通知拉取完成后再结束
+2. `pushNotification` 错误日志从 `console.warn` 改为 `console.error` — 便于控制台排查
+3. SQL 迁移文件新增 `ALTER PUBLICATION supabase_realtime ADD TABLE notifications` — 新表默认不在 Realtime publication 中，导致插入后对方收不到实时事件
+
+**需用户执行**：在 Supabase SQL Editor 重新运行 `supabase/migrations/004_notifications.sql`（含 ALTER PUBLICATION 行）
+
+**排查方向**：
+- 打开浏览器控制台，修改权限后看是否有 `pushNotification failed:` 红色报错
+- 确认 notifications 表已在 Supabase Dashboard → Database → Replication 中勾选
+- 让对方刷新页面后检查铃铛（排除 Realtime 问题，验证拉取逻辑）
+- 在 Supabase Table Editor 直接查看 notifications 表是否有数据写入
+
+### 新增文件
+
+| 文件 | 说明 |
+|------|------|
+| `supabase/migrations/004_notifications.sql` | notifications 表建表语句 + 索引 + Realtime publication |
+
+---
+
+## V20 迭代更新（2026-05-06）
+
+### 多负责人支持 — 任务支持选择多个负责人
+
+**数据库变更**：
+- `tasks` 表新增 `assignees` JSONB 列，默认 `'[]'::jsonb`
+- SQL：`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assignees JSONB DEFAULT '[]'::jsonb;`
+- 保留 `assignee` TEXT 列存主负责人，向后兼容
+
+**数据模型**（pm-core.js — `loadState()`）：
+- JS 中：`t.assignee` = 主负责人 ID（TEXT），`t.assignees` = 全部负责人 ID 数组
+- 从 DB 加载时：`assignees: t.assignees || []`
+- 上传时（`syncTask`）：`dbData.assignees = t.assignees || []`
+
+**多选 UI**（pm-tasks.js）：
+| 函数 | 说明 |
+|------|------|
+| `buildTaskAssigneeListHTML()` | 渲染新建任务的负责人 chip 列表（从 `window._newTaskAssignees`） |
+| `addTaskAssignee()` | 新建任务中点击「添加」→ 加入临时数组 → 重新渲染 |
+| `removeTaskAssignee(mid)` | 新建任务中点击 chip 的 x → 移除 → 重新渲染 |
+| `renderEditTaskAssigneeList()` | 编辑任务的统一渲染函数（从 `window._editTaskAssignees`） |
+| `buildEditTaskAssigneeHTML(taskId)` | 编辑任务初始化：从任务数据读取 → 设置 `window._editTaskAssignees` |
+| `addEditTaskAssignee(taskId)` | 编辑任务中点击「添加」→ 加入临时数组 → 调用 render |
+| `removeEditTaskAssignee(mid)` | 编辑任务中点击 chip 的 x → 移除 → 调用 render |
+
+**任务卡片**（`taskCardHTML`）：
+- 显示最多 3 个头像，超出显示 `+N`
+- CSS：`.avatar-extra`（灰色圆圈，`+N` 文字，hover 显示全部负责人名）
+
+**各视图适配**（pm-views.js）：
+- `assigneeNamesStr(t, memberMap)` — 格式化多个负责人名为逗号分隔字符串
+- Today 视图「负责人任务概览」：检查 `t.assignees.includes(m.id)`
+- 任务列表筛选 `filterAssignee`：检查 `t.assignees`
+- 图表成员负载/完成数：检查 `t.assignees`
+- 甘特图成员筛选：检查 `t.assignees`
+- 甘特图拖拽权限（`canAdjustGantt`）：检查 `t.assignees`
+- 周视图任务卡片：显示多个头像（1 人显示头像+姓名，多人显示头像+溢出数）
+- 图表点击弹窗：负责人列显示全部负责人名
+
+**成员管理**（pm-members.js）：
+- 成员任务计数：检查 `t.assignees`
+- 删除成员安全检查：检查 `t.assignees`
+
+**AI 助手**（pm-ai.js）：
+- 修复 Bug：`t.assigneeId` → `t.assignee`（`_buildPmContext` 任务映射）
+- 修复 Bug：`t.assignee===m.name` → `t.assignee===m.id`（成员负载统计）
+- Context 新增 `assignees` 字段（含成员名数组）
+- AI `task_update` 设置 assignee 时同步更新 `assignees`
+- AI `task_create` 创建任务时自动设置 `assignees`
+
+**通知**（保持不变）：
+- 任务通知仍发送给主负责人（`t.assignee`），不向所有负责人群发
+
+### V20 新增全局变量
+
+```js
+window._newTaskAssignees = [];       // 新建任务时临时存储选中的负责人 ID
+window._editTaskAssignees = [];      // 编辑任务时临时存储选中的负责人 ID
+```
+
+### V20 新增 CSS class
+
+| Class | 文件 | 说明 |
+|-------|------|------|
+| `.avatar-extra` | pm.css | 任务卡片中超出 2 个的头像溢出标识 |
+
+### V20 新增函数
+
+| 函数 | 位置 | 说明 |
+|------|------|------|
+| `assigneeNamesStr(t, memberMap)` | pm-views.js | 格式化多负责人姓名为逗号分隔字符串 |
+| `buildTaskAssigneeListHTML()` | pm-tasks.js | 渲染新建任务负责人 chip 列表 |
+| `addTaskAssignee()` | pm-tasks.js | 新建任务中向临时数组添加负责人 |
+| `removeTaskAssignee(mid)` | pm-tasks.js | 新建任务中从临时数组移除负责人 |
+| `renderEditTaskAssigneeList()` | pm-tasks.js | 编辑任务统一渲染 chip 列表 |
+| `buildEditTaskAssigneeHTML(taskId)` | pm-tasks.js | 编辑任务初始化临时数组 |
+| `addEditTaskAssignee(taskId)` | pm-tasks.js | 编辑任务中向临时数组添加负责人 |
+| `removeEditTaskAssignee(mid)` | pm-tasks.js | 编辑任务中从临时数组移除负责人 |

@@ -261,7 +261,8 @@ function _buildPmContext() {
       priority:    t.priority || '普通',
       due:         t.due || null,
       startDate:   t.startDate || null,
-      assignee:    memberMap[t.assigneeId] || '未分配',
+      assignee:    memberMap[t.assignee] || '未分配',
+      assignees:   (t.assignees || []).map(function(id){return memberMap[id]}).filter(Boolean),
       project:     projectMap[t.projectId] || '无项目',
       daysUntil:   daysUntil,
       overdue:     isOverdue,
@@ -298,9 +299,9 @@ function _buildPmContext() {
       id:           m.id,
       name:         m.name,
       role:         m.role==='admin'?'管理员':'成员',
-      openTasks:    tasks.filter(function(t){return t.assignee===m.name&&t.status!=='已完成'}).length,
-      overdueTasks: tasks.filter(function(t){return t.assignee===m.name&&t.overdue}).length,
-      urgentTasks:  tasks.filter(function(t){return t.assignee===m.name&&t.priority==='紧急'&&t.status!=='已完成'}).length,
+      openTasks:    tasks.filter(function(t){return (t.assignee===m.id||(t.assignees||[]).indexOf(m.id)>=0)&&t.status!=='已完成'}).length,
+      overdueTasks: tasks.filter(function(t){return (t.assignee===m.id||(t.assignees||[]).indexOf(m.id)>=0)&&t.overdue}).length,
+      urgentTasks:  tasks.filter(function(t){return (t.assignee===m.id||(t.assignees||[]).indexOf(m.id)>=0)&&t.priority==='紧急'&&t.status!=='已完成'}).length,
     }; }),
     tags: (state.globalTags || []).map(function(tg) {
       return { id: tg.id, name: tg.name };
@@ -934,6 +935,9 @@ window.aiConfirmWrite = async function(actionStr, btn) {
       var dbField = fieldMap[action.field] || action.field;
       updateObj[dbField] = action.value;
 
+      if (action.field === 'assigneeId') {
+        updateObj.assignees = [action.value];
+      }
       if (action.field === 'status' && action.value === '已完成') {
         updateObj.completed_at = new Date().toISOString();
         updateObj.completed_by = (currentUser && currentUser.name) || '';
@@ -961,6 +965,7 @@ window.aiConfirmWrite = async function(actionStr, btn) {
         priority:    action.priority || '普通',
         project_id:  action.projectId || null,
         assignee: action.assigneeId || null,
+        assignees: action.assigneeId ? [action.assigneeId] : [],
         due:         action.due || null,
         start_date:  action.startDate || null,
         created_at:  new Date().toISOString(),

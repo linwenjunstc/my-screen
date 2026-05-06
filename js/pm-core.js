@@ -1,4 +1,4 @@
-/* ════════════════════════════════════════════════
+﻿/* ════════════════════════════════════════════════
  * pm-core.js  —  常量/状态/初始化/数据同步/工具函数/角色/菜单权限/路由
  * ════════════════════════════════════════════════ */
 
@@ -119,7 +119,8 @@ let state = {
     projects: [], 
     tasks: [], 
     members: [], 
-    globalTags: [], 
+    globalTags: [],
+    modules: [],               // V20: 模块列表
     burndownLog: {},           // 必须加上，否则图表报错
     recurringLastGenerated: '' // 必须加上，否则周期任务报错
 };
@@ -183,11 +184,12 @@ async function loadState(force) {
   _loadingState = true;
   renderSkeleton();
   try {
-    const [tasksRes, projsRes, memsRes, tagsRes] = await Promise.all([
+    const [tasksRes, projsRes, memsRes, tagsRes, modsRes] = await Promise.all([
       sb.from('tasks').select('*'),
       sb.from('projects').select('*'),
       sb.from('members').select('*'),
-      sb.from('tags').select('*')
+      sb.from('tags').select('*'),
+      sb.from('modules').select('*').order('sort_order')  // V20: 模块数据
     ]);
 
     if (tasksRes.error || projsRes.error) throw "读取失败";
@@ -196,10 +198,12 @@ async function loadState(force) {
     state.tasks = (tasksRes.data || []).map(t => ({
         ...t,
         projectId: t.project_id, // 映射项目ID
+        moduleId: t.module_id,   // V20: 所属模块
         createdAt: t.created_at,
         startDate: t.start_date,
         completedAt: t.completed_at,
-        completedBy: t.completed_by  // 映射创建时间
+        completedBy: t.completed_by,  // 映射创建时间
+        assignees: t.assignees || []  // V20: 多负责人
     }));
     
     state.projects = (projsRes.data || []).map(p => ({
@@ -222,7 +226,16 @@ async function loadState(force) {
         name: tg.name,
         paletteIdx: tg.palette_idx // 映射标签调色盘索引
     }));
-    
+
+    // V20: 模块映射
+    state.modules = (modsRes.data || []).map(function(m) {
+      return Object.assign({}, m, {
+        projectId: m.project_id,
+        sortOrder: m.sort_order,
+        createdAt: m.created_at
+      });
+    });
+
     // 如果云端没有标签，初始化默认标签
     if (!state.globalTags.length) {
         state.globalTags = [
@@ -249,8 +262,8 @@ async function loadState(force) {
           return (p.members || []).some(function(mid) { return !superAdminIds.includes(mid); });
         });
       } else {
-        // 普通用户：仅查看自己的任务和相关项目
-        state.tasks = state.tasks.filter(function(t) { return t.assignee === currentUser.id; });
+        // 普通用户：仅查看自己的任务和相关项目（V20: 检查 assignees 多负责人）
+        state.tasks = state.tasks.filter(function(t) { return t.assignee === currentUser.id || (t.assignees || []).includes(currentUser.id); });
         var visiblePids = {};
         state.tasks.forEach(function(t) { if (t.projectId) visiblePids[t.projectId] = true; });
         state.projects = state.projects.filter(function(p) {
@@ -262,6 +275,7 @@ async function loadState(force) {
     updateBadges();
     if (!window._ganttSaving) render();
     if (typeof refreshNotifs === 'function') refreshNotifs();
+    if (typeof loadCloudNotifications === 'function') await loadCloudNotifications();
   } catch (err) {
     console.error(err);
     toast("获取数据失败");
@@ -277,13 +291,17 @@ async function syncTask(t) {
   const dbData = {
     ...t,
     project_id: t.projectId || t.project_id,
+    module_id: t.moduleId || null,   // V20: 所属模块
     created_at: t.createdAt || t.created_at,
     start_date: t.startDate || t.start_date,
     completed_at: t.completedAt || t.completed_at,
     completed_by: t.completedBy || t.completed_by
   };
+  // V20: 确保 assignees 同步到数据库
+  dbData.assignees = t.assignees || [];
   // 移除 JS 内部使用的驼峰属性，保持数据库整洁
   delete dbData.projectId;
+  delete dbData.moduleId;
   delete dbData.createdAt;
   delete dbData.startDate;
   delete dbData.completedAt;
@@ -296,6 +314,19 @@ async function syncTask(t) {
   }
 }
 
+// V20: 模块同步
+async function syncModule(mod) {
+  var { error } = await sb.from('modules').upsert({
+    id:          mod.id,
+    project_id:  mod.projectId || mod.project_id,
+    name:        mod.name,
+    description: mod.description || '',
+    sort_order:  mod.sortOrder !== undefined ? mod.sortOrder : (mod.sort_order || 0)
+  });
+  if (error) { console.error('syncModule 失败:', error); toast('模块同步失败：' + error.message, 'error'); return false; }
+  return true;
+}
+window.syncModule = syncModule;
 
 async function handleCustomLogin() {
     const name = document.getElementById('login-user').value.trim();
@@ -451,13 +482,13 @@ function seedData() {
   const d = n => { const dd = new Date(); dd.setDate(dd.getDate()+n); return dd.toISOString().slice(0,10); };
   const ct = n => { const dd = new Date(); dd.setDate(dd.getDate()+n); return dd.toISOString().slice(0,10); };
   state.tasks = [
-    {id:'t1',title:'确认设计稿终稿，发给开发',projectId:'p1',due:d(-1),priority:'紧急',status:'doing',logs:[],done:false,tags:['tag1'],subtasks:[{id:'s1',title:'整理设计资产',done:true},{id:'s2',title:'导出切图',done:false}],dependencies:[],assignee:'m1',createdAt:ct(-7),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
-    {id:'t2',title:'和市场对齐活动预算',projectId:'p2',due:d(0),priority:'重要',status:'todo',logs:[],done:false,tags:['tag3'],subtasks:[],dependencies:[],assignee:'m2',createdAt:ct(-3),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
-    {id:'t3',title:'跟进前端开发进度',projectId:'p3',due:d(1),priority:'紧急',status:'doing',logs:[{date:d(-2),text:'前端说本周五可以提测'}],done:false,tags:['tag2'],subtasks:[],dependencies:['t1'],assignee:'m1',createdAt:ct(-5),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
-    {id:'t4',title:'撰写活动策划方案',projectId:'p2',due:d(2),priority:'重要',status:'todo',logs:[],done:false,tags:['tag3'],subtasks:[{id:'s3',title:'竞品分析',done:false},{id:'s4',title:'预算规划',done:false},{id:'s5',title:'执行时间表',done:false}],dependencies:[],assignee:'m3',createdAt:ct(-2),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
+    {id:'t1',title:'确认设计稿终稿，发给开发',projectId:'p1',due:d(-1),priority:'紧急',status:'doing',logs:[],done:false,tags:['tag1'],subtasks:[{id:'s1',title:'整理设计资产',done:true},{id:'s2',title:'导出切图',done:false}],dependencies:[],assignee:'m1',assignees:[],createdAt:ct(-7),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
+    {id:'t2',title:'和市场对齐活动预算',projectId:'p2',due:d(0),priority:'重要',status:'todo',logs:[],done:false,tags:['tag3'],subtasks:[],dependencies:[],assignee:'m2',assignees:[],createdAt:ct(-3),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
+    {id:'t3',title:'跟进前端开发进度',projectId:'p3',due:d(1),priority:'紧急',status:'doing',logs:[{date:d(-2),text:'前端说本周五可以提测'}],done:false,tags:['tag2'],subtasks:[],dependencies:['t1'],assignee:'m1',assignees:[],createdAt:ct(-5),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
+    {id:'t4',title:'撰写活动策划方案',projectId:'p2',due:d(2),priority:'重要',status:'todo',logs:[],done:false,tags:['tag3'],subtasks:[{id:'s3',title:'竞品分析',done:false},{id:'s4',title:'预算规划',done:false},{id:'s5',title:'执行时间表',done:false}],dependencies:[],assignee:'m3',assignees:[],createdAt:ct(-2),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
     {id:'t5',title:'用户访谈结果整理',projectId:'p1',due:d(5),priority:'普通',status:'todo',logs:[],done:false,tags:[],subtasks:[],dependencies:[],assignee:'m2',createdAt:ct(-1),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
-    {id:'t6',title:'提交上线申请单',projectId:'p3',due:d(7),priority:'重要',status:'waiting',logs:[],done:false,tags:[],subtasks:[],dependencies:['t3'],assignee:'m3',createdAt:ct(-1),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
-    {id:'t7',title:'评审UI交互方案',projectId:'p1',due:d(-3),priority:'紧急',status:'done',logs:[],done:true,tags:['tag1'],subtasks:[],dependencies:[],assignee:'m1',createdAt:ct(-10),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
+    {id:'t6',title:'提交上线申请单',projectId:'p3',due:d(7),priority:'重要',status:'waiting',logs:[],done:false,tags:[],subtasks:[],dependencies:['t3'],assignee:'m3',assignees:[],createdAt:ct(-1),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
+    {id:'t7',title:'评审UI交互方案',projectId:'p1',due:d(-3),priority:'紧急',status:'done',logs:[],done:true,tags:['tag1'],subtasks:[],dependencies:[],assignee:'m1',assignees:[],createdAt:ct(-10),recurring:{enabled:false,freq:'weekly',dayOfWeek:1}},
     {id:'t8',title:'每周进度汇报',projectId:'p3',due:d(7),priority:'普通',status:'todo',logs:[],done:false,tags:[],subtasks:[],dependencies:[],assignee:'m2',createdAt:ct(-1),recurring:{enabled:true,freq:'weekly',dayOfWeek:1}},
   ];
 }
@@ -484,7 +515,7 @@ function checkRecurringTasks() {
       projectId: t.projectId, due: due.toISOString().slice(0,10),
       priority: t.priority, status: 'todo', logs: [], done: false,
       tags: [...(t.tags||[])], subtasks: [], dependencies: [],
-      assignee: t.assignee, createdAt: todayStr,
+      assignee: t.assignee, assignees: t.assignees || [], createdAt: todayStr,
       recurring: {enabled:false, freq:'weekly', dayOfWeek:1},
       recurringFrom: t.id,
     });
@@ -515,7 +546,8 @@ function exportCSV() {
   const rows = [headers];
   state.tasks.forEach(t => {
     const tagNames = (t.tags||[]).map(tid => { const tg = state.globalTags.find(x=>x.id===tid); return tg?tg.name:''; }).filter(Boolean).join('|');
-    const assigneeName = t.assignee ? (state.members.find(m=>m.id===t.assignee)||{name:t.assignee}).name : '';
+    const assigneeIds = t.assignees && t.assignees.length ? t.assignees : (t.assignee ? [t.assignee] : []);
+    const assigneeName = assigneeIds.map(function(id) { var m = state.members.find(function(x) { return x.id === id; }); return m ? m.name : id; }).join(', ');
     const subtotalDone = (t.subtasks||[]).filter(s=>s.done).length;
     rows.push([
       t.title, projName(t.projectId), assigneeName, t.due, t.priority,
@@ -805,6 +837,8 @@ function statusInfo(s) {
 
 function projName(id) { const p=state.projects.find(x=>x.id===id); return p?p.name:'未分类'; }
 function projColor(id) { const p=state.projects.find(x=>x.id===id); return PROJ_COLORS[(p?p.colorIdx||0:0)%PROJ_COLORS.length]; }
+// V20: 模块名称辅助函数
+function moduleName(id) { if (!id) return '未分类'; var m=state.modules.find(function(x){return x.id===id}); return m?m.name:'未分类'; }
 function memberName(id) { const m=state.members.find(x=>x.id===id); return m?m.name:id; }
 function memberColor(id) { const m=state.members.find(x=>x.id===id); return m?MEMBER_COLORS[m.colorIdx%MEMBER_COLORS.length]:'#a09e98'; }
 function memberInitial(id) { const n=memberName(id); return n?n.slice(0,1):'?'; }
@@ -1306,12 +1340,16 @@ window.buildNotifItems = function() {
     }
   } catch(e) { /* Finance 未初始化时忽略 */ }
 
-  // 按紧急程度排序（today > 48h > finance），同级按时间正序
+  // 合并云端通知
+  var cloudItems = (window._cloudNotifItems || []).filter(function(c) { return !_getReadIds().includes(c.id); });
+  items = items.concat(cloudItems);
+
+  // 按紧急程度排序，同级按时间倒序
   items.sort(function(a, b) {
-    var typeOrder = { red: 0, amber: 1, blue: 2, teal: 3 };
+    var typeOrder = { red: 0, amber: 1, blue: 2, green: 2, purple: 2, teal: 3 };
     var to = (typeOrder[a.type] || 0) - (typeOrder[b.type] || 0);
     if (to !== 0) return to;
-    return a.ts - b.ts;
+    return b.ts - a.ts;
   });
 
   window._notifItems = items;
@@ -1325,6 +1363,69 @@ function _getReadIds() {
 function _saveReadIds(ids) {
   try { localStorage.setItem('pm_notif_read_v2', JSON.stringify(ids.slice(-300))); } catch(e) {}
 }
+
+// ── 云端通知系统 ──
+window.pushNotification = async function({ recipientId, type, title, body, navType, navId }) {
+  if (!recipientId) return;
+  if (currentUser && currentUser.id === recipientId) return;
+  try {
+    await sb.from('notifications').insert({
+      recipient_id: recipientId,
+      type:     type     || 'info',
+      title:    title    || '',
+      body:     body     || '',
+      nav_type: navType  || 'task',
+      nav_id:   navId    || '',
+      is_read:  false
+    });
+  } catch(e) { console.error('pushNotification failed:', e); }
+};
+
+window._cloudNotifItems = [];
+window.loadCloudNotifications = async function() {
+  if (!currentUser || !currentUser.id) return;
+  try {
+    const { data, error } = await sb
+      .from('notifications')
+      .select('*')
+      .eq('recipient_id', currentUser.id)
+      .eq('is_read', false)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) return;
+
+    const TYPE_MAP = {
+      task_changed:  { icon:'✏️', iconCls:'ico-amber',  type:'amber',  tag:'任务变更' },
+      task_done:     { icon:'✅', iconCls:'ico-green',   type:'green',  tag:'任务完成' },
+      task_assigned: { icon:'👤', iconCls:'ico-blue',    type:'blue',   tag:'任务分配' },
+      perm_changed:  { icon:'🔐', iconCls:'ico-purple',  type:'amber',  tag:'权限变更' },
+    };
+
+    window._cloudNotifItems = (data || []).map(function(n) {
+      const cfg = TYPE_MAP[n.type] || { icon:'🔔', iconCls:'ico-amber', type:'amber', tag:'通知' };
+      return {
+        id:      'cloud-' + n.id,
+        _dbId:   n.id,
+        type:    cfg.type,
+        icon:    cfg.icon,
+        iconCls: cfg.iconCls,
+        title:   n.title || '',
+        sub:     n.body  || '',
+        tag:     cfg.tag,
+        ts:      new Date(n.created_at).getTime(),
+        navType: n.nav_type || 'task',
+        navId:   n.nav_id   || '',
+        isCloud: true
+      };
+    });
+    refreshNotifs();
+  } catch(e) {}
+};
+
+window.markCloudNotifRead = async function(dbId) {
+  if (!dbId) return;
+  try { await sb.from('notifications').update({ is_read: true }).eq('id', dbId); } catch(e) {}
+};
 
 // 渲染角标和面板
 window.refreshNotifs = function() {
@@ -1408,6 +1509,11 @@ window.notifNavigate = function(navType, navId, itemId) {
     readIds.push(itemId);
     _saveReadIds(readIds);
   }
+  var cloudItem = (window._cloudNotifItems || []).find(function(c) { return c.id === itemId; });
+  if (cloudItem && cloudItem._dbId) {
+    markCloudNotifRead(cloudItem._dbId);
+    window._cloudNotifItems = window._cloudNotifItems.filter(function(c) { return c.id !== itemId; });
+  }
 
   // 关闭面板
   closeNotifPanel();
@@ -1465,6 +1571,11 @@ window.markAllNotifsRead = function() {
   var readIds = _getReadIds();
   var merged = Array.from(new Set(readIds.concat(items.map(function(i) { return i.id; }))));
   _saveReadIds(merged);
+  var cloudDbIds = (window._cloudNotifItems || []).map(function(c) { return c._dbId; }).filter(Boolean);
+  if (cloudDbIds.length > 0) {
+    sb.from('notifications').update({ is_read: true }).in('id', cloudDbIds).catch(function() {});
+    window._cloudNotifItems = [];
+  }
   refreshNotifs();
 };
 
