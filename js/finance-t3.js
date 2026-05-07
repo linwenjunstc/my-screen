@@ -294,7 +294,7 @@ window.openQuickPaymentEntry = function(paymentPlanId) {
       '<div class="form-group"><label class="form-label">实际付款日期 <span style="color:var(--red)">*</span></label>' +
         '<input type="date" class="form-input" id="qp-date" autocomplete="off" value="' + todayStr + '"></div>' +
       '<div class="form-group"><label class="form-label">实际付款金额（元）<span style="color:var(--red)">*</span></label>' +
-        '<input type="number" class="form-input" id="qp-amount" placeholder="请输入金额" min="0" step="0.01"></div>' +
+        '<input type="number" class="form-input" id="qp-amount" placeholder="请输入金额" min="0" step="0.01" inputmode="decimal"></div>' +
       '<div class="form-group"><label class="form-label">备注</label>' +
         '<input type="text" class="form-input" id="qp-remark" placeholder="可选"></div>' +
     '</div>' +

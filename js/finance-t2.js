@@ -195,7 +195,7 @@ window.openQuickReceiptEntry = function(receiptRecordId) {
       '<div class="form-group"><label class="form-label">实际到款日期 <span style="color:var(--red)">*</span></label>' +
         '<input type="date" class="form-input" id="qr-date" autocomplete="off" value="' + todayStr + '"></div>' +
       '<div class="form-group"><label class="form-label">实际到款金额（元）<span style="color:var(--red)">*</span></label>' +
-        '<input type="number" class="form-input" id="qr-amount" placeholder="请输入金额" min="0" step="0.01"></div>' +
+        '<input type="number" class="form-input" id="qr-amount" placeholder="请输入金额" min="0" step="0.01" inputmode="decimal"></div>' +
       '<div class="form-group"><label class="form-label">备注</label>' +
         '<input type="text" class="form-input" id="qr-remark" placeholder="可选"></div>' +
     '</div>' +

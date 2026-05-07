@@ -193,13 +193,35 @@ async function addMemberToProject(projId) {
 
 // 移除项目成员
 async function removeMemberFromProject(projId, memberId) {
-  const p = state.projects.find(x => x.id === projId); 
+  const p = state.projects.find(x => x.id === projId);
   if (!p) return;
-  
+
   p.members = p.members.filter(x => x !== memberId);
   // 【关键】同步修改到云端
-  await syncProject(p); 
-  openEditProject(projId); 
+  await syncProject(p);
+  _lastLoadTime = Date.now();
+  // 刷新弹窗内成员列表，不重新 openModal
+  var listEl = document.getElementById('proj-member-list');
+  if (listEl) {
+    var joinedHTML = (p.members || []).map(function(mid) {
+      var m = state.members.find(function(x) { return x.id === mid; });
+      if (!m) return '';
+      return '<div class="subtask-item" style="display:flex; align-items:center; gap:8px; background:var(--surface2); padding:5px 10px; border-radius:6px; margin-bottom:5px;">' +
+        '<div class="member-avatar" style="background:' + memberColor(m.id) + '; width:20px; height:20px; font-size:10px;">' + memberInitial(m.id) + '</div>' +
+        '<div style="flex:1">' + escHtml(m.name) + '</div>' +
+        '<button class="subtask-del" onclick="removeMemberFromProject(\'' + projId + '\',\'' + m.id + '\')"><i data-lucide="x"></i></button>' +
+        '</div>';
+    }).join('');
+    listEl.innerHTML = joinedHTML || '<div style="font-size:12px;color:var(--text3)">暂无成员</div>';
+    if (window.lucide) lucide.createIcons();
+    // 更新下拉框中的可选成员
+    var availMembers = state.members.filter(function(m) { return !(p.members || []).includes(m.id); });
+    var sel = document.getElementById('proj-add-member-sel');
+    if (sel) {
+      sel.innerHTML = '<option value="">添加成员...</option>' +
+        availMembers.map(function(m) { return '<option value="' + m.id + '">' + escHtml(m.name) + '</option>'; }).join('');
+    }
+  }
   toast('成员已移除', 'success');
 }
 
@@ -215,6 +237,7 @@ async function submitEditProject(id) {
   p.colorIdx = window._editProjColor !== undefined ? window._editProjColor : (p.colorIdx || 0);
   await syncProject(p);
   closeModal();
+  _lastLoadTime = Date.now();
   render();
   toast('项目更新成功', 'success');
   logAction('编辑项目', `更新项目「${name}」`);
@@ -228,6 +251,7 @@ async function confirmDeleteProject(id) {
       state.projects = state.projects.filter(p => p.id !== id);
       const pName = state.projects.find(x => x.id === id)?.name || id;
       closeModal();
+      _lastLoadTime = Date.now();
       switchView('today');
       toast('项目已删除', 'success');
       logAction('删除项目', `删除项目「${pName}」`);

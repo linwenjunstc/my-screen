@@ -96,6 +96,7 @@ async function submitAddMember() {
     toast('成员同步失败，请检查数据库权限', 'error');
   } else {
     state.members.push(newMember);
+    _lastLoadTime = Date.now();
     nameInp.value = '';
     passInp.value = '';
     const listEl = document.getElementById('members-list');
@@ -123,8 +124,10 @@ async function deleteMember(id) {
       toast('删除失败', 'error');
     } else {
       state.members = state.members.filter(x => x.id !== id);
+      _lastLoadTime = Date.now();
       const listEl = document.getElementById('members-list');
       if (listEl) listEl.innerHTML = buildMembersListHTML();
+      if (window.lucide) lucide.createIcons();
       toast('成员已移除', 'success');
       logAction('删除成员', `移除成员「${m.name}」`);
     }
@@ -172,6 +175,8 @@ async function submitAddTag(btn) {
   setLoading(btn, false);
   inp.value = '';
   document.getElementById('tags-list').innerHTML = buildTagsListHTML();
+  if (window.lucide) lucide.createIcons();
+  inp.focus();
   toast('标签已添加');
   logAction('添加标签', `新建标签「${name}」`);
 }
@@ -247,6 +252,7 @@ async function confirmEditTag(id) {
   tg.name = newName;
   await syncTag(tg);
   document.getElementById('tags-list').innerHTML = buildTagsListHTML();
+  if (window.lucide) lucide.createIcons();
   toast('标签已更新');
   logAction('编辑标签', `标签重命名为「${newName}」`);
 }
@@ -263,7 +269,9 @@ async function deleteTag(id) {
     if (error) { toast('删除失败', 'error'); return; }
     state.globalTags = state.globalTags.filter(t => t.id !== id);
     state.tasks.forEach(t => { if (t.tags) t.tags = t.tags.filter(x => x !== id); });
+    _lastLoadTime = Date.now();
     document.getElementById('tags-list').innerHTML = buildTagsListHTML();
+    if (window.lucide) lucide.createIcons();
     toast('标签已删除', 'success');
     logAction('删除标签', `删除标签「${tg.name}」`);
   }, {danger: true, confirmLabel: '删除'});

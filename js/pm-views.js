@@ -4,11 +4,19 @@
 
 window._todayViewMode = window._todayViewMode || 'today';
 
+// 排序映射（中文值 → 数值）
+var _PRIO_ORDER_MAP = { '紧急': 0, '重要': 1, '普通': 2 };
+var _STATUS_ORDER_MAP = { 'todo': 0, 'doing': 1, 'waiting': 2, 'done': 3 };
+
 // V20: 格式化任务负责人名（多选支持）
 window.assigneeNamesStr = function(t, memberMap) {
   var ids = (t.assignees && t.assignees.length) ? t.assignees : (t.assignee ? [t.assignee] : []);
   return ids.map(function(id) { return memberMap[id] || id; }).join(', ') || '—';
 };
+
+window._todayGroupMode = window._todayGroupMode || 'project';
+window._todayFilterScope = window._todayFilterScope || 'all';
+window._todayCollapsed = window._todayCollapsed || {};
 
 function renderToday() {
   if (window._todayViewMode === 'week') {
@@ -17,110 +25,168 @@ function renderToday() {
   }
   document.getElementById('header-title').textContent = '今日看板';
   const now = new Date();
-  document.getElementById('header-sub').textContent = now.toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
+  document.getElementById('header-sub').textContent = now.toLocaleDateString('zh-CN', {year:'numeric',month:'long',day:'numeric',weekday:'long'});
 
   const todayStr = new Date().toISOString().slice(0,10);
-  const active = state.tasks.filter(t=>!t.done);
-  const done = state.tasks.filter(t => {
+  var allActive = state.tasks.filter(function(t) { return !t.done; });
+  // 筛选范围
+  if (window._todayFilterScope === 'mine') {
+    allActive = allActive.filter(function(t) { return t.assignee === currentUser.id; });
+  } else if (window._todayFilterScope === 'involved') {
+    allActive = allActive.filter(function(t) { return (t.assignees || []).includes(currentUser.id); });
+  }
+
+  const done = state.tasks.filter(function(t) {
     if (!t.done) return false;
     if (t.completedAt) return t.completedAt.slice(0,10) === todayStr;
     if (t.updated_at) return t.updated_at.slice(0,10) === todayStr;
     return false;
   });
-  const g0 = active.filter(t=>urgencyOf(t)===0).sort((a,b)=>priorityOrder(a.priority)-priorityOrder(b.priority));
-  const g1 = active.filter(t=>urgencyOf(t)===1).sort((a,b)=>priorityOrder(a.priority)-priorityOrder(b.priority));
-  const g2 = active.filter(t=>urgencyOf(t)===2).sort((a,b)=>priorityOrder(a.priority)-priorityOrder(b.priority));
-  const g3 = active.filter(t=>urgencyOf(t)===3).sort((a,b)=>priorityOrder(a.priority)-priorityOrder(b.priority));
 
-  let html = `<div class="view-pane">
-    <div class="view-mode-tabs">
-      <button class="vmtab active" onclick="window._todayViewMode='today';renderToday()">今日</button>
-      <button class="vmtab" onclick="window._todayViewMode='week';renderWeekGrid()">本周</button>
-    </div>
-    <div class="stats-grid">
-      <div class="stat-card sc-red" style="cursor:${g0.length?'pointer':'default'}" ${g0.length?`onclick="showDashboardTaskList('g0')"`:''}><div class="stat-icon"><i data-lucide="alert-circle" style="width:16px;height:16px"></i></div><div class="stat-label">紧急 / 逾期</div><div class="stat-val${g0.length?' red':''}">${g0.length}</div></div>
-      <div class="stat-card sc-amber" style="cursor:${g1.length?'pointer':'default'}" ${g1.length?`onclick="showDashboardTaskList('g1')"`:''}><div class="stat-icon"><i data-lucide="clock" style="width:16px;height:16px"></i></div><div class="stat-label">3 天内到期</div><div class="stat-val${g1.length?' amber':''}">${g1.length}</div></div>
-      <div class="stat-card sc-blue" style="cursor:${g2.length?'pointer':'default'}" ${g2.length?`onclick="showDashboardTaskList('g2')"`:''}><div class="stat-icon"><i data-lucide="calendar-check" style="width:16px;height:16px"></i></div><div class="stat-label">本周内</div><div class="stat-val">${g2.length}</div></div>
-      <div class="stat-card sc-green" style="cursor:${done.length?'pointer':'default'}" ${done.length?`onclick="showDashboardTaskList('done')"`:''}><div class="stat-icon"><i data-lucide="check-circle-2" style="width:16px;height:16px"></i></div><div class="stat-label">今日已完成</div><div class="stat-val${done.length?' green':''}">${done.length}</div><div class="stat-sub" style="font-size:10px">今天标记完成的任务</div></div>
-    </div>`;
+  const g0 = allActive.filter(function(t) { return urgencyOf(t) === 0; }).sort(function(a,b) { return priorityOrder(a.priority) - priorityOrder(b.priority); });
+  const g1 = allActive.filter(function(t) { return urgencyOf(t) === 1; }).sort(function(a,b) { return priorityOrder(a.priority) - priorityOrder(b.priority); });
+  const g2 = allActive.filter(function(t) { return urgencyOf(t) === 2; }).sort(function(a,b) { return priorityOrder(a.priority) - priorityOrder(b.priority); });
+  const g3 = allActive.filter(function(t) { return urgencyOf(t) === 3; }).sort(function(a,b) { return priorityOrder(a.priority) - priorityOrder(b.priority); });
 
-  // Project progress mini chart
-  if (state.projects.length) {
-    html += `<div class="today-proj-section">
-      <div class="today-proj-title">项目完成进度</div>
-      <div class="proj-progress-list">`;
-    state.projects.forEach(p => {
-      const tasks = state.tasks.filter(t=>t.projectId===p.id);
-      const doneCnt = tasks.filter(t=>t.done).length;
-      const pct = tasks.length ? Math.round(doneCnt/tasks.length*100) : 0;
-      const color = PROJ_COLORS[(p.colorIdx||0)%PROJ_COLORS.length];
-      html += `<div class="proj-progress-row" onclick="showProjectTaskList('${p.id}')" style="cursor:pointer" title="点击查看任务明细">
-        <div class="proj-progress-label">
-          <span class="proj-progress-name" style="cursor:pointer" onclick="event.stopPropagation();switchView('project-${p.id}')">${escHtml(p.name)}</span>
-          <span class="proj-progress-pct">${doneCnt}/${tasks.length} · ${pct}%</span>
-        </div>
-        <div class="proj-progress-track">
-          <div class="proj-progress-fill" style="width:${pct}%;background:${color}"></div>
-        </div>
-      </div>`;
+  // 统计卡片（受筛选范围影响）
+  var html = '<div class="view-pane">' +
+    '<div class="view-mode-tabs">' +
+      '<button class="vmtab active" onclick="window._todayViewMode=\'today\';renderToday()">今日</button>' +
+      '<button class="vmtab" onclick="window._todayViewMode=\'week\';renderWeekGrid()">本周</button>' +
+    '</div>' +
+    '<div class="stats-grid">' +
+      '<div class="stat-card sc-red" style="cursor:' + (g0.length ? 'pointer' : 'default') + '"' + (g0.length ? ' onclick="showDashboardTaskList(\'g0\')"' : '') + '><div class="stat-icon"><i data-lucide="alert-circle" style="width:16px;height:16px"></i></div><div class="stat-label">紧急 / 逾期</div><div class="stat-val' + (g0.length ? ' red' : '') + '">' + g0.length + '</div></div>' +
+      '<div class="stat-card sc-amber" style="cursor:' + (g1.length ? 'pointer' : 'default') + '"' + (g1.length ? ' onclick="showDashboardTaskList(\'g1\')"' : '') + '><div class="stat-icon"><i data-lucide="clock" style="width:16px;height:16px"></i></div><div class="stat-label">3 天内到期</div><div class="stat-val' + (g1.length ? ' amber' : '') + '">' + g1.length + '</div></div>' +
+      '<div class="stat-card sc-blue" style="cursor:' + (g2.length ? 'pointer' : 'default') + '"' + (g2.length ? ' onclick="showDashboardTaskList(\'g2\')"' : '') + '><div class="stat-icon"><i data-lucide="calendar-check" style="width:16px;height:16px"></i></div><div class="stat-label">本周内</div><div class="stat-val">' + g2.length + '</div></div>' +
+      '<div class="stat-card sc-green" style="cursor:' + (done.length ? 'pointer' : 'default') + '"' + (done.length ? ' onclick="showDashboardTaskList(\'done\')"' : '') + '><div class="stat-icon"><i data-lucide="check-circle-2" style="width:16px;height:16px"></i></div><div class="stat-label">今日已完成</div><div class="stat-val' + (done.length ? ' green' : '') + '">' + done.length + '</div></div>' +
+    '</div>';
+
+  // 快捷筛选栏
+  html += '<div class="today-scope-bar">' +
+    '<span class="today-scope-chip' + (window._todayFilterScope === 'all' ? ' on' : '') + '" onclick="setTodayScope(\'all\')">全部</span>' +
+    '<span class="today-scope-chip' + (window._todayFilterScope === 'mine' ? ' on' : '') + '" onclick="setTodayScope(\'mine\')">我负责的</span>' +
+    '<span class="today-scope-chip' + (window._todayFilterScope === 'involved' ? ' on' : '') + '" onclick="setTodayScope(\'involved\')">我参与的</span>' +
+    '<div class="today-group-toggle">' +
+      '<button class="tgt-btn' + (window._todayGroupMode === 'project' ? ' active' : '') + '" onclick="setTodayGroupMode(\'project\')">按项目</button>' +
+      '<button class="tgt-btn' + (window._todayGroupMode === 'urgency' ? ' active' : '') + '" onclick="setTodayGroupMode(\'urgency\')">按紧急度</button>' +
+    '</div>' +
+  '</div>';
+
+  if (window._todayGroupMode === 'urgency') {
+    // 兼容旧逻辑：按紧急度分组
+    var groups = [
+      { tasks: g0, dot: '#e74c3c', label: '紧急 / 逾期' },
+      { tasks: g1, dot: '#d4842a', label: '3 天内' },
+      { tasks: g2, dot: '#27ae60', label: '本周内' },
+      { tasks: g3, dot: '#a8a59e', label: '较远' },
+      { tasks: done, dot: '#b8b5ae', label: '已完成' },
+    ];
+    var anyTask = false;
+    groups.forEach(function(g) {
+      if (!g.tasks.length) return; anyTask = true;
+      html += '<div class="task-group"><div class="group-header"><div class="group-dot" style="background:' + g.dot + '"></div><span class="group-title">' + g.label + '</span><span class="group-count">' + g.tasks.length + '</span></div>' + g.tasks.map(function(t) { return taskCardHTML(t); }).join('') + '</div>';
     });
-    html += '</div></div>';
+    if (!anyTask) html += renderEmptyState({ icon: 'sun', title: '今日没有待办任务', desc: '点击「快速添加任务」开始安排今天的工作', action: '<div class="empty-action"><button class="btn btn-primary btn-sm" onclick="openAddTask()"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建任务</button></div>' });
+  } else {
+    // ★ 新模式：按项目→模块分组
+    var anyGroup = false;
+    state.projects.forEach(function(p) {
+      var projTasks = allActive.filter(function(t) { return t.projectId === p.id; });
+      if (!projTasks.length) return;
+      anyGroup = true;
+      var projId = p.id;
+      var color = PROJ_COLORS[(p.colorIdx || 0) % PROJ_COLORS.length][0];
+      var doneCount = projTasks.filter(function(t) { return t.done; }).length;
+      var pct = Math.round(doneCount / projTasks.length * 100);
+      var isCollapsed = !!window._todayCollapsed[projId];
+      var arrow = isCollapsed ? '▶' : '▼';
+
+      html += '<div class="today-project-group">' +
+        '<div class="today-project-header" onclick="toggleTodayGroup(\'' + projId + '\')">' +
+          '<span class="tph-dot" style="background:' + color + '"></span>' +
+          '<span class="tph-name" onclick="event.stopPropagation();switchView(\'project-' + projId + '\')">' + escHtml(p.name) + '</span>' +
+          '<span class="tph-pct">' + pct + '%</span>' +
+          '<span class="tph-count">' + projTasks.length + '</span>' +
+          '<span class="tph-arrow">' + arrow + '</span>' +
+        '</div>' +
+        '<div class="tph-progress"><div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:2px;transition:width .4s ease"></div></div>';
+
+      if (!isCollapsed) {
+        var mods = state.modules.filter(function(m) { return m.projectId === p.id; }).sort(function(a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0); });
+        var modGroups = [];
+        mods.forEach(function(m) {
+          var mt = projTasks.filter(function(t) { return t.moduleId === m.id; });
+          if (mt.length) modGroups.push({ mod: m, tasks: mt });
+        });
+        var unmod = projTasks.filter(function(t) { return !t.moduleId; });
+        if (unmod.length) modGroups.push({ mod: { id: null, name: '未分类' }, tasks: unmod });
+
+        if (modGroups.length > 0) {
+          html += '<div class="today-module-grid">';
+          modGroups.forEach(function(mg) {
+            html += '<div class="today-module-col">' +
+              '<div class="today-module-name">' + escHtml(mg.mod.name) + '<span class="tmn-count">' + mg.tasks.length + '</span></div>' +
+              mg.tasks.map(function(t) { return taskCardHTML(t); }).join('') +
+            '</div>';
+          });
+          html += '</div>';
+        }
+      }
+      html += '</div>';
+    });
+
+    // 未分项目
+    var uncatTasks = allActive.filter(function(t) { return !t.projectId; });
+    if (uncatTasks.length) {
+      anyGroup = true;
+      var uncatId = '__uncat';
+      var isCollapsed = !!window._todayCollapsed[uncatId];
+      var arrow = isCollapsed ? '▶' : '▼';
+      html += '<div class="today-project-group">' +
+        '<div class="today-project-header" onclick="toggleTodayGroup(\'' + uncatId + '\')">' +
+          '<span class="tph-dot" style="background:#94a3b8"></span>' +
+          '<span class="tph-name">未分类</span>' +
+          '<span class="tph-count">' + uncatTasks.length + '</span>' +
+          '<span class="tph-arrow">' + arrow + '</span>' +
+        '</div>';
+      if (!isCollapsed) {
+        html += '<div class="today-module-grid"><div class="today-module-col">' +
+          '<div class="today-module-name">未分类<span class="tmn-count">' + uncatTasks.length + '</span></div>' +
+          uncatTasks.map(function(t) { return taskCardHTML(t); }).join('') +
+        '</div></div>';
+      }
+      html += '</div>';
+    }
+
+    if (!anyGroup && !done.length) {
+      html += renderEmptyState({ icon: 'sun', title: '今日没有待办任务', desc: '点击「快速添加任务」开始安排今天的工作', action: '<div class="empty-action"><button class="btn btn-primary btn-sm" onclick="openAddTask()"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建任务</button></div>' });
+    }
   }
 
-  // ── Assignee section ──────────────────────────────────────────────────
-  if (state.members.length) {
-    html += `<div class="today-proj-section" style="margin-bottom:24px">
-      <div class="today-proj-title">负责人任务概览</div>
-      <div style="display:flex;flex-direction:column;gap:14px">`;
-    state.members.forEach(m => {
-      const myTasks = active.filter(t=>t.assignee===m.id || (t.assignees||[]).includes(m.id));
-      if (!myTasks.length) return;
-      const urgentCnt = myTasks.filter(t=>urgencyOf(t)<=1).length;
-      const color = memberColor(m.id);
-      html += `<div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <div class="member-avatar" style="background:${color};width:24px;height:24px;font-size:11px">${memberInitial(m.id)}</div>
-          <span style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(m.name)}</span>
-          <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${myTasks.length} 个任务${urgentCnt?` · <span style="color:var(--red)">${urgentCnt} 紧急</span>`:''}   </span>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:5px">
-          ${myTasks.slice(0,4).map(t=>{
-            const di=dueInfo(t), si=statusInfo(t.status);
-            const priCls=t.priority==='紧急'?'pill-red':t.priority==='重要'?'pill-amber':'pill-gray';
-            return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:background .12s" onclick="openEditTask('${t.id}')" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">
-              <div style="flex:1;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(t.title)}</div>
-              <span class="pill ${di.cls}" style="font-size:10px">${di.text}</span>
-              <span class="pill ${priCls}" style="font-size:10px">${escHtml(t.priority)}</span>
-              <span class="pill ${si.cls}" style="font-size:10px">${si.lbl}</span>
-            </div>`;
-          }).join('')}
-          ${myTasks.length>4?`<div style="font-size:12px;color:var(--text3);padding:4px 12px">还有 ${myTasks.length-4} 个任务...</div>`:''}
-        </div>
-      </div>`;
-    });
-    html += '</div></div>';
-  }
-
-  const groups = [
-    {tasks:g0,dot:'#e74c3c',label:'紧急 / 逾期'},
-    {tasks:g1,dot:'#d4842a',label:'3 天内'},
-    {tasks:g2,dot:'#27ae60',label:'本周内'},
-    {tasks:g3,dot:'#a8a59e',label:'较远'},
-    {tasks:done,dot:'#b8b5ae',label:'已完成'},
-  ];
-  let anyTask = false;
-  groups.forEach(g => {
-    if (!g.tasks.length) return; anyTask = true;
-    html += `<div class="task-group"><div class="group-header"><div class="group-dot" style="background:${g.dot}"></div><span class="group-title">${g.label}</span><span class="group-count">${g.tasks.length}</span></div>${g.tasks.map(t=>taskCardHTML(t)).join('')}</div>`;
-  });
-  /* UI-V18: TASK-UI-13 */
-  if (!anyTask) html += renderEmptyState({icon:'sun',title:'今日没有待办任务',desc:'点击「快速添加任务」开始安排今天的工作',action:'<div class="empty-action"><button class="btn btn-primary btn-sm" onclick="openAddTask()"><i data-lucide="plus" style="width:13px;height:13px;margin-right:3px"></i>新建任务</button></div>'});
   html += '</div>';
   document.getElementById('main-content').innerHTML = html;
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  requestAnimationFrame(function() { staggerEntrance(); });
 
   // Store groups for dashboard clickable metrics
-  window._dashboardGroups = { g0, g1, g2, done };
+  window._dashboardGroups = { g0: g0, g1: g1, g2: g2, done: done };
 }
+
+// Today view helpers (on window for inline onclick)
+window.toggleTodayGroup = function(projId) {
+  window._todayCollapsed[projId] = !window._todayCollapsed[projId];
+  render();
+};
+
+window.setTodayScope = function(scope) {
+  window._todayFilterScope = scope;
+  render();
+};
+
+window.setTodayGroupMode = function(mode) {
+  window._todayGroupMode = mode;
+  render();
+};
 
 // ─── Dashboard clickable metrics ──────────────────────────────────────────────
 function showDashboardTaskList(groupKey) {
@@ -149,45 +215,295 @@ function showDashboardTaskList(groupKey) {
     <div class="modal-footer"><div><span style="font-size:12px;color:var(--text3)">共 ${tasks.length} 个任务</span></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>`);
 }
 
+window._taskViewMode = window._taskViewMode || 'card';
+window._taskSortCol = window._taskSortCol || '';
+window._taskSortDir = window._taskSortDir || 'asc';
+window._taskListCollapsed = window._taskListCollapsed || {};
+
 // ─── Task List ────────────────────────────────────────────────────────────────
 function renderTaskList() {
   document.getElementById('header-title').textContent = '全部任务';
-  document.getElementById('header-sub').textContent = `共 ${state.tasks.length} 个任务`;
+  document.getElementById('header-sub').textContent = '共 ' + state.tasks.length + ' 个任务';
 
-  // 持久化当前筛选条件
+  // 持久化筛选条件
   try {
     localStorage.setItem('pm_task_filters', JSON.stringify({
-      filterProject, filterStatus, filterAssignee
+      filterProject: filterProject, filterStatus: filterStatus, filterAssignee: filterAssignee,
+      filterModule: filterModule, filterTag: filterTag
     }));
   } catch(e) {}
 
-  let tasks = state.tasks.filter(t => {
-    if (filterProject!=='all' && t.projectId!==filterProject) return false;
-    if (filterStatus!=='all' && t.status!==filterStatus) return false;
-    if (filterAssignee!=='all' && t.assignee!==filterAssignee && !(t.assignees||[]).includes(filterAssignee)) return false;
+  // 筛选
+  var tasks = state.tasks.filter(function(t) {
+    if (filterProject !== 'all' && t.projectId !== filterProject) return false;
+    if (filterModule !== 'all' && t.moduleId !== filterModule) return false;
+    if (filterStatus !== 'all' && t.status !== filterStatus) return false;
+    if (filterAssignee !== 'all' && t.assignee !== filterAssignee && !(t.assignees || []).includes(filterAssignee)) return false;
+    if (filterTag !== 'all' && !(t.tags || []).includes(filterTag)) return false;
     if (searchQuery && !t.title.includes(searchQuery)) return false;
     return true;
-  }).sort((a,b) => urgencyOf(a)-urgencyOf(b) || priorityOrder(a.priority)-priorityOrder(b.priority));
+  });
 
-  const projChips = state.projects.map(p=>
-    `<span class="filter-chip${filterProject===p.id?' on':''}" onclick="filterProject='${p.id}';filterStatus='all';render()">${escHtml(p.name)}</span>`
-  ).join('');
-  const statusChips = [['all','全部'],['todo','待启动'],['doing','进行中'],['waiting','待反馈'],['done','已完成']].map(([v,l])=>
-    `<span class="filter-chip${filterStatus===v?' on':''}" onclick="filterStatus='${v}';render()">${l}</span>`
-  ).join('');
-  const assigneeChips = state.members.map(m=>`<span class="filter-chip${filterAssignee===m.id?' on':''}" onclick="filterAssignee='${m.id}';render()" style="${filterAssignee===m.id?'':''}">
-    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:14px;border-radius:50%;background:${memberColor(m.id)};display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#fff;flex-shrink:0">${memberInitial(m.id)}</span>${escHtml(m.name)}</span>
-  </span>`).join('');
+  // 排序
+  if (window._taskSortCol) {
+    tasks.sort(function(a, b) {
+      var va, vb;
+      switch (window._taskSortCol) {
+        case 'title': va = (a.title || '').toLowerCase(); vb = (b.title || '').toLowerCase(); break;
+        case 'due': va = a.due || '9999-12-31'; vb = b.due || '9999-12-31'; break;
+        case 'status': va = _STATUS_ORDER_MAP[a.status] || 0; vb = _STATUS_ORDER_MAP[b.status] || 0; break;
+        case 'priority': va = _PRIO_ORDER_MAP[a.priority] || 2; vb = _PRIO_ORDER_MAP[b.priority] || 2; break;
+        case 'project': va = projName(a.projectId); vb = projName(b.projectId); break;
+        default: return 0;
+      }
+      var cmp = va > vb ? 1 : va < vb ? -1 : 0;
+      return window._taskSortDir === 'desc' ? -cmp : cmp;
+    });
+  } else {
+    tasks.sort(function(a, b) { return urgencyOf(a) - urgencyOf(b) || priorityOrder(a.priority) - priorityOrder(b.priority); });
+  }
 
-  let html = `<div class="view-pane">
-    <div class="filter-bar"><span class="filter-chip${filterProject==='all'?' on':''}" onclick="filterProject='all';render()">全部项目</span>${projChips}</div>
-    <div class="filter-bar" style="margin-top:-12px">${statusChips}</div>
-    <div class="filter-bar" style="margin-top:-12px"><span class="filter-chip${filterAssignee==='all'?' on':''}" onclick="filterAssignee='all';render()">全部成员</span>${assigneeChips}</div>
-    ${(filterProject!=='all' || filterStatus!=='all' || filterAssignee!=='all') ? `<div style="margin-top:-8px;margin-bottom:4px"><button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--text3)" onclick="filterProject='all';filterStatus='all';filterAssignee='all';localStorage.removeItem('pm_task_filters');render()">✕ 清除所有筛选</button></div>` : ''}
-    ${tasks.length ? tasks.map(t=>taskCardHTML(t)).join('') : renderEmptyState({icon:'list-checks',title:'还没有任务',desc:'创建第一个任务来开始项目管理'})}
-  </div>`;
+  // 统计
+  var countTodo = 0, countDoing = 0, countWaiting = 0, countDone = 0;
+  var countTotal = tasks.length;
+  tasks.forEach(function(t) {
+    if (t.done || t.status === 'done') countDone++;
+    else if (t.status === 'doing') countDoing++;
+    else if (t.status === 'waiting') countWaiting++;
+    else countTodo++;
+  });
+
+  var hasFilter = filterProject !== 'all' || filterStatus !== 'all' || filterAssignee !== 'all' || filterModule !== 'all' || filterTag !== 'all' || searchQuery !== '';
+
+  // 项目下拉选项
+  var projOpts = '<option value="all">全部项目</option>' + state.projects.map(function(p) {
+    return '<option value="' + p.id + '"' + (filterProject === p.id ? ' selected' : '') + '>' + escHtml(p.name) + '</option>';
+  }).join('');
+
+  // 模块下拉选项（联动项目）
+  var modsForProj = filterProject === 'all' ? state.modules : state.modules.filter(function(m) { return m.projectId === filterProject; });
+  var modOpts = '<option value="all">全部模块</option>' + modsForProj.map(function(m) {
+    return '<option value="' + m.id + '"' + (filterModule === m.id ? ' selected' : '') + '>' + escHtml(m.name) + '</option>';
+  }).join('');
+
+  // 成员下拉选项
+  var memberOpts = '<option value="all">全部成员</option>' + state.members.map(function(m) {
+    return '<option value="' + m.id + '"' + (filterAssignee === m.id ? ' selected' : '') + '>' + escHtml(m.name) + '</option>';
+  }).join('');
+
+  // 标签下拉选项
+  var tagOpts = '<option value="all">全部标签</option>' + state.globalTags.map(function(tg) {
+    return '<option value="' + tg.id + '"' + (filterTag === tg.id ? ' selected' : '') + '>' + escHtml(tg.name) + '</option>';
+  }).join('');
+
+  // 筛选栏
+  var filterBarHTML = '<div class="task-filter-bar">' +
+    '<div class="filter-group">' +
+      '<select id="tf-project" onchange="applyTaskFilters()">' + projOpts + '</select>' +
+      '<select id="tf-module" onchange="filterModule=this.value;render()">' + modOpts + '</select>' +
+      '<select id="tf-status" onchange="filterStatus=this.value;render()">' +
+        '<option value="all"' + (filterStatus === 'all' ? ' selected' : '') + '>全部状态</option>' +
+        '<option value="todo"' + (filterStatus === 'todo' ? ' selected' : '') + '>待启动</option>' +
+        '<option value="doing"' + (filterStatus === 'doing' ? ' selected' : '') + '>进行中</option>' +
+        '<option value="waiting"' + (filterStatus === 'waiting' ? ' selected' : '') + '>待反馈</option>' +
+        '<option value="done"' + (filterStatus === 'done' ? ' selected' : '') + '>已完成</option>' +
+      '</select>' +
+    '</div>' +
+    '<div class="filter-group">' +
+      '<select id="tf-assignee" onchange="filterAssignee=this.value;render()">' + memberOpts + '</select>' +
+      '<select id="tf-tag" onchange="filterTag=this.value;render()">' + tagOpts + '</select>' +
+      '<div class="search-input-wrap">' +
+        '<input id="tf-search" placeholder="搜索任务名..." value="' + escHtml(searchQuery) + '" oninput="searchQuery=this.value;render()">' +
+      '</div>' +
+    '</div>' +
+    '<div class="filter-actions">' +
+      (hasFilter ? '<button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--red)" onclick="clearAllTaskFilters()">✕ 清除</button>' : '') +
+      '<div class="view-toggle">' +
+        '<button class="vt-btn' + (window._taskViewMode === 'card' ? ' active' : '') + '" onclick="window._taskViewMode=\'card\';render()" title="卡片视图">☰</button>' +
+        '<button class="vt-btn' + (window._taskViewMode === 'compact' ? ' active' : '') + '" onclick="window._taskViewMode=\'compact\';render()" title="紧凑视图">≡</button>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+
+  // 统计摘要栏
+  var summaryHTML = '<div class="task-summary-bar">' +
+    '<span>共 <strong>' + countTotal + '</strong> 个任务</span>' +
+    '<span class="pill pill-gray">' + countTodo + ' 待启动</span>' +
+    '<span class="pill pill-blue">' + countDoing + ' 进行中</span>' +
+    '<span class="pill pill-amber">' + countWaiting + ' 待反馈</span>' +
+    '<span class="pill pill-green">' + countDone + ' 已完成</span>' +
+  '</div>';
+
+  // 内容区
+  var contentHTML = '';
+  if (window._taskViewMode === 'card') {
+    contentHTML = renderTaskCardView(tasks);
+  } else {
+    contentHTML = renderTaskCompactView(tasks);
+  }
+
+  var html = '<div class="view-pane">' + filterBarHTML + summaryHTML + contentHTML + '</div>';
   document.getElementById('main-content').innerHTML = html;
+  document.getElementById('main-content').scrollTop = 0;
+  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
+
+// 卡片视图：按项目→模块分组
+function renderTaskCardView(tasks) {
+  if (!tasks.length) return renderEmptyState({ icon: 'list-checks', title: '没有匹配的任务', desc: '试试调整筛选条件或创建一个新任务' });
+
+  var html = '';
+  var memberMap = {};
+  state.members.forEach(function(m) { memberMap[m.id] = m.name; });
+
+  // 按项目分组
+  var projGroups = [];
+  var uncatTasks = [];
+  var seenProj = {};
+  state.projects.forEach(function(p) {
+    var pt = tasks.filter(function(t) { return t.projectId === p.id; });
+    if (pt.length) { projGroups.push({ proj: p, tasks: pt }); seenProj[p.id] = true; }
+  });
+  // 未分项目
+  tasks.forEach(function(t) {
+    if (!t.projectId || !seenProj[t.projectId]) uncatTasks.push(t);
+  });
+  if (uncatTasks.length) projGroups.push({ proj: { id: '', name: '未分类', colorIdx: 8 }, tasks: uncatTasks });
+
+  projGroups.forEach(function(g) {
+    var projId = g.proj.id || '__uncat';
+    var projColor = (PROJ_COLORS[g.proj.colorIdx] || PROJ_COLORS[0])[0];
+    var isCollapsed = !!window._taskListCollapsed[projId];
+    var arrow = isCollapsed ? '▶' : '▼';
+    var doneCount = g.tasks.filter(function(t) { return t.done || t.status === 'done'; }).length;
+    var pct = g.tasks.length > 0 ? Math.round(doneCount / g.tasks.length * 100) : 0;
+
+    html += '<div class="group-header-primary" onclick="toggleTaskListGroup(\'' + projId + '\')">' +
+      '<span style="font-size:10px;color:var(--text3);width:14px;text-align:center">' + arrow + '</span>' +
+      '<span style="width:8px;height:8px;border-radius:50%;background:' + projColor + ';flex-shrink:0"></span>' +
+      '<span style="font-weight:600;font-size:14px;color:var(--text);flex:1">' + escHtml(g.proj.name) + '</span>' +
+      '<span style="font-size:11px;color:var(--text3);font-family:var(--mono)">' + pct + '%</span>' +
+      '<span style="font-size:11px;color:var(--text3);background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:1px 8px">' + g.tasks.length + '</span>' +
+    '</div>';
+
+    if (!isCollapsed) {
+      // 按模块分组
+      var mods = state.modules.filter(function(m) { return m.projectId === g.proj.id; }).sort(function(a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0); });
+      var modGroups = [];
+      mods.forEach(function(m) {
+        var mt = g.tasks.filter(function(t) { return t.moduleId === m.id; });
+        if (mt.length) modGroups.push({ mod: m, tasks: mt });
+      });
+      var unmod = g.tasks.filter(function(t) { return !t.moduleId; });
+      if (unmod.length) modGroups.push({ mod: { id: null, name: '未分类' }, tasks: unmod });
+
+      if (modGroups.length > 1 || (modGroups.length === 1 && modGroups[0].mod.id !== null)) {
+        modGroups.forEach(function(mg) {
+          var mKey = projId + '__' + (mg.mod.id || '__uncat');
+          var mCollapsed = !!window._taskListCollapsed[mKey];
+          var mArrow = mCollapsed ? '▶' : '▼';
+          html += '<div class="group-header-secondary" onclick="event.stopPropagation();toggleTaskListGroup(\'' + mKey + '\')">' +
+            '<span style="font-size:9px;color:var(--text3);width:12px;text-align:center">' + mArrow + '</span>' +
+            '<span>' + escHtml(mg.mod.name) + '</span>' +
+            '<span style="font-size:10px;color:var(--text3);background:var(--surface3);border-radius:8px;padding:0 6px">' + mg.tasks.length + '</span>' +
+          '</div>';
+          if (!mCollapsed) {
+            html += mg.tasks.map(function(t) { return taskCardHTML(t); }).join('');
+          }
+        });
+      } else {
+        // 无模块或只有一个未分类模块，直接平铺任务
+        html += g.tasks.map(function(t) { return taskCardHTML(t); }).join('');
+      }
+    }
+  });
+
+  return html;
+}
+
+// 紧凑视图：表格行模式
+function renderTaskCompactView(tasks) {
+  if (!tasks.length) return renderEmptyState({ icon: 'list-checks', title: '没有匹配的任务', desc: '试试调整筛选条件或创建一个新任务' });
+
+  var sortArrow = function(col) {
+    if (window._taskSortCol !== col) return '';
+    return window._taskSortDir === 'asc' ? ' ▲' : ' ▼';
+  };
+
+  var thClass = function(col) { return window._taskSortCol === col ? ' class="sorted"' : ''; };
+
+  var html = '<div style="overflow-x:auto"><table class="task-table"><thead><tr>' +
+    '<th class="tt-check">☐</th>' +
+    '<th class="tt-title"' + thClass('title') + ' onclick="sortTasksByCol(\'title\')">任务名称' + sortArrow('title') + '</th>' +
+    '<th class="tt-project"' + thClass('project') + ' onclick="sortTasksByCol(\'project\')">项目' + sortArrow('project') + '</th>' +
+    '<th class="tt-module">模块</th>' +
+    '<th class="tt-due"' + thClass('due') + ' onclick="sortTasksByCol(\'due\')">截止日' + sortArrow('due') + '</th>' +
+    '<th class="tt-status"' + thClass('status') + ' onclick="sortTasksByCol(\'status\')">状态' + sortArrow('status') + '</th>' +
+    '<th class="tt-priority"' + thClass('priority') + ' onclick="sortTasksByCol(\'priority\')">优先级' + sortArrow('priority') + '</th>' +
+    '<th class="tt-assignee">负责人</th>' +
+  '</tr></thead><tbody>';
+
+  html += tasks.map(function(t) { return taskRowHTML(t); }).join('');
+  html += '</tbody></table></div>';
+  return html;
+}
+
+// 紧凑视图单个任务行
+function taskRowHTML(t) {
+  var di = dueInfo(t), si = statusInfo(t.status);
+  var pn = projName(t.projectId);
+  var mn = moduleName(t.moduleId);
+  var priCls = t.priority === '紧急' ? 'pill-red' : t.priority === '重要' ? 'pill-amber' : 'pill-gray';
+  var memberMap = {};
+  state.members.forEach(function(m) { memberMap[m.id] = m.name; });
+  var assigneeNames = assigneeNamesStr(t, memberMap);
+
+  return '<tr class="task-row' + (t.done ? ' done' : '') + '" onclick="openEditTask(\'' + t.id + '\')">' +
+    '<td class="tt-check" onclick="event.stopPropagation()">' +
+      '<div class="check-btn' + (t.done ? ' checked' : '') + '" onclick="toggleDone(\'' + t.id + '\')"></div>' +
+    '</td>' +
+    '<td class="tt-title">' + escHtml(t.title) + '</td>' +
+    '<td class="tt-project"><span class="pill pill-project">' + pn + '</span></td>' +
+    '<td class="tt-module">' + (mn !== '未分类' ? '<span class="pill pill-module">' + escHtml(mn) + '</span>' : '<span style="color:var(--text3)">—</span>') + '</td>' +
+    '<td class="tt-due"><span class="pill ' + di.cls + '">' + di.text + '</span></td>' +
+    '<td class="tt-status"><span class="pill ' + si.cls + '">' + si.lbl + '</span></td>' +
+    '<td class="tt-priority"><span class="pill ' + priCls + '">' + escHtml(t.priority) + '</span></td>' +
+    '<td class="tt-assignee">' + assigneeNames + '</td>' +
+  '</tr>';
+}
+
+// 辅助函数
+window.clearAllTaskFilters = function() {
+  filterProject = 'all'; filterStatus = 'all'; filterAssignee = 'all';
+  filterModule = 'all'; filterTag = 'all'; searchQuery = '';
+  window._taskSortCol = ''; window._taskSortDir = 'asc';
+  try { localStorage.removeItem('pm_task_filters'); } catch(e) {}
+  render();
+};
+
+window.sortTasksByCol = function(col) {
+  if (window._taskSortCol === col) {
+    window._taskSortDir = window._taskSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    window._taskSortCol = col;
+    window._taskSortDir = 'asc';
+  }
+  render();
+};
+
+window.toggleTaskListGroup = function(key) {
+  window._taskListCollapsed[key] = !window._taskListCollapsed[key];
+  render();
+};
+
+window.applyTaskFilters = function() {
+  var sel = document.getElementById('tf-project');
+  if (sel) {
+    filterProject = sel.value;
+    filterModule = 'all'; // 项目切换时重置模块
+  }
+  render();
+};
 
 // ─── Projects ────────────────────────────────────────────────────────────────
 function renderProjects() {
@@ -231,32 +547,42 @@ function renderProjects() {
 }
 
 // ─── Single Project ───────────────────────────────────────────────────────────
+window._projKanbanGroup = window._projKanbanGroup || 'status';
+window._projModuleFilter = '';
+
 function renderProjectView(pid) {
-  const proj = state.projects.find(p=>p.id===pid);
+  const proj = state.projects.find(function(p) { return p.id === pid; });
   if (!proj) { switchView('today'); return; }
-  const tasks = state.tasks.filter(t=>t.projectId===pid);
+  var rawTasks = state.tasks.filter(function(t) { return t.projectId === pid; });
+  // 模块筛选
+  if (window._projModuleFilter) {
+    rawTasks = rawTasks.filter(function(t) { return t.moduleId === window._projModuleFilter; });
+  }
+  var tasks = rawTasks;
   const mode = projectViewMode[pid] || 'list';
   const color = PROJ_COLORS[(proj.colorIdx||0)%PROJ_COLORS.length];
-  const doneCnt = tasks.filter(t=>t.done).length;
+  const doneCnt = tasks.filter(function(t) { return t.done; }).length;
   const pct = tasks.length ? Math.round(doneCnt/tasks.length*100) : 0;
 
   document.getElementById('header-title').textContent = '项目详情';
-  document.getElementById('header-sub').textContent = `${proj.name} · ${tasks.length} 个任务 · ${pct}% 完成`;
+  document.getElementById('header-sub').textContent = proj.name + ' · ' + tasks.length + ' 个任务 · ' + pct + '% 完成';
   document.getElementById('header-add-btn').style.display = 'block';
 
-  const memberAvatars = (proj.members||[]).map(mid=>`<div class="member-avatar" style="background:${memberColor(mid)}" title="${memberName(mid)}">${memberInitial(mid)}</div>`).join('');
+  const memberAvatars = (proj.members||[]).map(function(mid) { return '<div class="member-avatar" style="background:' + memberColor(mid) + '" title="' + memberName(mid) + '">' + memberInitial(mid) + '</div>'; }).join('');
 
-  const viewToggle = `
-    <div style="display:flex;gap:6px;margin-bottom:16px;align-items:center">
-      <button class="btn btn-sm ${mode==='list'?'btn-primary':'btn-ghost'}"
-        onclick="projectViewMode['${pid}']='list';renderProjectView('${pid}')">
-        ☰ 列表
-      </button>
-      <button class="btn btn-sm ${mode==='kanban'?'btn-primary':'btn-ghost'}"
-        onclick="projectViewMode['${pid}']='kanban';renderProjectView('${pid}')">
-        ⬛ 看板
-      </button>
-    </div>`;
+  // 视图切换 tab
+  var kanbanGroup = window._projKanbanGroup || 'status';
+  var viewToggle = '<div class="proj-view-tabs">' +
+    '<button class="pvt-btn' + (mode === 'list' ? ' active' : '') + '" onclick="projectViewMode[\'' + pid + '\']=\'list\';renderProjectView(\'' + pid + '\')">☰ 列表</button>' +
+    '<button class="pvt-btn' + (mode === 'kanban' ? ' active' : '') + '" onclick="projectViewMode[\'' + pid + '\']=\'kanban\';renderProjectView(\'' + pid + '\')">⬛ 看板</button>';
+  if (mode === 'kanban') {
+    viewToggle += '<div class="pvt-sub" id="kanban-group-toggle">' +
+      '<span class="pvt-label">分组:</span>' +
+      '<span class="pvt-chip' + (kanbanGroup === 'status' ? ' active' : '') + '" onclick="setProjKanbanGroup(\'status\',\'' + pid + '\')">按状态</span>' +
+      '<span class="pvt-chip' + (kanbanGroup === 'module' ? ' active' : '') + '" onclick="setProjKanbanGroup(\'module\',\'' + pid + '\')">按模块</span>' +
+    '</div>';
+  }
+  viewToggle += '</div>';
 
   // Progress bar (visible in both modes)
   const progressBar = `
@@ -280,10 +606,15 @@ function renderProjectView(pid) {
     .filter(function(m) { return m.projectId === pid; })
     .sort(function(a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0); });
   var modChips = mods.map(function(m) {
-    return '<div class="module-chip">' + escHtml(m.name) +
+    var isActive = window._projModuleFilter === m.id;
+    return '<div class="module-chip' + (isActive ? ' active' : '') + '" onclick="event.stopPropagation();setProjModuleFilter(\'' + (isActive ? '' : m.id) + '\',\'' + pid + '\')">' + escHtml(m.name) +
       (canManage ? '<span class="edit-btn" onclick="event.stopPropagation();openEditModule(\'' + m.id + '\')"><i data-lucide="pencil" style="width:11px;height:11px"></i></span>' : '') +
       '</div>';
   }).join('');
+  // 清除筛选按钮
+  if (window._projModuleFilter) {
+    modChips += ' <span style="font-size:11px;color:var(--accent);cursor:pointer;margin-left:4px" onclick="event.stopPropagation();setProjModuleFilter(\'\',\'' + pid + '\')">✕ 清除</span>';
+  }
   var addBtn = canManage
     ? '<button class="btn btn-ghost btn-sm" onclick="openAddModule(\'' + pid + '\')">+ 新建模块</button>'
     : '';
@@ -300,37 +631,53 @@ function renderProjectView(pid) {
   let contentHTML = '';
 
   if (mode === 'kanban') {
-    const COLS = [
-      { key:'todo',    label:'待启动', color:'var(--text3)' },
-      { key:'doing',   label:'进行中', color:'var(--blue)' },
-      { key:'waiting', label:'待反馈', color:'var(--amber)' },
-      { key:'done',    label:'已完成', color:'var(--green)' },
-    ];
-    const colsHTML = COLS.map(col => {
-      const colTasks = tasks.filter(t => {
-        const s = t.status || 'todo';
-        if (col.key === 'done') return s === 'done' || t.done;
-        return s === col.key && !t.done;
-      });
-      const cards = colTasks.map(t => taskCardHTML(t)).join('');
-      return `
-        <div style="flex:1;min-width:220px;max-width:320px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;
-                      padding:8px 12px;background:var(--surface);border-radius:var(--radius-sm)">
-            <span style="width:8px;height:8px;border-radius:50%;background:${col.color};flex-shrink:0"></span>
-            <span style="font-size:13px;font-weight:600;color:var(--text)">${col.label}</span>
-            <span style="font-size:11px;color:var(--text3);margin-left:auto;
-                         background:var(--surface2);padding:1px 7px;border-radius:10px">${colTasks.length}</span>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:8px">
-            ${cards || '<div style="font-size:12px;color:var(--text3);padding:12px;text-align:center">暂无任务</div>'}
-          </div>
-        </div>`;
-    }).join('');
-    contentHTML = `
-      <div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:12px;align-items:flex-start">
-        ${colsHTML}
-      </div>`;
+    if (kanbanGroup === 'module') {
+      // 按模块看板
+      var kanbanMods = mods.concat([{ id: null, name: '未分类' }]);
+      var colsHTML = kanbanMods.map(function(m) {
+        var colTasks = tasks.filter(function(t) { return (t.moduleId || null) === m.id; });
+        var colColor = m.id ? 'var(--purple)' : 'var(--text3)';
+        var cards = colTasks.map(function(t) { return taskCardHTML(t); }).join('');
+        return '<div style="flex:1;min-width:220px;max-width:320px">' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;background:var(--surface);border-radius:var(--radius-sm)">' +
+            '<span style="width:8px;height:8px;border-radius:50%;background:' + colColor + ';flex-shrink:0"></span>' +
+            '<span style="font-size:13px;font-weight:600;color:var(--text)">' + escHtml(m.name) + '</span>' +
+            '<span style="font-size:11px;color:var(--text3);margin-left:auto;background:var(--surface2);padding:1px 7px;border-radius:10px">' + colTasks.length + '</span>' +
+          '</div>' +
+          '<div style="display:flex;flex-direction:column;gap:8px">' +
+            (cards || '<div style="font-size:12px;color:var(--text3);padding:12px;text-align:center">暂无任务</div>') +
+          '</div>' +
+        '</div>';
+      }).join('');
+      contentHTML = '<div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:12px;align-items:flex-start">' + colsHTML + '</div>';
+    } else {
+      // 按状态看板（原有逻辑）
+      const COLS = [
+        { key:'todo',    label:'待启动', color:'var(--text3)' },
+        { key:'doing',   label:'进行中', color:'var(--blue)' },
+        { key:'waiting', label:'待反馈', color:'var(--amber)' },
+        { key:'done',    label:'已完成', color:'var(--green)' },
+      ];
+      var colsHTML = COLS.map(function(col) {
+        var colTasks = tasks.filter(function(t) {
+          var s = t.status || 'todo';
+          if (col.key === 'done') return s === 'done' || t.done;
+          return s === col.key && !t.done;
+        });
+        var cards = colTasks.map(function(t) { return taskCardHTML(t); }).join('');
+        return '<div style="flex:1;min-width:220px;max-width:320px">' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;background:var(--surface);border-radius:var(--radius-sm)">' +
+            '<span style="width:8px;height:8px;border-radius:50%;background:' + col.color + ';flex-shrink:0"></span>' +
+            '<span style="font-size:13px;font-weight:600;color:var(--text)">' + col.label + '</span>' +
+            '<span style="font-size:11px;color:var(--text3);margin-left:auto;background:var(--surface2);padding:1px 7px;border-radius:10px">' + colTasks.length + '</span>' +
+          '</div>' +
+          '<div style="display:flex;flex-direction:column;gap:8px">' +
+            (cards || '<div style="font-size:12px;color:var(--text3);padding:12px;text-align:center">暂无任务</div>') +
+          '</div>' +
+        '</div>';
+      }).join('');
+      contentHTML = '<div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:12px;align-items:flex-start">' + colsHTML + '</div>';
+    }
   } else {
     // V20: 按模块分组渲染任务列表
     var groups = mods.concat([{ id: null, name: '未分类' }]);
@@ -372,8 +719,19 @@ function renderProjectView(pid) {
       ${contentHTML}
     </div>`;
   if (typeof lucide !== 'undefined') lucide.createIcons();
-  requestAnimationFrame(() => staggerEntrance());
+  requestAnimationFrame(function() { staggerEntrance(); });
 }
+
+// 项目详情视图辅助函数
+window.setProjKanbanGroup = function(mode, pid) {
+  window._projKanbanGroup = mode;
+  renderProjectView(pid);
+};
+
+window.setProjModuleFilter = function(modId, pid) {
+  window._projModuleFilter = modId;
+  renderProjectView(pid);
+};
 
 // ─── Charts ───────────────────────────────────────────────────────────────────
 function renderCharts() {
@@ -924,22 +1282,20 @@ async function renderGantt() {
     });
   }
 
-  // ── 优先级映射（用于排序） ─────────────────────────────────────────────────
-  const _PRIO_ORDER = { urgent: 0, high: 1, medium: 2, low: 3 };
-  const _STATUS_ORDER = { todo: 0, doing: 1, waiting: 2, done: 3 };
-
   groups.forEach(g => {
     // ── 筛选 ─────────────────────────────────────────────────────────────────
+    if (window._ganttFilterProject && g.proj.id !== window._ganttFilterProject) return;
     let tasks = g.tasks;
     if (window._ganttFilterStatus)   tasks = tasks.filter(t => t.status === window._ganttFilterStatus);
     if (window._ganttFilterAssignee) tasks = tasks.filter(t => t.assignee === window._ganttFilterAssignee || (t.assignees||[]).includes(window._ganttFilterAssignee));
+    if (window._ganttFilterModule)   tasks = tasks.filter(t => t.moduleId === window._ganttFilterModule);
     if (!tasks.length) return;
 
     // ── 排序 ─────────────────────────────────────────────────────────────────
     tasks = [...tasks].sort((a, b) => {
       if (window._ganttSort === 'due')      return (a.due || '9999-12-31') > (b.due || '9999-12-31') ? 1 : -1;
-      if (window._ganttSort === 'priority') return (_PRIO_ORDER[a.priority] ?? 2) - (_PRIO_ORDER[b.priority] ?? 2);
-      if (window._ganttSort === 'status')   return (_STATUS_ORDER[a.status] ?? 0) - (_STATUS_ORDER[b.status] ?? 0);
+      if (window._ganttSort === 'priority') return (_PRIO_ORDER_MAP[a.priority] ?? 2) - (_PRIO_ORDER_MAP[b.priority] ?? 2);
+      if (window._ganttSort === 'status')   return (_STATUS_ORDER_MAP[a.status] ?? 0) - (_STATUS_ORDER_MAP[b.status] ?? 0);
       return (a.title || '') > (b.title || '') ? 1 : -1; // title
     });
 
@@ -957,31 +1313,38 @@ async function renderGantt() {
     rightHTML += `<div class="gantt-group-header-right" style="width:${chartWidth}px"></div>`;
 
     if (!isCollapsed) {
-      tasks.forEach(t => {
-        const startD = (t.startDate || t.createdAt) ? new Date(t.startDate || t.createdAt) : (() => { const d=new Date(t.due); d.setDate(d.getDate()-5); return d; })();
-        const endD = new Date(t.due);
-        startD.setHours(0,0,0,0); endD.setHours(0,0,0,0);
-        const startStr = startD.getFullYear()+'-'+String(startD.getMonth()+1).padStart(2,'0')+'-'+String(startD.getDate()).padStart(2,'0');
-        const endStr = endD.getFullYear()+'-'+String(endD.getMonth()+1).padStart(2,'0')+'-'+String(endD.getDate()).padStart(2,'0');
-        const startOffset = Math.round((startD-minDate)/86400000);
-        const durDays = Math.max(1, Math.round((endD-startD)/86400000)+1);
-        const left = Math.max(0, startOffset)*ganttDayW;
-        const width = Math.max(ganttDayW-2, durDays*ganttDayW-2);
-        const barColor = t.done ? '#b8b5ae' : color;
-        const isOverdue = !t.done && new Date(t.due)<today;
-        const blocked = isBlocked(t);
-
-        const canDrag = canAdjustGantt(t);
-        leftHTML += `<div class="gantt-row-name${t.done?' done-row':''}${t.milestone?' milestone-row':''}" onclick="openEditTask('${t.id}')" title="${escHtml(t.title)}  |  ${startStr} ~ ${endStr}">${t.milestone?'◆ ':''}${blocked?'⚠ ':''}${escHtml(t.title)}</div>`;
-        rightHTML += `<div style="position:relative;height:44px;border-bottom:1px solid var(--border);width:${chartWidth}px;background:${t.done?'transparent':'var(--surface)'}">
-          <div class="gantt-bar" data-task-id="${t.id}" data-start-offset="${startOffset}" data-dur-days="${durDays}" title="${escHtml(t.title)}  |  ${startStr} ~ ${endStr}" ondblclick="openEditTask('${t.id}')" style="position:absolute;top:10px;left:${left}px;width:${width}px;height:24px;background:${barColor};opacity:${t.done?.5:1};border-radius:${t.milestone?'3px':'5px'};cursor:${canDrag?'grab':'default'};display:flex;align-items:center;padding:0 8px;overflow:hidden;transition:none;${isOverdue?'outline:1.5px solid var(--red);':''}${t.milestone?'outline:2px solid '+barColor+';outline-offset:2px;':''}" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='${t.done?.5:1}'">
-            <span style="font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;pointer-events:none">${t.milestone?'◆ ':''}${escHtml(t.title)}</span>
-            ${canDrag?`<div class="gantt-resize-handle" data-task-id="${t.id}" style="position:absolute;right:0;top:0;width:8px;height:100%;cursor:ew-resize;background:rgba(255,255,255,.25);border-radius:0 5px 5px 0" title="拖动调整截止日期"></div>`:''}
-          </div>
-          ${t.milestone?`<div style="position:absolute;left:${left+width}px;top:50%;transform:translate(-50%,-50%) rotate(45deg);width:12px;height:12px;background:var(--amber);border:2px solid #fff;box-shadow:0 0 0 1.5px var(--amber);pointer-events:none;z-index:2"></div>`:''}
-          ${t.due===todayStr?`<div style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--red);font-weight:600">今</div>`:''}
-        </div>`;
+      // V22: 按模块二级分组
+      var projMods = state.modules.filter(function(m) { return m.projectId === g.proj.id; }).sort(function(a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0); });
+      var modGroups = [];
+      projMods.forEach(function(m) {
+        var mt = tasks.filter(function(t) { return t.moduleId === m.id; });
+        if (mt.length) modGroups.push({ mod: m, tasks: mt });
       });
+      var unmodTasks = tasks.filter(function(t) { return !t.moduleId; });
+      if (unmodTasks.length) modGroups.push({ mod: { id: null, name: '未分类' }, tasks: unmodTasks });
+
+      // 如果没有进行模块筛选且存在模块分组，渲染二级分组
+      if (!window._ganttFilterModule && modGroups.length > 1) {
+        modGroups.forEach(function(mg) {
+          var modCollapseKey = collapseKey + '__' + (mg.mod.id || '__uncat');
+          var modCollapsed = !!window._ganttCollapsed[modCollapseKey];
+          var modArrow = modCollapsed ? '▶' : '▼';
+
+          leftHTML += '<div class="gantt-module-header gantt-module-toggle" onclick="window._ganttCollapsed[\'' + modCollapseKey + '\']=!window._ganttCollapsed[\'' + modCollapseKey + '\'];renderGantt()">' +
+            '<span class="gantt-collapse-arrow">' + modArrow + '</span>' +
+            escHtml(mg.mod.name) +
+            '<span class="gantt-group-count" style="font-size:9px">' + mg.tasks.length + '</span>' +
+          '</div>';
+          rightHTML += '<div class="gantt-module-header-right" style="width:' + chartWidth + 'px"></div>';
+
+          if (!modCollapsed) {
+          mg.tasks.forEach(function(t) { var row = renderGanttTaskRow(t, color, minDate, chartWidth, ganttDayW, today, todayStr); leftHTML += row.leftHTML; rightHTML += row.rightHTML; });
+        }
+      });
+    } else {
+      // 无模块分组或只有未分类，直接平铺任务行
+      tasks.forEach(function(t) { var row = renderGanttTaskRow(t, color, minDate, chartWidth, ganttDayW, today, todayStr); leftHTML += row.leftHTML; rightHTML += row.rightHTML; });
+      }
     }
   });
 
@@ -1063,54 +1426,74 @@ async function renderGantt() {
   const _ganttSortOpts = Object.entries(_ganttSortLabels).map(([v,l]) =>
     `<option value="${v}" ${window._ganttSort===v?'selected':''}>${l}</option>`
   ).join('');
+  // FEAT-GANTT-FILTER: 项目 + 模块联动筛选
+  const _ganttProjOpts = state.projects.map(p =>
+    `<option value="${p.id}" ${window._ganttFilterProject===p.id?'selected':''}>${escHtml(p.name)}</option>`
+  ).join('');
+  const _ganttModOpts = state.modules
+    .filter(m => !window._ganttFilterProject || m.projectId === window._ganttFilterProject)
+    .map(m => `<option value="${m.id}" ${window._ganttFilterModule===m.id?'selected':''}>${escHtml(m.name)}</option>`
+  ).join('');
   // 计算当前筛选结果数量
   let _ganttVisibleCount = 0;
   groups.forEach(g => {
+    if (window._ganttFilterProject && g.proj.id !== window._ganttFilterProject) return;
     let t = g.tasks;
     if (window._ganttFilterStatus)   t = t.filter(x => x.status === window._ganttFilterStatus);
     if (window._ganttFilterAssignee) t = t.filter(x => x.assignee === window._ganttFilterAssignee || (x.assignees||[]).includes(window._ganttFilterAssignee));
+    if (window._ganttFilterModule)   t = t.filter(x => x.moduleId === window._ganttFilterModule);
     _ganttVisibleCount += t.length;
   });
-  const _hasFilter = window._ganttFilterStatus || window._ganttFilterAssignee;
+  const _hasFilter = window._ganttFilterStatus || window._ganttFilterAssignee || window._ganttFilterProject || window._ganttFilterModule;
 
   const html = `<div class="view-pane">
     <div class="gantt-toolbar">
-      <div class="gantt-toolbar-left">
-        <div class="gantt-week-group">
-          <button class="gantt-week-btn" onclick="ganttScrollToday()">今天</button>
-          <button class="gantt-week-btn" onclick="ganttJumpToWeek(0)">本周</button>
-          <button class="gantt-week-btn" onclick="ganttJumpToWeek(1)">下周</button>
+      <div class="gantt-toolbar-row">
+        <div class="gantt-toolbar-left">
+          <div class="gantt-week-group">
+            <button class="gantt-week-btn" onclick="ganttScrollToday()">今天</button>
+            <button class="gantt-week-btn" onclick="ganttJumpToWeek(0)">本周</button>
+            <button class="gantt-week-btn" onclick="ganttJumpToWeek(1)">下周</button>
+          </div>
+          <div class="gantt-divider"></div>
+          <select class="gantt-ctrl-select" title="按项目筛选" onchange="window._ganttFilterProject=this.value;window._ganttFilterModule='';renderGantt()">
+            <option value="">全部项目</option>
+            ${_ganttProjOpts}
+          </select>
+          <select class="gantt-ctrl-select" title="按模块筛选" onchange="window._ganttFilterModule=this.value;renderGantt()">
+            <option value="">全部模块</option>
+            ${_ganttModOpts}
+          </select>
+          <select class="gantt-ctrl-select" title="按状态筛选" onchange="window._ganttFilterStatus=this.value;renderGantt()">
+            <option value="" ${!window._ganttFilterStatus?'selected':''}>全部状态</option>
+            ${_ganttStatusOpts}
+          </select>
+          <select class="gantt-ctrl-select" title="按负责人筛选" onchange="window._ganttFilterAssignee=this.value;renderGantt()">
+            <option value="" ${!window._ganttFilterAssignee?'selected':''}>全部成员</option>
+            ${_ganttMemberOpts}
+          </select>
+          ${_hasFilter ? '<button class="gantt-ctrl-clear" onclick="window._ganttFilterStatus=\'\';window._ganttFilterAssignee=\'\';window._ganttFilterProject=\'\';window._ganttFilterModule=\'\';renderGantt()" title="清除筛选">✕ 清除</button>' : ''}
         </div>
-        <div class="gantt-divider"></div>
-        <span class="gantt-ctrl-label">筛选</span>
-        <select class="gantt-ctrl-select" title="按状态筛选" onchange="window._ganttFilterStatus=this.value;renderGantt()">
-          <option value="" ${!window._ganttFilterStatus?'selected':''}>全部状态</option>
-          ${_ganttStatusOpts}
-        </select>
-        <select class="gantt-ctrl-select" title="按负责人筛选" onchange="window._ganttFilterAssignee=this.value;renderGantt()">
-          <option value="" ${!window._ganttFilterAssignee?'selected':''}>全部成员</option>
-          ${_ganttMemberOpts}
-        </select>
-        ${_hasFilter ? `<button class="gantt-ctrl-clear" onclick="window._ganttFilterStatus='';window._ganttFilterAssignee='';renderGantt()" title="清除筛选">✕ 清除</button>` : ''}
-        <div class="gantt-divider"></div>
-        <span class="gantt-ctrl-label">排序</span>
-        <select class="gantt-ctrl-select" onchange="window._ganttSort=this.value;renderGantt()">
-          ${_ganttSortOpts}
-        </select>
-        <div class="gantt-divider"></div>
-        <span class="gantt-ctrl-label">缩放</span>
-        <button class="gantt-zoom-btn${ganttDayW===20?' active':''}" onclick="setGanttZoom(20)">小</button>
-        <button class="gantt-zoom-btn${ganttDayW===30?' active':''}" onclick="setGanttZoom(30)">中</button>
-        <button class="gantt-zoom-btn${ganttDayW===42?' active':''}" onclick="setGanttZoom(42)">大</button>
       </div>
-      <div class="gantt-toolbar-right">
-        <button class="gantt-ctrl-expand" onclick="ganttExpandAll()" title="展开所有项目">展开全部</button>
-        <button class="gantt-ctrl-expand" onclick="ganttCollapseAll()" title="折叠所有项目">折叠全部</button>
-        ${_hasFilter ? `<span class="gantt-filter-badge">${_ganttVisibleCount} 个任务</span>` : ''}
-        <span class="gantt-drag-hint">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3v10M11 3v10M3 8h10"/></svg>
-          拖动可调整日期
-        </span>
+      <div class="gantt-toolbar-row">
+        <div class="gantt-toolbar-left">
+          <span class="gantt-ctrl-label">排序</span>
+          <select class="gantt-ctrl-select" onchange="window._ganttSort=this.value;renderGantt()">
+            ${_ganttSortOpts}
+          </select>
+          <div class="gantt-divider"></div>
+          <span class="gantt-ctrl-label">缩放</span>
+          <div class="gantt-zoom-group">
+            <button class="gantt-zoom-btn${ganttDayW===20?' active':''}" onclick="setGanttZoom(20)">−</button>
+            <button class="gantt-zoom-btn${ganttDayW===42?' active':''}" onclick="setGanttZoom(42)">+</button>
+          </div>
+        </div>
+        <div class="gantt-toolbar-right">
+          <button class="gantt-ctrl-expand" onclick="ganttExpandAll()" title="展开所有分组">展开全部</button>
+          <button class="gantt-ctrl-expand" onclick="ganttCollapseAll()" title="折叠所有分组">折叠全部</button>
+          ${_hasFilter ? '<span class="gantt-filter-badge">已筛选 ' + _ganttVisibleCount + ' 个任务</span>' : ''}
+          <span class="gantt-drag-hint">ⓘ 可拖拽调整日期</span>
+        </div>
       </div>
     </div>
     <div class="gantt-wrap" id="gantt-wrap">
@@ -1132,6 +1515,35 @@ async function renderGantt() {
   });
 }
 
+function renderGanttTaskRow(t, color, minDate, chartWidth, ganttDayW, today, todayStr) {
+  const startD = (t.startDate || t.createdAt) ? new Date(t.startDate || t.createdAt) : (function() { const d=new Date(t.due); d.setDate(d.getDate()-5); return d; })();
+  const endD = new Date(t.due);
+  startD.setHours(0,0,0,0); endD.setHours(0,0,0,0);
+  const startStr = startD.getFullYear()+'-'+String(startD.getMonth()+1).padStart(2,'0')+'-'+String(startD.getDate()).padStart(2,'0');
+  const endStr = endD.getFullYear()+'-'+String(endD.getMonth()+1).padStart(2,'0')+'-'+String(endD.getDate()).padStart(2,'0');
+  const startOffset = Math.round((startD-minDate)/86400000);
+  const durDays = Math.max(1, Math.round((endD-startD)/86400000)+1);
+  const left = Math.max(0, startOffset)*ganttDayW;
+  const width = Math.max(ganttDayW-2, durDays*ganttDayW-2);
+  const barColor = t.done ? '#b8b5ae' : color;
+  const isOverdue = !t.done && new Date(t.due)<today;
+  const blocked = isBlocked(t);
+  const canDrag = canAdjustGantt(t);
+  const modTag = t.moduleId ? '<span class="gantt-mod-tag">' + escHtml(moduleName(t.moduleId)) + '</span>' : '';
+
+  return {
+    leftHTML: '<div class="gantt-row-name' + (t.done ? ' done-row' : '') + (t.milestone ? ' milestone-row' : '') + '" onclick="openEditTask(\'' + t.id + '\')" title="' + escHtml(t.title) + '  |  ' + startStr + ' ~ ' + endStr + '">' + modTag + (t.milestone ? '◆ ' : '') + (blocked ? '⚠ ' : '') + escHtml(t.title) + '</div>',
+    rightHTML: '<div style="position:relative;height:44px;border-bottom:1px solid var(--border);width:' + chartWidth + 'px;background:' + (t.done ? 'transparent' : 'var(--surface)') + '">' +
+      '<div class="gantt-bar" data-task-id="' + t.id + '" data-start-offset="' + startOffset + '" data-dur-days="' + durDays + '" title="' + escHtml(t.title) + '  |  ' + startStr + ' ~ ' + endStr + '" ondblclick="openEditTask(\'' + t.id + '\')" style="position:absolute;top:10px;left:' + left + 'px;width:' + width + 'px;height:24px;background:' + barColor + ';opacity:' + (t.done ? '.5' : '1') + ';border-radius:' + (t.milestone ? '3px' : '5px') + ';cursor:' + (canDrag ? 'grab' : 'default') + ';display:flex;align-items:center;padding:0 8px;overflow:hidden;transition:none;' + (isOverdue ? 'outline:1.5px solid var(--red);' : '') + (t.milestone ? 'outline:2px solid ' + barColor + ';outline-offset:2px;' : '') + '" onmouseover="this.style.opacity=\'.75\'" onmouseout="this.style.opacity=\'' + (t.done ? '.5' : '1') + '\'">' +
+        '<span style="font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;pointer-events:none">' + (t.milestone ? '◆ ' : '') + escHtml(t.title) + '</span>' +
+        (canDrag ? '<div class="gantt-resize-handle" data-task-id="' + t.id + '" style="position:absolute;right:0;top:0;width:8px;height:100%;cursor:ew-resize;background:rgba(255,255,255,.25);border-radius:0 5px 5px 0" title="拖动调整截止日期"></div>' : '') +
+      '</div>' +
+      (t.milestone ? '<div style="position:absolute;left:' + (left + width) + 'px;top:50%;transform:translate(-50%,-50%) rotate(45deg);width:12px;height:12px;background:var(--amber);border:2px solid #fff;box-shadow:0 0 0 1.5px var(--amber);pointer-events:none;z-index:2"></div>' : '') +
+      (t.due === todayStr ? '<div style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--red);font-weight:600">今</div>' : '') +
+    '</div>'
+  };
+}
+
 function setGanttZoom(w) {
   ganttDayW = w;
   renderGantt();
@@ -1145,10 +1557,19 @@ window.ganttExpandAll = function() {
 };
 window.ganttCollapseAll = function() {
   if (!window._ganttCollapsed) window._ganttCollapsed = {};
-  Object.keys(window._ganttCollapsed).forEach(k => { window._ganttCollapsed[k] = true; });
-  // 也把当前所有项目组折叠（包含新增项目）
-  state.projects.forEach(p => { window._ganttCollapsed[p.id] = true; });
+  Object.keys(window._ganttCollapsed).forEach(function(k) { window._ganttCollapsed[k] = true; });
+  // 折叠所有项目组
+  state.projects.forEach(function(p) { window._ganttCollapsed[p.id] = true; });
   window._ganttCollapsed['__uncat'] = true;
+  // V22: 也折叠所有模块子组
+  state.projects.forEach(function(p) {
+    var mods = state.modules.filter(function(m) { return m.projectId === p.id; });
+    mods.forEach(function(m) {
+      window._ganttCollapsed[p.id + '__' + m.id] = true;
+    });
+    window._ganttCollapsed[p.id + '__' + '__uncat'] = true;
+  });
+  window._ganttCollapsed['__uncat__' + '__uncat'] = true;
   renderGantt();
 };
 
@@ -1618,7 +2039,7 @@ window.renderWeekGrid = function() {
         '</div>' +
       '</div>';
     }).join('');
-    if (more > 0) itemsHTML += '<div class="week-more-label">+' + more + ' 个</div>';
+    if (more > 0) itemsHTML += '<div class="week-more-label" onclick="window.showWeekDayTasks(\'' + dayStr + '\')">+' + more + ' 个</div>';
     if (!dueTasks.length) itemsHTML = '<div class="week-empty-label">—</div>';
 
     var colCls = 'week-day-col' + (isToday ? ' is-today' : '') + (isPast ? ' is-past' : '');
@@ -1648,6 +2069,34 @@ window.renderWeekGrid = function() {
   document.getElementById('main-content').innerHTML =
     '<div class="view-pane">' + tabsHtml + summaryHtml + '<div class="week-grid">' + colsHTML + '</div></div>';
   lucide.createIcons();
+};
+
+/* UX-08: 周视图「+N 个」点击弹出当日完整任务列表 */
+window.showWeekDayTasks = function(dayStr) {
+  var tasks = (state.tasks || []).filter(function(t) { return t.due === dayStr; });
+  var priOrder = { '紧急': 0, '重要': 1, '普通': 2 };
+  tasks.sort(function(a, b) { return (priOrder[a.priority] || 3) - (priOrder[b.priority] || 3); });
+  var rowsHTML = tasks.map(function(t) {
+    var projName = window.projName ? window.projName(t.projectId) : '';
+    var assigneeIds = (t.assignees && t.assignees.length) ? t.assignees : (t.assignee ? [t.assignee] : []);
+    var assigneeNames = assigneeIds.map(function(id) { return window.memberName ? window.memberName(id) : id; }).join(', ') || '—';
+    var statusInfo = window.statusInfo ? window.statusInfo(t.status) : {lbl: t.status||'', cls: ''};
+    return '<tr class="clickable" onclick="openEditTask(\'' + t.id + '\')">' +
+      '<td><span class="status-pill ' + statusInfo.cls + '">' + escHtml(statusInfo.lbl) + '</span></td>' +
+      '<td>' + escHtml(t.title) + '</td>' +
+      '<td style="font-size:12px;color:var(--text3)">' + escHtml(projName) + '</td>' +
+      '<td style="font-size:12px">' + escHtml(assigneeNames) + '</td>' +
+      '</tr>';
+  }).join('');
+  openModal(modalHeader(dayStr + ' 任务列表') +
+    '<div class="modal-body" style="max-height:60vh;overflow:auto">' +
+      '<table class="table" style="width:100%"><thead><tr>' +
+        '<th>状态</th><th>任务名称</th><th>项目</th><th>负责人</th>' +
+      '</tr></thead><tbody>' +
+        (rowsHTML || '<tr><td colspan="4"><div class="empty">当天无任务</div></td></tr>') +
+      '</tbody></table>' +
+    '</div>' +
+    '<div class="modal-footer"><div></div><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div>');
 };
 
 /* TASK-GANTT-WEEK-NAV */

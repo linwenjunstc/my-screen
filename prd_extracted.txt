@@ -1,0 +1,373 @@
+PM Board V21
+交互体验优化 · 产品需求文档
+PRD Version 21.0  ·  2026-05-06
+1. 文档概述
+本文档描述 PM Board 系统 V21 迭代所需完成的全部交互优化需求，以及配套的数据库变更 SQL。
+本次迭代聚焦于五类问题的修复与增强：
+标签管理 — 弹窗状态保持，删除后不关闭弹窗
+双刷新问题 — 多处写操作触发两次渲染，统一修复
+甘特图无限滚动 — 内容区高度与实际行数对齐
+甘特图筛选增强 — 新增项目 + 模块两级联动筛选
+其他交互细节 — 发现并修复清单中列举的其余问题
+2. 问题与需求全景清单
+2.1 标签管理交互（FEAT-TAG）
+现状：每次只能通过"系统配置→标签"入口打开标签管理弹窗；删除标签后 showConfirm 回调调用 closeModal()，弹窗关闭，用户需重新导航才能继续操作。
+期望：
+删除标签后不关闭弹窗，仅刷新标签列表区域
+编辑标签名保存后同样仅刷新列表区域
+添加标签成功后输入框清空，聚焦等待下一次输入，弹窗不关闭
+弹窗支持通过侧边栏"标签"菜单项直接打开（已有入口，保持不变）
+2.2 双刷新问题（FIX-DOUBLE-RENDER）
+现状：多处写操作调用 render() 后，Supabase 实时订阅回调再次触发 loadState()→render()，产生两次渲染，用户会看到页面闪动或列表跳动。
+已修复的函数（V17/V19）：toggleDone、toggleSubtask、confirmDeleteTask。
+仍需修复的函数（V21 新增）：
+pm-tasks.js: submitEditTask() — 调用 render() 前缺少 _lastLoadTime = Date.now()
+pm-projects.js: submitEditProject()、confirmDeleteProject()、removeMemberFromProject()
+pm-members.js: submitAddMember()、deleteMember() — 当前只刷新弹窗内 DOM，但实时回调仍触发全局 render()
+pm-members.js: deleteTag() — showConfirm 确认后触发 deleteFromCloud，实时回调双刷新
+💡 修复方式：在 syncTask/syncProject/deleteFromCloud 之后、render() 之前，统一插入 _lastLoadTime = Date.now()
+2.3 甘特图底部无限滚动（FIX-GANTT-SCROLL）
+现状：甘特图整体容器 .gantt-wrap 设置了 overflow-y:auto 但未限制高度，当内容行数较少时，浏览器仍可向下拖动滚动条，出现大量空白。
+期望：
+甘特图可滚动区域高度应精确匹配内容高度，不出现空白
+.gantt-wrap 高度由内容决定，不超出视口可用高度（建议 max-height: calc(100vh - 220px)），超出后可滚动
+左右列同步滚动已实现，不影响
+2.4 甘特图项目+模块联动筛选（FEAT-GANTT-FILTER）
+现状：甘特图工具栏已有成员筛选和状态筛选，但缺少按项目筛选；另外 V20 引入了 module_id（任务模块字段），也需要在甘特图中支持按模块筛选，且模块列表应随项目筛选联动。
+新增筛选控件（插入在成员筛选之前）：
+项目筛选下拉：「全部项目」+ 各项目名。选择某项目后，模块筛选下拉自动更新为该项目下的模块列表
+模块筛选下拉：默认「全部模块」，仅在项目筛选选中某项目时启用；未选项目时置灰禁用
+清除筛选按钮同步清空项目和模块筛选
+数据来源：
+项目列表：state.projects
+模块列表：state.tasks 中 module_id 字段去重，或 modules 表（若存在）
+💡 新增全局变量 window._ganttFilterProject = '' 和 window._ganttFilterModule = ''
+2.5 其他交互细节修复（FIX-UX）
+以下问题通过代码扫描和上下文分析识别：
+UX-01  新建任务弹窗关闭后再次打开，多负责人 Chip 残留
+现象：window._newTaskAssignees 是全局变量，关闭弹窗后不清空，再次打开新建任务弹窗时会显示上次选择的负责人。
+修复：openAddTask() 开头重置 window._newTaskAssignees = []
+UX-02  编辑任务弹窗多负责人 Chip 残留
+现象：window._editTaskAssignees 在编辑弹窗打开前由 buildEditTaskAssigneeHTML() 初始化，但如果两次连续打开不同任务的编辑弹窗，旧数据可能残留。
+修复：openEditTask() 开头显式重置 window._editTaskAssignees = []，确保 buildEditTaskAssigneeHTML() 始终从干净状态读取
+UX-03  任务列表筛选条件切换后滚动位置未重置
+现象：用户在任务列表底部切换项目/状态筛选芯片后，列表内容刷新但滚动条停留在底部，看起来列表为空。
+修复：render() → renderTaskList() 渲染完成后调用 document.getElementById('main-content').scrollTop = 0
+UX-04  成员管理弹窗删除成员后列表不刷新
+现象：deleteMember() 调用 deleteFromCloud 成功后，仅在 state.members 中移除了该成员，但弹窗内的 members-list DOM 未重新渲染，用户看不到变化，需手动关闭再打开弹窗。
+修复：在 state.members 过滤后，更新 document.getElementById('members-list').innerHTML = buildMembersListHTML()
+UX-05  项目成员移除后弹窗刷新方式不一致
+现象：removeMemberFromProject() 在 syncProject 成功后调用 openEditProject(projId) 重新打开整个弹窗，会导致弹窗动画重播和滚动位置丢失。
+修复：改为仅刷新弹窗内成员列表区域，而不是重新 openModal
+UX-06  甘特图折叠状态在缩放后丢失
+现象：点击缩放按钮（大/中/小）调用 setGanttZoom(w) → renderGantt()，但 renderGantt() 会在 window._ganttCollapsed === null 时重新初始化折叠状态，导致每次缩放都折叠所有项目组。
+修复：setGanttZoom() 中不重置 window._ganttCollapsed，保持当前折叠状态
+💡 当前 renderGantt() 中的初始化逻辑：if (window._ganttCollapsed === null) { 初始化 }，setGanttZoom 只需不重置该变量即可
+UX-07  Toast 通知与弹窗遮罩层叠问题
+现象：在弹窗打开状态下触发 toast()，toast 元素被 .modal-overlay（z-index 通常高于 toast）遮盖，导致提示不可见。
+修复：检查 pm.css 中 #toast-container 的 z-index（建议 99999），确保高于 .modal-overlay（z-index: 9000）
+UX-08  周视图「+N 更多」点击无反应
+现象：renderWeekGrid() 中每列最多显示 6 个任务，超出时显示「+N 更多」标签，但该标签没有绑定点击事件，用户无法查看完整列表。
+修复：为 .week-more-label 添加 onclick，弹出当日所有任务的简单列表弹窗
+UX-09  甘特图筛选清除按钮只清除状态/成员，不清除新增的项目/模块筛选
+现象（FEAT-GANTT-FILTER 引入后）：清除筛选按钮 onclick 只重置 _ganttFilterStatus 和 _ganttFilterAssignee，不重置 _ganttFilterProject 和 _ganttFilterModule。
+修复：清除筛选按钮同步重置四个筛选变量
+UX-10  Finance 快捷录入弹窗金额字段缺少数字键盘提示
+现象：快捷录入收款/支付弹窗中金额输入框 type="text"，在移动端不会弹出数字键盘；此外无 inputmode 属性。
+修复：金额输入框添加 inputmode="decimal"，便于移动端输入
+3. 详细实现规格
+3.1 FEAT-TAG · 标签管理弹窗状态保持
+涉及文件
+js/pm-members.js
+3.1.1 deleteTag() 修改
+当前代码在 showConfirm 成功回调的末尾调用 closeModal()，需删除该行，改为刷新 #tags-list。
+修改位置：pm-members.js — deleteTag() 函数的 showConfirm 成功回调
+修改前（关键行）：
+closeModal();
+toast('标签已删除', 'success');
+修改后：
+document.getElementById('tags-list').innerHTML = buildTagsListHTML();
+if (window.lucide) lucide.createIcons();
+toast('标签已删除', 'success');
+💡 移除 closeModal()，保持弹窗开启
+3.1.2 submitAddTag() 修改
+当前：submitAddTag() 在保存后刷新 #tags-list 并清空输入框，行为已基本正确。确认以下两点：
+不调用 closeModal()（已验证）
+成功后调用 document.getElementById('new-tag-name').focus() 将光标移回输入框
+3.1.3 confirmEditTag() 修改
+当前代码刷新 #tags-list，行为正确。确认不调用 closeModal()（已验证）。
+增加：刷新列表后重新执行 lucide.createIcons() 刷新删除按钮图标。
+3.2 FIX-DOUBLE-RENDER · 统一修复双刷新
+涉及文件
+js/pm-tasks.js
+js/pm-projects.js
+js/pm-members.js
+3.2.1 submitEditTask() — pm-tasks.js
+在 syncTask(t) 之后、render() 之前添加：
+_lastLoadTime = Date.now();
+3.2.2 submitEditProject() — pm-projects.js
+在 syncProject(p) 之后、render() 之前添加：
+_lastLoadTime = Date.now();
+3.2.3 confirmDeleteProject() — pm-projects.js
+在 deleteFromCloud 成功分支、render() 之前添加：
+_lastLoadTime = Date.now();
+3.2.4 removeMemberFromProject() — pm-projects.js
+在 syncProject(p) 之后、render() 之前添加：
+_lastLoadTime = Date.now();
+3.2.5 submitAddMember() — pm-members.js
+submitAddMember 成功后只刷新弹窗内列表，不调用全局 render()，因此不需要 _lastLoadTime 保护。
+但需要检查：若 initRealtime() 监听 members 表变更会触发 loadState()→render()，应在写入成功后添加：
+_lastLoadTime = Date.now();
+3.2.6 deleteMember() — pm-members.js（同时修复 UX-04）
+在 deleteFromCloud 成功分支，确保弹窗列表刷新，并添加防抖：
+state.members = state.members.filter(x => x.id !== id);
+_lastLoadTime = Date.now();
+const listEl = document.getElementById('members-list');
+if (listEl) listEl.innerHTML = buildMembersListHTML();
+toast('成员已移除', 'success');
+3.2.7 deleteTag() — pm-members.js
+deleteTag 只修改 global_tags 表，不触发 tasks/projects 实时回调，理论上不双刷新。
+但若实时订阅 public schema 所有表，仍需防抖：在 sb.from('tags').delete() 成功后添加 _lastLoadTime = Date.now()。
+3.3 FIX-GANTT-SCROLL · 甘特图无限滚动修复
+涉及文件
+css/pm.css
+3.3.1 .gantt-wrap CSS 修改
+当前：
+.gantt-wrap { overflow-x:auto; overflow-y:auto; ... }
+修改为（添加 max-height）：
+.gantt-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
+  ...其他样式不变
+}
+💡 220px 为顶栏(56px) + 甘特图工具栏(约 60px) + 调整历史区域(约 104px) 的粗略高度。如果视觉上有偏差，可调整为 200px~240px。
+3.4 FEAT-GANTT-FILTER · 甘特图项目+模块联动筛选
+涉及文件
+js/pm-views.js
+css/pm.css（复用 .gantt-ctrl-select 样式，无需新增）
+3.4.1 新增全局状态变量
+在 pm-views.js 顶部（与 _ganttFilterStatus 相邻）新增：
+window._ganttFilterProject = window._ganttFilterProject || ''; // 项目 ID
+window._ganttFilterModule  = window._ganttFilterModule  || ''; // 模块 ID
+3.4.2 renderGantt() 筛选逻辑扩展
+在现有筛选逻辑后（约 line 934）新增：
+if (window._ganttFilterProject) tasks = tasks.filter(t => t.projectId === window._ganttFilterProject);
+if (window._ganttFilterModule)  tasks = tasks.filter(t => t.moduleId  === window._ganttFilterModule);
+💡 注意：moduleId 是 V20 新增字段，需确认 loadState() 中有 moduleId: t.module_id 映射
+3.4.3 工具栏 HTML 新增两个筛选下拉
+在现有「成员」筛选下拉之前插入（约 line 1086）：
+// 项目筛选
+<span class="gantt-ctrl-label">项目</span>
+<select class="gantt-ctrl-select" id="gantt-filter-proj"
+  onchange="window._ganttFilterProject=this.value; window._ganttFilterModule=''; renderGantt()">
+  <option value="">全部项目</option>
+  ${ state.projects.map(p => `<option value="${p.id}" ${_ganttFilterProject===p.id?'selected':''}>...`) }
+</select>
+// 模块筛选（联动）
+<span class="gantt-ctrl-label">模块</span>
+<select class="gantt-ctrl-select" id="gantt-filter-module" ${!_ganttFilterProject ? 'disabled style="opacity:.5"' : ''}
+  onchange="window._ganttFilterModule=this.value; renderGantt()">
+  <option value="">全部模块</option>
+  ${ /* 当前项目下的模块列表 */ }
+</select>
+3.4.4 模块列表数据来源
+在 renderGantt() 渲染工具栏之前计算当前项目的模块列表：
+// 获取当前项目的模块列表
+const _projTasks = window._ganttFilterProject
+  ? state.tasks.filter(t => t.projectId === window._ganttFilterProject)
+  : state.tasks;
+const _moduleIds = [...new Set(_projTasks.map(t => t.moduleId).filter(Boolean))];
+// 如果有 state.modules，优先用 state.modules 获取模块名
+// 否则直接用 moduleId 作为显示名
+3.4.5 清除筛选按钮更新
+清除筛选 onclick 更新为同时重置四个变量：
+onclick="window._ganttFilterStatus='';window._ganttFilterAssignee='';
+         window._ganttFilterProject='';window._ganttFilterModule='';renderGantt()"
+3.4.6 _hasFilter 判断更新
+更新 _hasFilter 逻辑：
+const _hasFilter = window._ganttFilterStatus || window._ganttFilterAssignee
+                || window._ganttFilterProject || window._ganttFilterModule;
+3.5 其他交互细节修复实现
+编号
+文件
+修改说明
+UX-01
+pm-tasks.js
+openAddTask() 开头：window._newTaskAssignees = []
+UX-02
+pm-tasks.js
+openEditTask() 开头：window._editTaskAssignees = []
+UX-03
+pm-views.js
+renderTaskList() 末尾：main-content.scrollTop = 0（仅列表视图）
+UX-04
+pm-members.js
+deleteMember() 成功后刷新 members-list DOM（已在 3.2.6 中合并）
+UX-05
+pm-projects.js
+removeMemberFromProject() 改为刷新弹窗内成员列表，不重新 openModal
+UX-06
+pm-views.js
+setGanttZoom() 不重置 window._ganttCollapsed，仅改 ganttDayW 后 renderGantt()
+UX-07
+pm.css
+#toast-container { z-index: 99999; } 确保高于 .modal-overlay
+UX-08
+pm-views.js
+.week-more-label 添加 onclick 弹出当日完整任务列表
+UX-09
+pm-views.js
+清除筛选按钮同步重置 _ganttFilterProject 和 _ganttFilterModule（已在 3.4.5 中合并）
+UX-10
+finance-t2.js / finance-t3.js
+金额输入框添加 inputmode="decimal"
+4. 数据库变更 SQL（V21_SQL.sql）
+本次迭代均为前端交互修复，无新增数据表或字段。以下 SQL 为确认性检查语句，用于验证 V20 新增字段是否已在目标环境中存在，以及补全缺失的索引。
+4.1 检查 V20 遗留字段
+-- 确认 tasks.assignees 字段存在（V20 引入，V21 甘特图筛选依赖）
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'tasks' AND column_name IN ('assignees', 'module_id');
+-- 若 assignees 不存在，执行：
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assignees JSONB DEFAULT '[]'::jsonb;
+-- 若 module_id 不存在，执行：
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS module_id TEXT;
+4.2 确认 notifications 表存在（V19 引入）
+-- 确认通知表存在
+SELECT to_regclass('public.notifications');
+-- 若返回 NULL，请执行 supabase/migrations/004_notifications.sql
+4.3 添加甘特图筛选优化索引
+-- 项目筛选查询优化
+CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
+-- 模块筛选查询优化
+CREATE INDEX IF NOT EXISTS idx_tasks_module_id ON tasks(module_id);
+-- 多负责人字段 GIN 索引（加速 assignees @> 查询）
+CREATE INDEX IF NOT EXISTS idx_tasks_assignees_gin ON tasks USING GIN(assignees);
+4.4 完整 V21_SQL.sql 文件内容
+将以下内容保存为 sql/V21_SQL.sql：
+-- V21 SQL：确认性检查 + 缺失字段补全 + 索引优化
+-- 执行环境：Supabase SQL Editor
+-- 执行时间：2026-05-06
+-- Step 1: 检查 tasks 表必要字段
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assignees  JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS module_id  TEXT;
+-- Step 2: 优化索引
+CREATE INDEX IF NOT EXISTS idx_tasks_project_id   ON tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_module_id    ON tasks(module_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_assignees    ON tasks USING GIN(assignees);
+CREATE INDEX IF NOT EXISTS idx_tasks_assignee     ON tasks(assignee);
+-- Step 3: 确认 notifications 表（V19）
+-- 若返回 NULL 请执行 supabase/migrations/004_notifications.sql
+SELECT to_regclass('public.notifications') AS notifications_table;
+-- Step 4: 检查 global_tags 表（标签管理）
+SELECT column_name FROM information_schema.columns WHERE table_name='global_tags';
+5. AI 执行步骤（推荐顺序）
+以下步骤按照依赖关系排序，AI 可依次执行：
+步骤
+操作
+文件
+预计改动量
+Step 1
+执行 V21_SQL.sql（确认字段+索引）
+Supabase SQL Editor
+< 10 行 SQL
+Step 2
+修复双刷新：submitEditTask
+js/pm-tasks.js
+1 行
+Step 3
+修复双刷新：项目相关函数
+js/pm-projects.js
+3 处，各 1 行
+Step 4
+修复双刷新：成员/标签相关函数
+js/pm-members.js
+3 处，各 1-3 行
+Step 5
+UX-01/02：重置多负责人临时数组
+js/pm-tasks.js
+2 行
+Step 6
+UX-04：deleteMember 刷新弹窗 DOM
+js/pm-members.js
+2 行（含 Step 4）
+Step 7
+FEAT-TAG：deleteTag 不关闭弹窗
+js/pm-members.js
+2 行
+Step 8
+FIX-GANTT-SCROLL：添加 max-height
+css/pm.css
+1 行
+Step 9
+UX-06：setGanttZoom 不重置折叠状态
+js/pm-views.js
+1 行
+Step 10
+UX-07：Toast z-index 修复
+css/pm.css
+1 行
+Step 11
+FEAT-GANTT-FILTER：新增项目+模块筛选
+js/pm-views.js
+约 40 行
+Step 12
+UX-03：筛选切换后滚动重置
+js/pm-views.js
+1 行
+Step 13
+UX-05：removeMemberFromProject 刷新方式
+js/pm-projects.js
+5 行
+Step 14
+UX-08：周视图「+N 更多」可点击
+js/pm-views.js
+约 10 行
+Step 15
+UX-10：金额输入框 inputmode
+js/finance-t2.js + finance-t3.js
+各 1 行
+6. 验收标准
+6.1 FEAT-TAG 验收
+打开系统配置→标签，删除任意标签，弹窗保持开启，列表中该标签消失
+编辑标签名确认后，弹窗保持开启，列表原地更新
+新建标签成功后输入框清空聚焦，可连续添加多个标签无需关闭弹窗
+6.2 FIX-DOUBLE-RENDER 验收
+在浏览器 Network 面板过滤 Supabase realtime WS 消息，编辑任务后 render() 只执行一次（可通过 console.log 计数验证）
+添加成员、删除成员、编辑项目等操作后，页面不出现闪动
+6.3 FIX-GANTT-SCROLL 验收
+甘特图仅显示 1-2 个项目 / 少量任务时，页面底部没有可拖动的空白区域
+任务数量多时，甘特图可正常垂直滚动
+6.4 FEAT-GANTT-FILTER 验收
+甘特图工具栏出现「项目」下拉筛选，选择某项目后图表只显示该项目的任务
+「模块」下拉在未选择项目时为灰色禁用状态；选择项目后启用，且列表仅包含该项目下存在的模块
+选择模块后进一步筛选，选择「全部模块」时等同于仅按项目筛选
+清除筛选后四个筛选均重置
+6.5 其他 UX 验收
+UX-01/02：连续两次打开新建/编辑任务弹窗，负责人 Chip 正确显示，无残留
+UX-03：点击任务列表筛选芯片后，内容区自动滚动到顶部
+UX-05：项目详情弹窗中移除成员后，弹窗内列表立即更新，无动画重播
+UX-06：甘特图点击缩放按钮（大/中/小），项目组折叠状态保持不变
+UX-07：在任何弹窗打开时触发的 toast 通知均可见，不被遮罩覆盖
+UX-08：周视图超出 6 个任务的当天显示「+N 更多」可点击，点击后弹出当日完整任务列表
+7. 注意事项与风险
+风险点
+说明
+应对措施
+_lastLoadTime 防抖失效
+800ms 内多次操作时防抖保护失效
+可接受，该场景下二次渲染不影响功能
+moduleId 字段命名
+loadState() 中 module_id→moduleId 映射需确认
+修改前先 console.log 一条 task 对象确认字段名
+甘特图 max-height 值
+220px 可能因不同浏览器/分辨率偏差
+若显示异常调整为 200px 或 240px 测试
+lucide.createIcons() 调用
+标签列表刷新后需重新初始化图标
+在每次 innerHTML 赋值后调用 if(window.lucide)lucide.createIcons()
+finance-t2/t3 inputmode
+inputmode 属性在部分旧版 Android 无效
+属性不影响桌面端，移动端使用体验提升
+— END OF DOCUMENT —

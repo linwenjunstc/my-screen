@@ -90,6 +90,8 @@ let searchQuery = '';
 var filterProject = 'all';
 var filterStatus = 'all';
 var filterAssignee = 'all';
+var filterModule = 'all';
+var filterTag = 'all';
 let activeTaskTab = 'basic'; // for edit modal tabs
 let editSubtasks = []; // temp store for edit modal
 let editTags = []; // temp selected tags in edit modal
@@ -731,10 +733,26 @@ function handleLogout() {
 
 // --- 3. 实时同步 ---
 function initRealtime() {
-  const channel = sb.channel('db-changes');
+  // 频道 1：所有表变更 → 全量刷新（现有逻辑）
+  var channel = sb.channel('db-changes');
   channel
-    .on('postgres_changes', { event: '*', schema: 'public' }, () => loadState())
+    .on('postgres_changes', { event: '*', schema: 'public' }, function() { loadState(); })
     .subscribe();
+
+  // 频道 2：notifications 表专用 → 仅刷新通知（绕过 loadState 防抖）
+  if (currentUser && currentUser.id) {
+    var notifChannel = sb.channel('notif-' + currentUser.id);
+    notifChannel
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: 'recipient_id=eq.' + currentUser.id
+      }, function() {
+        loadCloudNotifications();
+      })
+      .subscribe();
+  }
 }
 
 // --- 4. 初始化（本地 Session 校验 + 后台静默角色同步）---
@@ -1064,6 +1082,8 @@ function switchView(v) {
       if (saved.filterProject)  filterProject  = saved.filterProject;
       if (saved.filterStatus)   filterStatus   = saved.filterStatus;
       if (saved.filterAssignee) filterAssignee = saved.filterAssignee;
+      if (saved.filterModule)   filterModule   = saved.filterModule;
+      if (saved.filterTag)      filterTag      = saved.filterTag;
     } catch(e) {}
   }
 
@@ -1369,7 +1389,7 @@ window.pushNotification = async function({ recipientId, type, title, body, navTy
   if (!recipientId) return;
   if (currentUser && currentUser.id === recipientId) return;
   try {
-    await sb.from('notifications').insert({
+    var { data, error } = await sb.from('notifications').insert({
       recipient_id: recipientId,
       type:     type     || 'info',
       title:    title    || '',
@@ -1377,24 +1397,52 @@ window.pushNotification = async function({ recipientId, type, title, body, navTy
       nav_type: navType  || 'task',
       nav_id:   navId    || '',
       is_read:  false
+    }).select();
+    if (error) {
+      console.error('[Notification] insert failed:', error.message, error);
+    }
+  } catch(e) {
+    console.error('[Notification] exception:', e);
+  }
+};
+
+// 向任务的所有负责人推送通知（自动排除当前操作者）
+window.pushTaskNotification = function(task, notifData) {
+  if (typeof pushNotification !== 'function') return;
+  var recipients = [];
+  if (task.assignee) recipients.push(task.assignee);
+  (task.assignees || []).forEach(function(id) {
+    if (id && recipients.indexOf(id) === -1) recipients.push(id);
+  });
+  recipients.forEach(function(rid) {
+    pushNotification({
+      recipientId: rid,
+      type:    notifData.type    || 'info',
+      title:   notifData.title   || '',
+      body:    notifData.body    || '',
+      navType: notifData.navType || 'task',
+      navId:   notifData.navId   || ''
     });
-  } catch(e) { console.error('pushNotification failed:', e); }
+  });
 };
 
 window._cloudNotifItems = [];
 window.loadCloudNotifications = async function() {
   if (!currentUser || !currentUser.id) return;
   try {
-    const { data, error } = await sb
+    var { data, error } = await sb
       .from('notifications')
       .select('*')
       .eq('recipient_id', currentUser.id)
       .eq('is_read', false)
       .order('created_at', { ascending: false })
       .limit(50);
-    if (error) return;
+    if (error) {
+      console.error('[Notification] load failed:', error.message);
+      return;
+    }
 
-    const TYPE_MAP = {
+    var TYPE_MAP = {
       task_changed:  { icon:'✏️', iconCls:'ico-amber',  type:'amber',  tag:'任务变更' },
       task_done:     { icon:'✅', iconCls:'ico-green',   type:'green',  tag:'任务完成' },
       task_assigned: { icon:'👤', iconCls:'ico-blue',    type:'blue',   tag:'任务分配' },
@@ -1402,7 +1450,7 @@ window.loadCloudNotifications = async function() {
     };
 
     window._cloudNotifItems = (data || []).map(function(n) {
-      const cfg = TYPE_MAP[n.type] || { icon:'🔔', iconCls:'ico-amber', type:'amber', tag:'通知' };
+      var cfg = TYPE_MAP[n.type] || { icon:'🔔', iconCls:'ico-amber', type:'amber', tag:'通知' };
       return {
         id:      'cloud-' + n.id,
         _dbId:   n.id,
@@ -1419,12 +1467,19 @@ window.loadCloudNotifications = async function() {
       };
     });
     refreshNotifs();
-  } catch(e) {}
+  } catch(e) {
+    console.error('[Notification] load exception:', e);
+  }
 };
 
 window.markCloudNotifRead = async function(dbId) {
   if (!dbId) return;
-  try { await sb.from('notifications').update({ is_read: true }).eq('id', dbId); } catch(e) {}
+  try {
+    var { error } = await sb.from('notifications').update({ is_read: true }).eq('id', dbId);
+    if (error) console.error('[Notification] markRead failed:', error.message);
+  } catch(e) {
+    console.error('[Notification] markRead exception:', e);
+  }
 };
 
 // 渲染角标和面板
@@ -1539,6 +1594,10 @@ window.notifNavigate = function(navType, navId, itemId) {
     setTimeout(function() {
       if (typeof switchTab === 'function') switchTab('payment');
     }, 120);
+
+  } else if (navType === 'member') {
+    if (typeof silentRoleSync === 'function') silentRoleSync();
+    toast('你的权限已变更，页面已自动刷新', 'info');
   }
 };
 
@@ -1566,14 +1625,20 @@ window.closeNotifPanel = function() {
 };
 
 // 全部已读
-window.markAllNotifsRead = function() {
+window.markAllNotifsRead = async function() {
   var items = window._notifItems || buildNotifItems();
-  var readIds = _getReadIds();
-  var merged = Array.from(new Set(readIds.concat(items.map(function(i) { return i.id; }))));
-  _saveReadIds(merged);
+  var allIds = items.map(function(i) { return i.id; });
+  _saveReadIds(_getReadIds().concat(allIds));
+
+  // 云端通知批量标记已读
   var cloudDbIds = (window._cloudNotifItems || []).map(function(c) { return c._dbId; }).filter(Boolean);
-  if (cloudDbIds.length > 0) {
-    sb.from('notifications').update({ is_read: true }).in('id', cloudDbIds).catch(function() {});
+  if (cloudDbIds.length) {
+    try {
+      var { error } = await sb.from('notifications').update({ is_read: true }).in('id', cloudDbIds);
+      if (error) console.error('[Notification] markAllRead failed:', error.message);
+    } catch(e) {
+      console.error('[Notification] markAllRead exception:', e);
+    }
     window._cloudNotifItems = [];
   }
   refreshNotifs();

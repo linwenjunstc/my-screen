@@ -6,6 +6,7 @@ function taskCardHTML(t) {
   const di=dueInfo(t), si=statusInfo(t.status), pn=projName(t.projectId);
   const priCls=t.priority==='紧急'?'pill-red':t.priority==='重要'?'pill-amber':'pill-gray';
   const showProj = currentView!=='project-'+t.projectId;
+  const showMod = t.moduleId && currentView !== 'project-' + t.projectId;
   const blocked = isBlocked(t);
   const assigneeIds = t.assignees && t.assignees.length ? t.assignees : (t.assignee ? [t.assignee] : []);
   const assigneeMembers = assigneeIds.map(function(id) { return state.members.find(function(m) { return m.id === id; }); }).filter(Boolean);
@@ -29,6 +30,7 @@ function taskCardHTML(t) {
       <div class="task-title">${escHtml(t.title)}</div>
       <div class="task-meta">
         ${showProj?`<span class="pill pill-project">${pn}</span>`:''}
+        ${showMod?`<span class="pill pill-module">${escHtml(moduleName(t.moduleId))}</span>`:''}
         <span class="pill ${di.cls}">${di.text}</span>
 	        ${t.startDate?`<span class="pill pill-start">${t.startDate}</span>`:''}
         <span class="pill ${priCls}">${escHtml(t.priority)}</span>
@@ -74,8 +76,8 @@ async function toggleDone(id) {
       addTimelineEntry(t, '重新打开', '重新打开任务');
     }
     await syncTask(t);
-    if (t.done && !wasDone && typeof pushNotification === 'function' && t.assignee) {
-      pushNotification({ recipientId:t.assignee, type:'task_done',
+    if (t.done && !wasDone) {
+      pushTaskNotification(t, { type:'task_done',
         title:'「' + t.title + '」已完成',
         body:(currentUser?.name||'系统') + ' 标记此任务为已完成',
         navType:'task', navId:t.id });
@@ -364,6 +366,7 @@ async function submitAddTask(btn) {
 
 // ─── Edit Task ────────────────────────────────────────────────────────────────
 function openEditTask(id) {
+  window._editTaskAssignees = [];
   const t=state.tasks.find(x=>x.id===id); if(!t) return;
   activeTaskTab='basic';
   const projOpts=state.projects.map(p=>`<option value="${p.id}"${p.id===t.projectId?' selected':''}>${escHtml(p.name)}</option>`).join('');
@@ -667,23 +670,24 @@ async function submitEditTask(id, btn) {
   if (newMilestone !== oldMilestone) addTimelineEntry(t, newMilestone?'设为里程碑':'取消里程碑', '');
 
   await syncTask(t);
-  if (typeof pushNotification === 'function' && t.assignee) {
+  _lastLoadTime = Date.now();
+  {
     var _si2 = function(s) { return ({todo:'待启动',doing:'进行中',waiting:'待反馈',done:'已完成'}[s]||s); };
     var _changer = currentUser?.name || '系统';
     if (newStatus !== oldStatus) {
-      pushNotification({ recipientId:t.assignee, type:'task_changed',
+      pushTaskNotification(t, { type:'task_changed',
         title:'「' + t.title + '」状态已变更',
         body:_changer + ' 将状态从「' + _si2(oldStatus) + '」改为「' + _si2(newStatus) + '」',
         navType:'task', navId:t.id });
     }
     if (newDue !== (oldDue||'') && newDue) {
-      pushNotification({ recipientId:t.assignee, type:'task_changed',
+      pushTaskNotification(t, { type:'task_changed',
         title:'「' + t.title + '」截止日已调整',
         body:_changer + ' 将截止日从「' + (oldDue||'无') + '」改为「' + newDue + '」',
         navType:'task', navId:t.id });
     }
     if (newPriority !== oldPriority && newPriority === '紧急') {
-      pushNotification({ recipientId:t.assignee, type:'task_changed',
+      pushTaskNotification(t, { type:'task_changed',
         title:'「' + t.title + '」已标记为紧急',
         body:_changer + ' 将优先级升为「紧急」',
         navType:'task', navId:t.id });
