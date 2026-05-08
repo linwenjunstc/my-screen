@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/pm.css">
 <link rel="stylesheet" href="css/finance-extra.css">
+	<link rel="stylesheet" href="css/settings.css">
 <link rel="stylesheet" href="css/ai-panel.css">
 </head>
 <body>
@@ -103,7 +104,18 @@
     </div>
     <div class="month-picker">
       <div class="month-label">月份</div>
-      <select class="month-select" id="month-select" onchange="onMonthChange(this.value)"></select>
+      <div class="month-nav">
+        <button class="month-nav-btn" onclick="stepMonth(-1)" title="上月">
+          <i data-lucide="chevron-left" style="width:13px;height:13px"></i>
+        </button>
+        <span class="month-nav-display" id="month-nav-display" onclick="toggleMonthSelect()" title="点击选择月份">
+          2026年5月
+        </span>
+        <button class="month-nav-btn" onclick="stepMonth(1)" title="下月">
+          <i data-lucide="chevron-right" style="width:13px;height:13px"></i>
+        </button>
+      </div>
+      <select id="month-select" style="display:none" onchange="onMonthChange(this.value)"></select>
     </div>
     <div class="sb-section">计划报表</div>
     <nav class="sb-nav">
@@ -139,11 +151,27 @@
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="6" width="14" height="8" rx="1"/><path d="M4 6V4a4 4 0 0 1 8 0v2"/></svg>供应商库
       </button>
     </nav>
-    <div class="sb-bottom">
-      <button class="sb-util" id="basic-info-btn" data-menu-key="basic_info" onclick="openBasicInfoModal()">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="8"/><circle cx="8" cy="11" r=".5" fill="currentColor"/></svg>基础信息配置
+  </aside>
+
+  <!-- ══════════ 设置中心侧栏 ══════════ -->
+  <aside class="sidebar fin-sidebar" id="sidebar-settings" style="display:none">
+    <div class="sb-logo">
+      <div class="sb-logo-text"><div class="sb-logo-icon">PM</div>PM Board</div>
+      <div class="sb-sub" id="sb-settings-sub">设置中心</div>
+    </div>
+    <div class="sb-back-bar">
+      <button class="sb-back-btn" onclick="switchModule(window._lastNonSettingsModule || 'pm')" title="返回">
+        <i data-lucide="arrow-left" style="width:13px;height:13px"></i>
+        <span>返回</span>
       </button>
     </div>
+    <div class="settings-search-wrap">
+      <svg class="settings-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" placeholder="搜索设置..." oninput="onSettingsSearch(this.value)">
+      <span class="settings-search-shortcut">Ctrl+K</span>
+    </div>
+    <nav class="settings-nav" id="settings-nav"></nav>
+    <div class="settings-version-tag">PM Board V23</div>
   </aside>
 
   <!-- ══════════ 主内容区 ══════════ -->
@@ -202,7 +230,15 @@
                 <span>提醒</span>
                 <span class="notif-unread-count" id="notif-unread-count"></span>
               </div>
-              <button class="notif-read-all" onclick="markAllNotifsRead()">全部已读</button>
+              <button class="notif-read-all" id="notif-read-all-btn" onclick="markAllNotifsRead()">全部已读</button>
+            </div>
+            <div class="notif-tabs">
+              <button class="notif-tab active" data-tab="unread" onclick="switchNotifTab('unread')">
+                未读 <span class="notif-tab-count" id="notif-tab-count-unread">0</span>
+              </button>
+              <button class="notif-tab" data-tab="read" onclick="switchNotifTab('read')">
+                已读历史
+              </button>
             </div>
             <div class="notif-body" id="notif-list">
               <div class="notif-empty-state">暂无提醒</div>
@@ -222,11 +258,11 @@
               <span id="dropdown-user-role" class="role-badge role-user" style="margin-top:2px">普通用户</span>
             </div>
             <div class="dropdown-divider"></div>
-            <button class="dropdown-item" onclick="openChangePasswordModal();closeUserDropdown()">
-              <i data-lucide="key" style="width:14px;height:14px"></i> 修改密码
+            <button class="dropdown-item" onclick="switchModule('settings');closeUserDropdown()">
+              <i data-lucide="settings" style="width:14px;height:14px"></i> 设置
             </button>
-            <button class="dropdown-item" id="dropdown-system-config" data-menu-key="system_config" onclick="openSystemConfigModal();closeUserDropdown()">
-              <i data-lucide="settings" style="width:14px;height:14px"></i> 系统配置
+            <button class="dropdown-item" onclick="switchModule('settings');setTimeout(function(){openSettingsPage('security')},80);closeUserDropdown()">
+              <i data-lucide="lock" style="width:14px;height:14px"></i> 修改密码
             </button>
             <div class="dropdown-divider"></div>
             <button class="dropdown-item dropdown-item-danger" onclick="handleLogout()">
@@ -257,6 +293,26 @@
       </div>
     </header>
     <div class="main-content" id="main-content"></div>
+    <!-- ══════════ 设置中心主区 ══════════ -->
+    <div id="settings-content" style="display:none">
+      <div class="settings-breadcrumb">
+        <span class="sb-bc-root" onclick="switchModule('pm')">首页</span>
+        <span class="sb-bc-sep">/</span>
+        <span class="sb-bc-current" id="settings-bc-current">个人资料</span>
+        <div class="settings-actions" id="settings-actions"></div>
+      </div>
+      <div class="settings-dirty-bar" id="settings-dirty-bar" style="display:none">
+        <i data-lucide="alert-triangle" style="width:14px;height:14px;flex-shrink:0"></i>
+        <span>你有未保存的修改</span>
+        <div class="sdb-actions">
+          <button class="btn btn-ghost btn-sm" onclick="discardSettingsChanges()">放弃修改</button>
+          <button class="btn btn-primary btn-sm" onclick="saveCurrentSettingsPage()">立即保存</button>
+        </div>
+      </div>
+      <div class="settings-page-wrap" id="settings-page-wrap">
+        <div class="settings-page-loading">加载中...</div>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -283,7 +339,7 @@
     <span class="ai-panel-title">AI 任务助手</span>
     <span class="ai-key-status" id="ai-key-status"></span>
     <span class="ai-perm-badge" id="ai-perm-badge">PM · 资金</span>
-    <button class="ai-header-btn" id="ai-key-gear-btn" style="display:none" onclick="_toggleApiKeySettings()" title="API Key 设置">
+    <button class="ai-header-btn" id="ai-key-gear-btn" style="display:none" onclick="switchModule('settings');setTimeout(function(){openSettingsPage('integrations')},100)" title="API Key 设置">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
       </svg>
@@ -392,6 +448,7 @@
 <script src="js/finance-t5t6.js"></script>
 <script src="js/finance-base.js"></script>
 <script src="js/finance-export.js"></script>
+	<script src="js/pm-settings.js"></script>
 <script src="js/pm-ai.js"></script>
 
 <script>
@@ -404,62 +461,99 @@ window.switchModule = function(mod) {
   // 权限守卫：没有对应分组菜单权限则不允许切换
   if (mod === 'pm' && typeof hasGroupPerm === 'function' && !hasGroupPerm('pm')) return;
   if (mod === 'finance' && typeof hasGroupPerm === 'function' && !hasGroupPerm('finance') && !hasGroupPerm('base')) return;
+  // 只在进入 settings 时记录来源模块，以便「返回」按钮使用
+  if (mod === 'settings') window._lastNonSettingsModule = activeModule;
   activeModule = mod;
   closeMobileSidebar();
 
   const pmSidebar = document.getElementById('sidebar-pm');
   const finSidebar = document.getElementById('sidebar-finance');
+  const settingsSidebar = document.getElementById('sidebar-settings');
   const topTabPM = document.getElementById('top-tab-pm');
   const topTabFin = document.getElementById('top-tab-finance');
+  const mainContent = document.getElementById('main-content');
+  const settingsContent = document.getElementById('settings-content');
+
+  // Hide all sidebars and content first
+  [pmSidebar, finSidebar, settingsSidebar].forEach(function(el) { if (el) el.style.display = 'none'; });
+  if (mainContent) mainContent.style.display = 'none';
+  if (settingsContent) settingsContent.style.display = 'none';
 
   // 同步侧边栏模块切换按钮 active 状态
-  document.querySelectorAll('.sb-mod-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.sb-mod-btn').forEach(function(b) { b.classList.remove('active'); });
   if (mod === 'pm') {
-    ['sb-mod-btn-pm','sb-mod-btn-pm2'].forEach(id => { const el=document.getElementById(id); if(el) el.classList.add('active'); });
-  } else {
-    ['sb-mod-btn-finance','sb-mod-btn-finance2'].forEach(id => { const el=document.getElementById(id); if(el) el.classList.add('active'); });
+    ['sb-mod-btn-pm','sb-mod-btn-pm2'].forEach(function(id) { var el = document.getElementById(id); if (el) el.classList.add('active'); });
+  } else if (mod === 'finance') {
+    ['sb-mod-btn-finance','sb-mod-btn-finance2'].forEach(function(id) { var el = document.getElementById(id); if (el) el.classList.add('active'); });
   }
 
   if (mod === 'pm') {
     pmSidebar.style.display = 'flex';
-    finSidebar.style.display = 'none';
+    if (mainContent) mainContent.style.display = '';
     topTabPM.classList.add('active');
     topTabFin.classList.remove('active');
-    // Show PM header buttons, hide finance buttons
     updateHeaderForModule('pm');
-    // Render PM view
     switchView('today');
-  } else {
-    pmSidebar.style.display = 'none';
+  } else if (mod === 'finance') {
     finSidebar.style.display = 'flex';
+    if (mainContent) mainContent.style.display = '';
     topTabPM.classList.remove('active');
     topTabFin.classList.add('active');
     updateHeaderForModule('finance');
-    // Lazy init finance
     if (!financeInitialized) {
       financeInitialized = true;
-      initFinance().then(() => {
+      initFinance().then(function() {
         switchTab('t1');
       });
     } else {
       switchTab(currentTab || 't1');
     }
+  } else if (mod === 'settings') {
+    settingsSidebar.style.display = 'flex';
+    if (settingsContent) settingsContent.style.display = '';
+    topTabPM.classList.remove('active');
+    topTabFin.classList.remove('active');
+    updateHeaderForModule('settings');
+    if (typeof initSettingsHub === 'function') initSettingsHub();
+  }
+  // 模块切换 fade-in 动画
+  var activeContent = mod === 'pm' || mod === 'finance' ? mainContent : settingsContent;
+  if (activeContent) {
+    activeContent.classList.remove('module-fade-in');
+    requestAnimationFrame(function() {
+      activeContent.classList.add('module-fade-in');
+    });
   }
 };
 
 function updateHeaderForModule(mod) {
   const finElements = ['export-btn', 'add-btn'];
-  finElements.forEach(id => {
-    const el = document.getElementById(id);
+  finElements.forEach(function(id) {
+    var el = document.getElementById(id);
     if (el) el.style.display = mod === 'finance' ? '' : 'none';
   });
 
-  // 资金计划页面不需要 PM 的新建任务/项目等按钮
-  const pmOnlyElements = ['header-add-btn', 'header-add-proj-btn', 'task-search-wrap'];
-  pmOnlyElements.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
+  // PM 专属按钮
+  var pmOnlyElements = ['header-add-btn', 'header-add-proj-btn', 'task-search-wrap'];
+  pmOnlyElements.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = (mod === 'pm') ? '' : 'none';
   });
+
+  // 设置模式：隐藏所有操作按钮
+  if (mod === 'settings') {
+    finElements.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    pmOnlyElements.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    document.getElementById('header-title').textContent = '设置中心';
+    document.getElementById('header-sub').textContent = '';
+    return;
+  }
 
   // Reset header title
   if (mod === 'finance') {
@@ -467,22 +561,8 @@ function updateHeaderForModule(mod) {
   }
 }
 
-// System config modal — opens consolidated settings
-window.openSystemConfigModal = function() {
-  openModal(modalHeader('系统配置') + `<div class="modal-body">
-    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
-      <button class="btn btn-ghost btn-sm" onclick="closeModal();openMembersModal()"><i data-lucide="users" style="width:14px;height:14px;margin-right:4px"></i>成员管理</button>
-      <button class="btn btn-ghost btn-sm" onclick="closeModal();openTagsModal()"><i data-lucide="tags" style="width:14px;height:14px;margin-right:4px"></i>标签管理</button>
-      <button class="btn btn-ghost btn-sm" onclick="closeModal();openRoleManageModal()"><i data-lucide="shield-check" style="width:14px;height:14px;margin-right:4px"></i>角色权限</button>
-      <button class="btn btn-ghost btn-sm" onclick="closeModal();openLogsModal()"><i data-lucide="scroll-text" style="width:14px;height:14px;margin-right:4px"></i>操作日志</button>
-    </div>
-    <p style="font-size:12px;color:var(--text3);text-align:center;padding:20px 0">公司/事业部名称请在「基础信息配置 → 基础信息配置」中设置</p>
-  </div>
-  <div class="modal-footer">
-    <div></div>
-    <button class="btn btn-ghost" onclick="closeModal()">关闭</button>
-  </div>`);
-};
+// System config modal — 已被 Settings Hub 取代，由 pm-settings.js 兼容层重定向
+// 旧 openSystemConfigModal 定义已移除
 
 // Mobile sidebar toggle
 window.toggleMobileSidebar = function() {

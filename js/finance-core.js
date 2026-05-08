@@ -21,6 +21,11 @@ let finState={
 async function initFinance(){
   if (!currentUser) { location.href = 'login.html'; return; }
   initMonthPicker();
+  // 补全各 tab 的 tooltip
+  Object.keys(TAB_TOOLTIPS).forEach(function(t) {
+    var el = document.getElementById('tab-' + t);
+    if (el && !el.title) el.title = TAB_TOOLTIPS[t];
+  });
   document.getElementById('header-sub').textContent = '';
   await loadAll();
   finInitRealtime();
@@ -45,8 +50,34 @@ function initMonthPicker(){
     sel.appendChild(opt);
   }
   currentMonth=sel.value;
+  updateMonthNavDisplay();
 }
-function onMonthChange(v){currentMonth=v;loadAll();}
+function onMonthChange(v){currentMonth=v;loadAll();updateMonthNavDisplay();}
+window.updateMonthNavDisplay = function() {
+  var sel = document.getElementById('month-select');
+  var disp = document.getElementById('month-nav-display');
+  if (!sel || !disp || !sel.value) return;
+  var parts = sel.value.split('-');
+  disp.textContent = parts[0] + '年' + parseInt(parts[1]) + '月';
+};
+window.stepMonth = function(delta) {
+  var sel = document.getElementById('month-select');
+  if (!sel || !sel.value) return;
+  var idx = Array.from(sel.options).findIndex(function(o) { return o.value === sel.value; });
+  var newIdx = Math.max(0, Math.min(sel.options.length - 1, idx + delta));
+  sel.selectedIndex = newIdx;
+  onMonthChange(sel.value);
+  updateMonthNavDisplay();
+};
+window.toggleMonthSelect = function() {
+  var sel = document.getElementById('month-select');
+  if (!sel) return;
+  sel.style.display = sel.style.display === 'none' ? '' : 'none';
+  if (sel.style.display !== 'none') { sel.focus(); sel.size = 6; }
+  else { sel.size = 1; }
+  sel.onblur = function() { sel.style.display = 'none'; sel.size = 1; };
+  sel.onchange = function() { sel.style.display = 'none'; sel.size = 1; onMonthChange(sel.value); };
+};
 function prevMonthOf(ym){
   const[y,m]=ym.split('-').map(Number);
   const d=new Date(y,m-2,1);
@@ -203,6 +234,13 @@ const TAB_TITLES={
   t4:'完成情况', t5:'实际收款明细', t6:'实际支付明细',
   dashboard:'资金看板', contracts:'合同库', customers:'客户库', suppliers:'供应商库'
 };
+const TAB_TOOLTIPS={
+  t1:'月度固定支出与资金筹措计划', receipt:'对上合同收款计划与进度',
+  payment:'对下合同付款计划与进度', t4:'计划与实际完成对比分析',
+  t5:'实际收款明细查询', t6:'实际支付明细查询',
+  dashboard:'资金溢缺与收付比例看板', contracts:'对上与对下合同管理',
+  customers:'客户信息管理', suppliers:'供应商信息管理'
+};
 const ADD_LABELS={
   receipt:'+ 新增收款记录', payment:'+ 新增付款明细',
   contracts:'+ 新增合同', customers:'+ 新增客户', suppliers:'+ 新增供应商'
@@ -250,6 +288,8 @@ function finRender(){
     customers:renderCustomers,suppliers:renderSuppliers};
   (fn[currentTab]||renderT1)();
   if (typeof lucide !== 'undefined') lucide.createIcons();
+  if (typeof animateStatNumbers === 'function') animateStatNumbers();
+  if (typeof animateChartBars === 'function') animateChartBars();
   const mc=document.getElementById('main-content');
   if(mc){mc.classList.remove('view-pane');void mc.offsetWidth;mc.classList.add('view-pane');}
 }

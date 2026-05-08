@@ -26,6 +26,44 @@
 .month-select { background: rgba(255,255,255,.07); border: 1px solid var(--sb-border); border-radius: var(--radius-sm); color: var(--sb-text); font-family: var(--mono); font-size: 11px; padding: 5px 8px; outline: none; cursor: pointer; width: 100%; }
 .month-select option { background: #2a2926; color: var(--sb-text); }
 
+/* ── Month nav chevron ────────────────────────────────────────── */
+.month-nav {
+  display:flex;
+  align-items:center;
+  gap:4px;
+  margin-top:4px;
+}
+.month-nav-btn {
+  width:24px; height:24px;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:4px;
+  background:transparent;
+  color:var(--sb-text2);
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:all .12s;
+  flex-shrink:0;
+}
+.month-nav-btn:hover {
+  background:var(--sb-hover);
+  color:var(--sb-text);
+}
+.month-nav-display {
+  flex:1;
+  text-align:center;
+  font-size:13px;
+  font-weight:600;
+  color:var(--sb-text);
+  cursor:pointer;
+  padding:3px 4px;
+  border-radius:4px;
+  transition:background .12s;
+  white-space:nowrap;
+}
+.month-nav-display:hover { background:var(--sb-hover); }
+
 /* ── Finance main header ─────────────────────────────────────── */
 .main-sub { font-size: 11.5px; color: var(--text3); margin-top: 1px; }
 .header-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }

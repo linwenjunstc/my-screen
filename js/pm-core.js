@@ -627,6 +627,13 @@ const MENU_DEFS = [
   { key: 'ai_assistant', label: 'AI 任务助手', icon: '🤖', group: 'ai' },
 ];
 
+// 暴露常量到 window 供 settings 等模块使用
+window._MEMBER_COLORS = MEMBER_COLORS;
+window._PROJ_COLORS = PROJ_COLORS;
+window._ROLE_LABELS = ROLE_LABELS;
+window._ROLE_LEVELS = ROLE_LEVELS;
+window._MENU_DEFS = MENU_DEFS;
+
 // 根据角色返回默认可见菜单
 function getDefaultMenuPerms(role) {
   // 仅 super_admin 默认拥有全部权限，admin 和 user 均需手动配置
@@ -741,17 +748,54 @@ function initRealtime() {
 
   // 频道 2：notifications 表专用 → 仅刷新通知（绕过 loadState 防抖）
   if (currentUser && currentUser.id) {
-    var notifChannel = sb.channel('notif-' + currentUser.id);
-    notifChannel
-      .on('postgres_changes', {
+    window._notifChannel = null;
+    window._notifChannelStatus = 'idle';
+
+    var subscribeNotifChannel = function() {
+      if (window._notifChannel) {
+        try { sb.removeChannel(window._notifChannel); } catch(e) {}
+      }
+      var ch = sb.channel('notif-' + currentUser.id + '-' + Date.now());
+      ch.on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'notifications',
         filter: 'recipient_id=eq.' + currentUser.id
       }, function() {
         loadCloudNotifications();
-      })
-      .subscribe();
+      });
+      ch.subscribe(function(status, err) {
+        window._notifChannelStatus = status;
+        if (window._DEBUG_NOTIF) console.log('[Notification] channel status:', status, err);
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          window._notifReconnectAttempts = (window._notifReconnectAttempts || 0) + 1;
+          if (window._notifReconnectAttempts <= 10) {
+            var delay = Math.min(5000 * window._notifReconnectAttempts, 60000);
+            console.warn('[Notification] channel disconnected, reconnect in', delay, 'ms');
+            setTimeout(subscribeNotifChannel, delay);
+          } else {
+            console.error('[Notification] channel failed after 10 attempts, please refresh');
+          }
+        } else if (status === 'SUBSCRIBED') {
+          window._notifReconnectAttempts = 0;
+          loadCloudNotifications();
+        }
+      });
+      window._notifChannel = ch;
+    };
+
+    subscribeNotifChannel();
+
+    // 页面恢复焦点 / 网络恢复时主动拉取（兜底）
+    window.addEventListener('focus', function() {
+      if (currentUser && currentUser.id) loadCloudNotifications();
+    });
+    window.addEventListener('online', function() {
+      if (currentUser && currentUser.id) {
+        loadCloudNotifications();
+        if (window._notifChannelStatus !== 'SUBSCRIBED') subscribeNotifChannel();
+      }
+    });
   }
 }
 
@@ -808,6 +852,12 @@ async function init() {
   initKeyboardShortcuts();
   initChartTooltips();
   await loadState();
+  // 同步本地已读列表（首次会迁移 localStorage 中的旧数据到云端）
+  if (typeof _syncLocalReadsFromCloud === 'function') {
+    _syncLocalReadsFromCloud().then(function() {
+      if (typeof refreshNotifs === 'function') refreshNotifs();
+    });
+  }
   recordBurndownSnapshot();
   initRealtime();
 
@@ -860,6 +910,7 @@ function moduleName(id) { if (!id) return '未分类'; var m=state.modules.find(
 function memberName(id) { const m=state.members.find(x=>x.id===id); return m?m.name:id; }
 function memberColor(id) { const m=state.members.find(x=>x.id===id); return m?MEMBER_COLORS[m.colorIdx%MEMBER_COLORS.length]:'#a09e98'; }
 function memberInitial(id) { const n=memberName(id); return n?n.slice(0,1):'?'; }
+function getColorName(colorIdx) { const names=['blue','green','amber','red','purple','teal','orange','blue']; return names[(colorIdx||0)%names.length]; }
 
 function isBlocked(t) {
   if (!t.dependencies||!t.dependencies.length) return false;
@@ -958,22 +1009,50 @@ function staggerEntrance() {
 
 // ─── A3: Number scroll animation on stat cards ────────────────────────
 function animateStatNumbers() {
-  document.querySelectorAll('.stat-val').forEach(el => {
-    const num = parseInt(el.textContent, 10);
-    if (isNaN(num) || num <= 0) return;
+  document.querySelectorAll('.stat-val, .proj-stat-num, [data-count-to]').forEach(el => {
+    var raw = el.hasAttribute('data-count-to') ? el.getAttribute('data-count-to') : el.textContent;
+    // Skip non-numeric placeholders like "—"
+    if (!/[0-9]/.test(raw)) return;
+    var isPct = raw.indexOf('%') > -1;
+    // Strip commas and other formatting, keep minus sign and digits
+    var cleaned = raw.replace(/[^0-9\-]/g, '');
+    var num = parseInt(cleaned, 10);
+    if (isNaN(num) || num < 0) return;
+    var key = el._animTarget;
+    if (!key || key !== raw) {
+      el._animTarget = raw;
+      el._animNum = null;
+    }
     if (el._animNum === num) return;
     el._animNum = num;
-    const duration = 500;
-    const start = performance.now();
+    var duration = 500;
+    var start = performance.now();
     function step(now) {
-      const elapsed = now - start;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      el.textContent = Math.round(num * eased);
+      var elapsed = now - start;
+      var progress = Math.min(elapsed / duration, 1);
+      var eased = 1 - Math.pow(1 - progress, 3);
+      var val = Math.round(num * eased);
+      el.textContent = isPct ? val + '%' : val.toLocaleString('en-US');
       if (progress < 1) requestAnimationFrame(step);
-      else { el.textContent = num; el._animNum = null; }
+      else { el.textContent = raw; el._animNum = null; el._animTarget = null; }
     }
     requestAnimationFrame(step);
+  });
+}
+
+// ─── A5: Chart bar entrance animation ──────────────────────────────────
+function animateChartBars() {
+  document.querySelectorAll('.chart-bar-fill, .proj-progress-fill').forEach(function(bar) {
+    if (bar._barAnimated) return;
+    bar._barAnimated = true;
+    var targetW = bar.style.width;
+    bar.style.width = '0';
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        bar.style.transition = 'width .6s ease-out';
+        bar.style.width = targetW;
+      });
+    });
   });
 }
 
@@ -1116,7 +1195,8 @@ function render() {
     }
     staggerEntrance();
     setupChartTipListeners();
-    if (currentView === 'today') animateStatNumbers();
+    animateStatNumbers();
+    animateChartBars();
   });
 }
 
@@ -1273,95 +1353,121 @@ window.buildNotifItems = function() {
   var now = new Date(); now.setHours(0, 0, 0, 0);
   var in48h = new Date(now); in48h.setDate(now.getDate() + 2);
 
-  // ── PM 任务：今日到期 ──
-  (state.tasks || []).forEach(function(t) {
-    if (t.done || !t.due) return;
-    var due = new Date(t.due + 'T00:00:00'); due.setHours(0, 0, 0, 0);
-    var assigneeName = '';
-    if (t.assignee) {
-      var m = (state.members || []).find(function(mb) { return mb.id === t.assignee; });
-      if (m) assigneeName = m.name;
-    }
-    if (due.getTime() === now.getTime()) {
-      items.push({
-        id: 'task-today-' + t.id,
-        type: 'red',
-        icon: '⏰',
-        iconCls: 'ico-red',
-        title: (t.title || '未命名任务') + '  今日到期',
-        sub: assigneeName || '未分配',
-        tag: '任务',
-        ts: due.getTime(),
-        navType: 'task',
-        navId: t.id
-      });
-    } else if (due > now && due <= in48h) {
-      var diffDays = Math.round((due.getTime() - now.getTime()) / 86400000);
-      items.push({
-        id: 'task-48h-' + t.id,
-        type: 'amber',
-        icon: '📋',
-        iconCls: 'ico-amber',
-        title: (t.title || '未命名任务'),
-        sub: (assigneeName || '未分配') + '  ·  ' + diffDays + '天后到期',
-        tag: '任务',
-        ts: due.getTime(),
-        navType: 'task',
-        navId: t.id
-      });
-    }
-  });
+  // 读取通知偏好
+  var prefs = {};
+  try { prefs = JSON.parse(localStorage.getItem('pm_notif_prefs') || '{}'); } catch(e) {}
 
-  // ── Finance：收款计划到期 ──
+  function getPref(key, def) { return prefs[key] !== undefined ? prefs[key] : def; }
+
+  // ── PM 任务：逾期 + 即将到期 ──
+  if (getPref('task_overdue', true) || getPref('task_urgent', true)) {
+    (state.tasks || []).forEach(function(t) {
+      if (t.done || !t.due) return;
+      var due = new Date(t.due + 'T00:00:00'); due.setHours(0, 0, 0, 0);
+      var assigneeName = '';
+      if (t.assignee) {
+        var m = (state.members || []).find(function(mb) { return mb.id === t.assignee; });
+        if (m) assigneeName = m.name;
+      }
+      if (due.getTime() < now.getTime() && getPref('task_overdue', true)) {
+        items.push({
+          id: 'task-overdue-' + t.id,
+          type: 'red',
+          icon: '⏰',
+          iconCls: 'ico-red',
+          title: (t.title || '未命名任务') + '  已逾期',
+          sub: assigneeName || '未分配',
+          tag: '任务',
+          ts: due.getTime(),
+          navType: 'task',
+          navId: t.id
+        });
+      } else if (due.getTime() === now.getTime()) {
+        items.push({
+          id: 'task-today-' + t.id,
+          type: 'red',
+          icon: '⏰',
+          iconCls: 'ico-red',
+          title: (t.title || '未命名任务') + '  今日到期',
+          sub: assigneeName || '未分配',
+          tag: '任务',
+          ts: due.getTime(),
+          navType: 'task',
+          navId: t.id
+        });
+      } else if (due > now && due <= in48h && getPref('task_urgent', true)) {
+        var diffDays = Math.round((due.getTime() - now.getTime()) / 86400000);
+        items.push({
+          id: 'task-48h-' + t.id,
+          type: 'amber',
+          icon: '📋',
+          iconCls: 'ico-amber',
+          title: (t.title || '未命名任务'),
+          sub: (assigneeName || '未分配') + '  ·  ' + diffDays + '天后到期',
+          tag: '任务',
+          ts: due.getTime(),
+          navType: 'task',
+          navId: t.id
+        });
+      }
+    });
+  }
+
+  // ── Finance：收款/付款计划到期 ──
   try {
     if (typeof finState !== 'undefined' && finState) {
-      (finState.receipts || []).forEach(function(r) {
-        if (!r.next_expected_date) return;
-        var d = new Date(r.next_expected_date + 'T00:00:00'); d.setHours(0, 0, 0, 0);
-        if (d >= now && d <= in48h) {
-          var amtStr = r.plan_amount
-            ? '¥' + (Number(r.plan_amount) / 10000).toFixed(1) + '万'
-            : '';
-          items.push({
-            id: 'fin-receipt-' + r.id,
-            type: 'blue',
-            icon: '💰',
-            iconCls: 'ico-blue',
-            title: (r.contract_name || '收款计划') + '  计划到款',
-            sub: (r.customer_name || '') + (amtStr ? '  ·  ' + amtStr : ''),
-            tag: '资金',
-            ts: d.getTime(),
-            navType: 'receipt',
-            navId: r.id
-          });
-        }
-      });
-      (finState.payments || []).forEach(function(p) {
-        var planTotal = (+p.plan_cash || 0) + (+p.plan_supply_chain || 0);
-        if (!planTotal) return;
-        // 付款计划没有 next_expected_date，用月末作提醒（本月最后3天）
-        var monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        var diff = Math.round((monthEnd.getTime() - now.getTime()) / 86400000);
-        if (diff <= 3) {
-          items.push({
-            id: 'fin-payment-' + p.id,
-            type: 'teal',
-            icon: '📤',
-            iconCls: 'ico-teal',
-            title: (p.contract_name || '付款计划') + '  本月到期',
-            sub: (p.supplier_name || '') + '  ·  ¥' + (planTotal / 10000).toFixed(1) + '万',
-            tag: '资金',
-            ts: monthEnd.getTime(),
-            navType: 'payment',
-            navId: p.id
-          });
-        }
-      });
+      if (getPref('fin_receipt', true)) {
+        (finState.receipts || []).forEach(function(r) {
+          if (!r.next_expected_date) return;
+          var d = new Date(r.next_expected_date + 'T00:00:00'); d.setHours(0, 0, 0, 0);
+          if (d >= now && d <= in48h) {
+            var amtStr = r.plan_amount
+              ? '¥' + (Number(r.plan_amount) / 10000).toFixed(1) + '万'
+              : '';
+            items.push({
+              id: 'fin-receipt-' + r.id,
+              type: 'blue',
+              icon: '💰',
+              iconCls: 'ico-blue',
+              title: (r.contract_name || '收款计划') + '  计划到款',
+              sub: (r.customer_name || '') + (amtStr ? '  ·  ' + amtStr : ''),
+              tag: '资金',
+              ts: d.getTime(),
+              navType: 'receipt',
+              navId: r.id
+            });
+          }
+        });
+        (finState.payments || []).forEach(function(p) {
+          var planTotal = (+p.plan_cash || 0) + (+p.plan_supply_chain || 0);
+          if (!planTotal) return;
+          var monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          var diff = Math.round((monthEnd.getTime() - now.getTime()) / 86400000);
+          if (diff <= 3) {
+            items.push({
+              id: 'fin-payment-' + p.id,
+              type: 'teal',
+              icon: '📤',
+              iconCls: 'ico-teal',
+              title: (p.contract_name || '付款计划') + '  本月到期',
+              sub: (p.supplier_name || '') + '  ·  ¥' + (planTotal / 10000).toFixed(1) + '万',
+              tag: '资金',
+              ts: monthEnd.getTime(),
+              navType: 'payment',
+              navId: p.id
+            });
+          }
+        });
+      }
     }
   } catch(e) { /* Finance 未初始化时忽略 */ }
 
-  // 合并云端通知
-  var cloudItems = (window._cloudNotifItems || []).filter(function(c) { return !_getReadIds().includes(c.id); });
+  // 合并云端通知（按偏好过滤）
+  var cloudItems = (window._cloudNotifItems || []).filter(function(c) {
+    if (_getReadIds().includes(c.id)) return false;
+    if (!getPref('cloud_push', true)) return false;
+    return true;
+  });
   items = items.concat(cloudItems);
 
   // 按紧急程度排序，同级按时间倒序
@@ -1376,20 +1482,114 @@ window.buildNotifItems = function() {
   return items;
 };
 
-// 读取/写入已读状态（localStorage）
+// 读取/写入已读状态（内存缓存 + localStorage + Supabase）
+window._localReadCache = null;
+
 function _getReadIds() {
-  try { return JSON.parse(localStorage.getItem('pm_notif_read_v2') || '[]'); } catch(e) { return []; }
+  if (window._localReadCache !== null) return window._localReadCache;
+  try {
+    var ids = JSON.parse(localStorage.getItem('pm_notif_read_v2') || '[]');
+    window._localReadCache = ids;
+    return ids;
+  } catch(e) { return []; }
 }
+
 function _saveReadIds(ids) {
   try { localStorage.setItem('pm_notif_read_v2', JSON.stringify(ids.slice(-300))); } catch(e) {}
 }
 
-// ── 云端通知系统 ──
-window.pushNotification = async function({ recipientId, type, title, body, navType, navId }) {
-  if (!recipientId) return;
-  if (currentUser && currentUser.id === recipientId) return;
+async function _markLocalReadAsync(notifKey) {
+  if (!notifKey) return;
+  var ids = _getReadIds();
+  if (ids.includes(notifKey)) return;
+  ids.push(notifKey);
+  ids = ids.slice(-300);
+  window._localReadCache = ids;
+  try { localStorage.setItem('pm_notif_read_v2', JSON.stringify(ids)); } catch(e) {}
+  if (currentUser && currentUser.id) {
+    try {
+      await sb.from('notification_local_reads').upsert({
+        user_id: currentUser.id,
+        notif_key: notifKey,
+        read_at: new Date().toISOString()
+      }, { onConflict: 'user_id,notif_key' });
+    } catch(e) {
+      console.warn('[Notification] local-read sync failed:', e);
+    }
+  }
+}
+
+async function _markLocalReadsBatch(notifKeys) {
+  if (!notifKeys || !notifKeys.length) return;
+  var ids = _getReadIds();
+  notifKeys.forEach(function(k) { if (!ids.includes(k)) ids.push(k); });
+  ids = ids.slice(-300);
+  window._localReadCache = ids;
+  try { localStorage.setItem('pm_notif_read_v2', JSON.stringify(ids)); } catch(e) {}
+  if (currentUser && currentUser.id) {
+    try {
+      var rows = notifKeys.map(function(k) {
+        return { user_id: currentUser.id, notif_key: k, read_at: new Date().toISOString() };
+      });
+      await sb.from('notification_local_reads').upsert(rows, { onConflict: 'user_id,notif_key' });
+    } catch(e) {
+      console.warn('[Notification] local-reads batch sync failed:', e);
+    }
+  }
+}
+
+async function _syncLocalReadsFromCloud() {
+  if (!currentUser || !currentUser.id) return;
   try {
-    var { data, error } = await sb.from('notifications').insert({
+    var cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 60);
+    var { data, error } = await sb
+      .from('notification_local_reads')
+      .select('notif_key')
+      .eq('user_id', currentUser.id)
+      .gte('read_at', cutoff.toISOString())
+      .limit(500);
+    if (error) {
+      console.warn('[Notification] local-reads load failed:', error.message);
+      return;
+    }
+    var cloudIds = (data || []).map(function(r) { return r.notif_key; });
+    var localIds = [];
+    try { localIds = JSON.parse(localStorage.getItem('pm_notif_read_v2') || '[]'); } catch(e) {}
+    var merged = Array.from(new Set(cloudIds.concat(localIds))).slice(-300);
+
+    var toMigrate = localIds.filter(function(id) { return !cloudIds.includes(id); });
+    if (toMigrate.length > 0) {
+      var rows = toMigrate.map(function(k) {
+        return { user_id: currentUser.id, notif_key: k, read_at: new Date().toISOString() };
+      });
+      sb.from('notification_local_reads')
+        .upsert(rows, { onConflict: 'user_id,notif_key' })
+        .then(function(r) {
+          if (r.error) console.warn('[Notification] migrate local reads failed:', r.error.message);
+          else if (window._DEBUG_NOTIF) console.log('[Notification] migrated', toMigrate.length, 'local reads');
+        });
+    }
+
+    window._localReadCache = merged;
+    try { localStorage.setItem('pm_notif_read_v2', JSON.stringify(merged)); } catch(e) {}
+  } catch(e) {
+    console.warn('[Notification] sync local-reads exception:', e);
+  }
+}
+
+window._syncLocalReadsFromCloud = _syncLocalReadsFromCloud;
+
+// ── 云端通知系统 ──
+/**
+ * 推送通知到云端 notifications 表
+ * @returns {Promise<{ok:boolean, error?:string, dbId?:number}>}
+ */
+window.pushNotification = async function({ recipientId, type, title, body, navType, navId }) {
+  if (!recipientId) return { ok: false, error: 'no-recipient' };
+  if (currentUser && currentUser.id === recipientId) return { ok: false, error: 'self-skip' };
+  try {
+    var resp = await sb.from('notifications').insert({
       recipient_id: recipientId,
       type:     type     || 'info',
       title:    title    || '',
@@ -1397,25 +1597,31 @@ window.pushNotification = async function({ recipientId, type, title, body, navTy
       nav_type: navType  || 'task',
       nav_id:   navId    || '',
       is_read:  false
-    }).select();
-    if (error) {
-      console.error('[Notification] insert failed:', error.message, error);
+    }).select().single();
+    if (resp.error) {
+      console.error('[Notification] insert failed:', resp.error.message, resp.error);
+      return { ok: false, error: resp.error.message };
     }
+    if (window._DEBUG_NOTIF) {
+      console.log('[Notification] pushed →', recipientId, type, '#' + resp.data.id);
+    }
+    return { ok: true, dbId: resp.data.id };
   } catch(e) {
     console.error('[Notification] exception:', e);
+    return { ok: false, error: String(e) };
   }
 };
 
 // 向任务的所有负责人推送通知（自动排除当前操作者）
-window.pushTaskNotification = function(task, notifData) {
+window.pushTaskNotification = async function(task, notifData) {
   if (typeof pushNotification !== 'function') return;
   var recipients = [];
   if (task.assignee) recipients.push(task.assignee);
   (task.assignees || []).forEach(function(id) {
     if (id && recipients.indexOf(id) === -1) recipients.push(id);
   });
-  recipients.forEach(function(rid) {
-    pushNotification({
+  var results = await Promise.all(recipients.map(function(rid) {
+    return pushNotification({
       recipientId: rid,
       type:    notifData.type    || 'info',
       title:   notifData.title   || '',
@@ -1423,20 +1629,54 @@ window.pushTaskNotification = function(task, notifData) {
       navType: notifData.navType || 'task',
       navId:   notifData.navId   || ''
     });
-  });
+  }));
+  var failed = results.filter(function(r) { return !r.ok && r.error !== 'self-skip'; });
+  if (failed.length > 0) {
+    console.warn('[Notification] task notification failures:', failed.length, '/', recipients.length);
+  }
 };
 
 window._cloudNotifItems = [];
-window.loadCloudNotifications = async function() {
-  if (!currentUser || !currentUser.id) return;
+// 已读历史持久化（localStorage + 内存双写，跨刷新保留）
+function _loadHistoryFromStore() {
   try {
-    var { data, error } = await sb
+    var raw = localStorage.getItem('pm_notif_read_history');
+    return raw ? JSON.parse(raw) : [];
+  } catch(e) { return []; }
+}
+function _saveHistoryToStore(items) {
+  try { localStorage.setItem('pm_notif_read_history', JSON.stringify(items.slice(0, 100))); } catch(e) {}
+}
+
+window._cloudNotifReadHistory = _loadHistoryFromStore();
+
+window.loadCloudNotifications = async function(opts) {
+  if (!currentUser || !currentUser.id) return;
+  opts = opts || {};
+  var loadHistory = opts.history === true;
+
+  try {
+    var query = sb
       .from('notifications')
       .select('*')
-      .eq('recipient_id', currentUser.id)
-      .eq('is_read', false)
-      .order('created_at', { ascending: false })
-      .limit(50);
+      .eq('recipient_id', currentUser.id);
+
+    if (loadHistory) {
+      var cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      query = query
+        .eq('is_read', true)
+        .gte('created_at', cutoff.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(100);
+    } else {
+      query = query
+        .eq('is_read', false)
+        .order('created_at', { ascending: false })
+        .limit(50);
+    }
+
+    var { data, error } = await query;
     if (error) {
       console.error('[Notification] load failed:', error.message);
       return;
@@ -1449,7 +1689,7 @@ window.loadCloudNotifications = async function() {
       perm_changed:  { icon:'🔐', iconCls:'ico-purple',  type:'amber',  tag:'权限变更' },
     };
 
-    window._cloudNotifItems = (data || []).map(function(n) {
+    var mapped = (data || []).map(function(n) {
       var cfg = TYPE_MAP[n.type] || { icon:'🔔', iconCls:'ico-amber', type:'amber', tag:'通知' };
       return {
         id:      'cloud-' + n.id,
@@ -1463,10 +1703,27 @@ window.loadCloudNotifications = async function() {
         ts:      new Date(n.created_at).getTime(),
         navType: n.nav_type || 'task',
         navId:   n.nav_id   || '',
-        isCloud: true
+        isCloud: true,
+        isRead:  !!n.is_read
       };
     });
-    refreshNotifs();
+
+    if (loadHistory) {
+      // 合并已有历史（含本地通知）与服务端返回的云通知，去重后按时间倒序
+      var existing = window._cloudNotifReadHistory || [];
+      var seen = {};
+      for (var i = 0; i < existing.length; i++) { seen[existing[i].id] = true; }
+      var merged = existing.slice();
+      for (var j = 0; j < mapped.length; j++) {
+        if (!seen[mapped[j].id]) { merged.push(mapped[j]); seen[mapped[j].id] = true; }
+      }
+      merged.sort(function(a, b) { return (b.ts || 0) - (a.ts || 0); });
+      window._cloudNotifReadHistory = merged.slice(0, 100);
+      _saveHistoryToStore(window._cloudNotifReadHistory);
+    } else {
+      window._cloudNotifItems = mapped;
+      refreshNotifs();
+    }
   } catch(e) {
     console.error('[Notification] load exception:', e);
   }
@@ -1517,19 +1774,23 @@ window.refreshNotifs = function() {
     }
   }
 
-  // ── 渲染面板内容 ──
+  // ── 同步更新 Tab 角标 ──
+  var tabCountEl = document.getElementById('notif-tab-count-unread');
+  if (tabCountEl) tabCountEl.textContent = unreadCount;
+
+  // ── 渲染面板内容（分组）──
+  // 如果面板当前在"已读历史"Tab，不覆盖列表内容（避免实时推送冲掉历史视图）
+  if (window._notifCurrentTab === 'read') return;
   var listEl = document.getElementById('notif-list');
   if (!listEl) return;
 
-  if (items.length === 0) {
+  if (unreadItems.length === 0) {
     listEl.innerHTML = '<div class="notif-empty-state">暂无待处理提醒</div>';
     return;
   }
 
-  listEl.innerHTML = items.map(function(item) {
-    var isRead = readIds.includes(item.id);
-    var cls = 'notif-item type-' + item.type + (isRead ? ' read-item' : ' unread');
-    // 截断标题避免溢出
+  function renderNotifItem(item) {
+    var cls = 'notif-item type-' + item.type + ' unread';
     var title = item.title || '';
     if (title.length > 28) title = title.slice(0, 28) + '…';
     return (
@@ -1553,21 +1814,154 @@ window.refreshNotifs = function() {
         '</svg>' +
       '</div>'
     );
+  }
+
+  // 分组
+  var pmItems = unreadItems.filter(function(i) {
+    return ['overdue','urgent','upcoming'].includes(i.type) && i.navType !== 'finance' && !(i.raw && i.raw.module === 'finance');
+  });
+  var finItems = unreadItems.filter(function(i) {
+    return i.navType === 'finance' || (i.raw && i.raw.module === 'finance');
+  });
+  var cloudItems = unreadItems.filter(function(i) { return i.isCloud; });
+
+  function renderGroup(label, items) {
+    if (!items.length) return '';
+    return '<div class="notif-group-label">' + label + '</div>' + items.map(renderNotifItem).join('');
+  }
+
+  var bodyHTML =
+    renderGroup('任务', pmItems) +
+    renderGroup('资金', finItems) +
+    renderGroup('系统通知', cloudItems);
+
+  // 兜底：如果有遗漏的项（不属于任何组），追加在最后
+  var groupedIds = {};
+  [pmItems, finItems, cloudItems].forEach(function(arr) {
+    arr.forEach(function(i) { groupedIds[i.id] = true; });
+  });
+  var remaining = unreadItems.filter(function(i) { return !groupedIds[i.id]; });
+  if (remaining.length) {
+    bodyHTML += remaining.map(renderNotifItem).join('');
+  }
+
+  listEl.innerHTML = bodyHTML || '<div class="notif-empty-state">暂无待处理提醒</div>';
+};
+
+// ── 通知面板 Tab 切换 ──
+window._notifCurrentTab = 'unread';
+
+window.switchNotifTab = async function(tab) {
+  window._notifCurrentTab = tab;
+  document.querySelectorAll('.notif-tab').forEach(function(btn) {
+    btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
+  });
+
+  var listEl = document.getElementById('notif-list');
+  var readAllBtn = document.getElementById('notif-read-all-btn');
+  if (!listEl) return;
+
+  if (tab === 'read') {
+    if (readAllBtn) readAllBtn.style.display = 'none';
+    listEl.innerHTML = '<div class="notif-empty-state"><span class="notif-loading">加载中…</span></div>';
+    await loadCloudNotifications({ history: true });
+    renderNotifHistoryList();
+  } else {
+    if (readAllBtn) readAllBtn.style.display = '';
+    refreshNotifs();
+  }
+};
+
+window.renderNotifHistoryList = function() {
+  var listEl = document.getElementById('notif-list');
+  if (!listEl) return;
+  var items = window._cloudNotifReadHistory || [];
+  if (items.length === 0) {
+    listEl.innerHTML = '<div class="notif-empty-state">暂无已读历史</div>';
+    return;
+  }
+  listEl.innerHTML = items.map(function(item) {
+    var title = item.title || '';
+    if (title.length > 28) title = title.slice(0, 28) + '…';
+    var timeStr = formatRelativeTime(item.ts);
+    return (
+      '<div class="notif-item type-' + item.type + ' read-item history-item"' +
+        ' onclick="notifNavigateHistory(\'' + escHtml(item.navType) + '\',\'' + escHtml(item.navId) + '\')">' +
+        '<div class="notif-item-icon ' + escHtml(item.iconCls) + '">' + item.icon + '</div>' +
+        '<div class="notif-item-content">' +
+          '<div class="notif-item-title">' + escHtml(title) + '</div>' +
+          '<div class="notif-item-sub">' +
+            '<span class="notif-tag-small">' + escHtml(item.tag) + '</span>' +
+            '<span>' + escHtml(item.sub || '') + '</span>' +
+            '<span class="notif-time">' + timeStr + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>'
+    );
   }).join('');
 };
 
+window.notifNavigateHistory = function(navType, navId) {
+  closeNotifPanel();
+  if (navType === 'task' && typeof openEditTask === 'function') {
+    if (typeof switchModule === 'function') switchModule('pm');
+    setTimeout(function() { openEditTask(navId); }, 120);
+  } else if (navType === 'receipt') {
+    if (typeof switchModule === 'function') switchModule('finance');
+    setTimeout(function() { switchTab('receipt'); }, 120);
+  } else if (navType === 'payment') {
+    if (typeof switchModule === 'function') switchModule('finance');
+    setTimeout(function() { switchTab('payment'); }, 120);
+  }
+};
+
+function formatRelativeTime(ts) {
+  var diff = Date.now() - ts;
+  var min = Math.floor(diff / 60000);
+  var hour = Math.floor(diff / 3600000);
+  var day = Math.floor(diff / 86400000);
+  if (min < 1) return '刚刚';
+  if (min < 60) return min + ' 分钟前';
+  if (hour < 24) return hour + ' 小时前';
+  if (day < 7) return day + ' 天前';
+  if (day < 30) return Math.floor(day / 7) + ' 周前';
+  return Math.floor(day / 30) + ' 月前';
+}
+
 // 点击通知 → 标记已读 + 导航
 window.notifNavigate = function(navType, navId, itemId) {
-  // 标记已读
-  var readIds = _getReadIds();
-  if (!readIds.includes(itemId)) {
-    readIds.push(itemId);
-    _saveReadIds(readIds);
-  }
+  // 标记已读（同时写本地缓存 + localStorage + Supabase）
+  _markLocalReadAsync(itemId);
+
+  // 将当前通知项推入已读历史（云通知 + 本地通知均处理）
+  var nowTs = Date.now();
+  var clickedItem = null;
   var cloudItem = (window._cloudNotifItems || []).find(function(c) { return c.id === itemId; });
   if (cloudItem && cloudItem._dbId) {
     markCloudNotifRead(cloudItem._dbId);
+    cloudItem.isRead = true;
+    cloudItem.readAt = new Date().toISOString();
+    clickedItem = cloudItem;
     window._cloudNotifItems = window._cloudNotifItems.filter(function(c) { return c.id !== itemId; });
+  } else {
+    // 本地通知（task-today-*, fin-receipt-* 等）：从最近一次 buildNotifItems 中找到该项
+    var localItems = window._notifItems || [];
+    var found = null;
+    for (var i = 0; i < localItems.length; i++) {
+      if (localItems[i].id === itemId) { found = localItems[i]; break; }
+    }
+    if (found) {
+      clickedItem = {
+        id: found.id, type: found.type, icon: found.icon, iconCls: found.iconCls,
+        title: found.title, sub: found.sub, tag: found.tag, ts: found.ts,
+        navType: found.navType, navId: found.navId,
+        isRead: true, readAt: new Date().toISOString()
+      };
+    }
+  }
+  if (clickedItem) {
+    window._cloudNotifReadHistory = [clickedItem].concat(window._cloudNotifReadHistory || []).slice(0, 100);
+    _saveHistoryToStore(window._cloudNotifReadHistory);
   }
 
   // 关闭面板
@@ -1576,9 +1970,7 @@ window.notifNavigate = function(navType, navId, itemId) {
 
   // 导航
   if (navType === 'task') {
-    // 确保在 PM 模块
     if (typeof switchModule === 'function') switchModule('pm');
-    // 切换到今日看板或任务列表，再打开任务详情
     setTimeout(function() {
       if (typeof openEditTask === 'function') openEditTask(navId);
     }, 120);
@@ -1611,7 +2003,15 @@ window.toggleNotifPanel = function(e) {
   if (isOpen) {
     closeNotifPanel();
   } else {
-    refreshNotifs(); // 每次打开时刷新内容
+    // 每次打开时重置到未读 Tab
+    window._notifCurrentTab = 'unread';
+    document.querySelectorAll('.notif-tab').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-tab') === 'unread');
+    });
+    var readAllBtn = document.getElementById('notif-read-all-btn');
+    if (readAllBtn) readAllBtn.style.display = '';
+    refreshNotifs();
+    loadCloudNotifications(); // 每次打开面板时从服务器拉取最新通知（兜底 realtime）
     panel.style.display = 'block';
     if (trigger) trigger.classList.add('is-open');
   }
@@ -1627,17 +2027,20 @@ window.closeNotifPanel = function() {
 // 全部已读
 window.markAllNotifsRead = async function() {
   var items = window._notifItems || buildNotifItems();
-  var allIds = items.map(function(i) { return i.id; });
-  _saveReadIds(_getReadIds().concat(allIds));
+  var newKeys = items.map(function(it) { return it.id; }).filter(function(id) {
+    return !_getReadIds().includes(id);
+  });
+
+  // 批量同步本地已读到云端
+  await _markLocalReadsBatch(newKeys);
 
   // 云端通知批量标记已读
   var cloudDbIds = (window._cloudNotifItems || []).map(function(c) { return c._dbId; }).filter(Boolean);
   if (cloudDbIds.length) {
     try {
-      var { error } = await sb.from('notifications').update({ is_read: true }).in('id', cloudDbIds);
-      if (error) console.error('[Notification] markAllRead failed:', error.message);
+      await sb.from('notifications').update({ is_read: true }).in('id', cloudDbIds);
     } catch(e) {
-      console.error('[Notification] markAllRead exception:', e);
+      console.warn('[Notification] batch markRead failed:', e);
     }
     window._cloudNotifItems = [];
   }

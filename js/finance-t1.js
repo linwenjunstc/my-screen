@@ -18,7 +18,13 @@ function renderT1(){
         ${escHtml(finState.config.dept_name||'—')} &nbsp;·&nbsp; 单位：万元
       </div>
     </div>
-    ${isAdmin()?`<button class="btn btn-ghost btn-sm" onclick="openT1EditModal()">✎ 编辑固定项</button>`:''}
+    ${isAdmin()?`
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="initFromPrevMonth()" title="基于上月数据初始化本月固定项">
+          <i data-lucide="copy" style="width:13px;height:13px"></i> 基于上月
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="openT1EditModal()">✎ 编辑固定项</button>
+      </div>`:''}
   </div>
 
   <div class="sec-card">
@@ -217,4 +223,70 @@ async function upsertSummary(data,ym){
   }
 }
 
-//  对上收款台账 T2 
+window.initFromPrevMonth = async function() {
+  const prevMonth = prevMonthOf(currentMonth);
+  const [yr, mn] = currentMonth.split('-');
+  const label = `${parseInt(yr)}年${parseInt(mn)}月`;
+  const prevLabel = fmtMon(prevMonth);
+
+  // 1. 读取上月 summary
+  const { data: prevSm } = await sb
+    .from('finance_summary')
+    .select('*')
+    .eq('year_month', prevMonth)
+    .maybeSingle();
+
+  if (!prevSm) {
+    toast(`${prevLabel} 暂无数据，无法初始化`, 'warning'); return;
+  }
+
+  // 2. 读取上月 extra_expenses
+  const { data: prevExtras } = await sb
+    .from('extra_expenses')
+    .select('*')
+    .eq('year_month', prevMonth);
+
+  // 3. 检查本月是否已有 summary 数据
+  const curSm = finState.summary;
+  const hasExisting = curSm && (
+    curSm.labor_cost || curSm.dept_cost || curSm.amortization ||
+    curSm.company_lock || curSm.debt_service
+  );
+
+  if (hasExisting) {
+    if (!confirm(`${label} 已有固定项数据，确认用 ${prevLabel} 数据覆盖？\n（T2/T3 收付款计划不受影响）`)) return;
+  }
+
+  const COPY_FIELDS = ['labor_cost','dept_cost','amortization','company_lock','debt_service',
+                       'fund_source1','fund_source2','fund_source3',
+                       'fund_amount1','fund_amount2','fund_amount3'];
+
+  // 4. 写入本月 summary
+  const smPayload = { year_month: currentMonth };
+  COPY_FIELDS.forEach(function(f) { smPayload[f] = prevSm[f] || null; });
+
+  if (curSm && curSm.id) {
+    await sb.from('finance_summary').update(smPayload).eq('id', curSm.id);
+  } else {
+    await sb.from('finance_summary').insert(smPayload);
+  }
+
+  // 5. 删除本月旧 extras，插入上月 extras（去掉 id / year_month，重新赋值）
+  await sb.from('extra_expenses').delete().eq('year_month', currentMonth);
+
+  if (prevExtras && prevExtras.length) {
+    const newExtras = prevExtras.map(function(e) {
+      const row = Object.assign({}, e);
+      delete row.id;
+      delete row.created_at;
+      row.year_month = currentMonth;
+      return row;
+    });
+    await sb.from('extra_expenses').insert(newExtras);
+  }
+
+  await loadAll();
+  toast(`已基于 ${prevLabel} 初始化 ${label} 固定项`, 'success');
+};
+
+//  对上收款台账 T2

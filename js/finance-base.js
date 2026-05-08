@@ -231,7 +231,10 @@ window._revenueYear  = 'all';
 function computeContractRevenue(r, year){
   const taxRate    = +r.tax_rate||0;
   const exclTax    = r.amount / (1 + taxRate);
-  const targetProf = exclTax * (+r.target_profit_rate||0);
+  const baseMargin = +(finState.config && finState.config.base_gross_margin) || 0;
+  const targetProf = baseMargin
+    ? r.amount * (+r.target_profit_rate||0) / baseMargin
+    : 0;
   const measured   = +r.measured_revenue||0;
 
   const yearRevs = finState.actualReceipts
@@ -323,8 +326,8 @@ function renderContracts(){
       const progCls = rv.progress>=1?'ratio-red':rv.progress>=0.8?'ratio-amber':'ratio-green';
       return `<tr class="clickable" onclick="openEditContractModal('up','${r.id}')">
         <td style="color:var(--text3);width:28px;text-align:center">${realIdx}</td>
-        <td style="min-width:150px">${escHtml(r.name)}</td>
         <td style="font-size:12px;color:var(--text2);min-width:100px">${escHtml(r.main_contract_no||'—')}</td>
+        <td style="min-width:150px;font-weight:500">${escHtml(r.name)}</td>
         <td>${escHtml(r.customer_name||'—')}</td>
         <td class="num">${fmt(r.amount)}</td>
         <td class="num">${rv.exclTax?fmt(rv.exclTax):'—'}</td>
@@ -434,8 +437,8 @@ function renderContracts(){
     <div class="table-scroll"><table style="width:auto;min-width:100%">
       <thead><tr>
         <th style="width:28px">#</th>
-        <th style="min-width:150px">合同名称</th>
         ${isUp?'<th style="min-width:110px">主合同编号</th>':''}
+        <th style="min-width:160px">合同名称</th>
         <th style="min-width:100px">${isUp?'客户名称':'供应商名称'}</th>
         <th class="num" style="min-width:90px">合同金额</th>
         ${isUp?`
@@ -585,7 +588,7 @@ function openEditContractModal(dir,id){
       <div class="form-group">
         <label class="form-label">反算合同额（自动）</label>
         <div class="readonly-val" id="ct-rev-amount">—</div>
-        <div class="form-hint">= 不含税金额 × 目标利润率</div>
+        <div class="form-hint">= 含税价 × 目标毛利率 ÷ 基准毛利率</div>
       </div>
     </div>
     <div class="form-divider">营收基础</div>
@@ -660,15 +663,35 @@ function openEditContractModal(dir,id){
 }
 
 function calcContractDerived(){
-  const amount  = +document.getElementById('ct-amount')?.value||0;
-  const taxRate = +document.getElementById('ct-taxrate')?.value||0;
-  const profRate= +document.getElementById('ct-profrate')?.value||0;
-  const exclTax = taxRate ? amount/(1+taxRate) : 0;
-  const revAmt  = exclTax * profRate;
+  const amount   = +document.getElementById('ct-amount')?.value  || 0;
+  const taxRate  = +document.getElementById('ct-taxrate')?.value || 0;
+  const profRate = +document.getElementById('ct-profrate')?.value|| 0;
+
+  // 不含税金额（保留展示）
+  const exclTax = taxRate ? amount / (1 + taxRate) : 0;
+
+  // 反算合同额：含税价 × 目标毛利率 ÷ 基准毛利率
+  const baseMargin = +(finState.config && finState.config.base_gross_margin) || 0;
+  const revAmt = (amount && profRate && baseMargin)
+    ? amount * profRate / baseMargin
+    : 0;
+
   const et = document.getElementById('ct-excl-tax');
   const ra = document.getElementById('ct-rev-amount');
-  if(et) et.textContent = exclTax ? fmt(exclTax)+' 元' : '—（请填税率）';
-  if(ra) ra.textContent = revAmt  ? fmt(revAmt)+' 元'  : '—';
+
+  if (et) et.textContent = exclTax
+    ? fmt(exclTax) + ' 元'
+    : '—（请填税率）';
+
+  if (ra) {
+    if (!baseMargin) {
+      ra.textContent = '—（请先在设置中配置基准毛利率）';
+      ra.style.color = 'var(--warning)';
+    } else {
+      ra.textContent = revAmt ? fmt(revAmt) + ' 元' : '—';
+      ra.style.color = '';
+    }
+  }
 }
 
 function onContractCuChange(){
@@ -1262,7 +1285,7 @@ function buildTrendSVGStatic(months, recByMonth, payByMonth) {
 
   var xLabels = months.map(function(m, i) {
     var mon = parseInt(m.split('-')[1]);
-    return '<text x="' + scaleX(i) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10" fill="var(--text3)">' + mon + '月</text>';
+    return '<text x="' + scaleX(i) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="5" fill="var(--text3)">' + mon + '月</text>';
   }).join('');
 
   var yMax = (maxVal / 10000).toFixed(1);
@@ -1293,11 +1316,11 @@ function buildTrendSVGStatic(months, recByMonth, payByMonth) {
       '<line x1="' + PAD.l + '" y1="' + PAD.t + '" x2="' + PAD.l + '" y2="' + (PAD.t + innerH) + '" stroke="var(--border)" stroke-width="1"/>' +
       '<line x1="' + PAD.l + '" y1="' + (PAD.t + innerH) + '" x2="' + (PAD.l + innerW) + '" y2="' + (PAD.t + innerH) + '" stroke="var(--border)" stroke-width="1"/>' +
       '<line x1="' + PAD.l + '" y1="' + scaleY(maxVal / 2) + '" x2="' + (PAD.l + innerW) + '" y2="' + scaleY(maxVal / 2) + '" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>' +
-      '<text x="' + (PAD.l - 4) + '" y="' + (PAD.t + 4) + '" text-anchor="end" font-size="10" fill="var(--text3)">' + yMax + '</text>' +
-      '<text x="' + (PAD.l - 4) + '" y="' + (scaleY(maxVal / 2) + 4) + '" text-anchor="end" font-size="10" fill="var(--text3)">' + yMid + '</text>' +
-      '<text x="' + (PAD.l - 4) + '" y="' + (PAD.t + innerH + 4) + '" text-anchor="end" font-size="10" fill="var(--text3)">0</text>' +
-      '<polyline points="' + recPoints + '" fill="none" stroke="#27ae60" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
-      '<polyline points="' + payPoints + '" fill="none" stroke="#2e7dd1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+      '<text x="' + (PAD.l - 4) + '" y="' + (PAD.t + 4) + '" text-anchor="end" font-size="5" fill="var(--text3)">' + yMax + '</text>' +
+      '<text x="' + (PAD.l - 4) + '" y="' + (scaleY(maxVal / 2) + 4) + '" text-anchor="end" font-size="5" fill="var(--text3)">' + yMid + '</text>' +
+      '<text x="' + (PAD.l - 4) + '" y="' + (PAD.t + innerH + 4) + '" text-anchor="end" font-size="5" fill="var(--text3)">0</text>' +
+      '<polyline class="chart-line-draw" points="' + recPoints + '" fill="none" stroke="#27ae60" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+      '<polyline class="chart-line-draw" points="' + payPoints + '" fill="none" stroke="#2e7dd1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
       dots(recPoints, '#27ae60', 'rec') +
       dots(payPoints, '#2e7dd1', 'pay') +
       xLabels +

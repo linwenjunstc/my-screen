@@ -183,7 +183,7 @@ async function submitAddTag(btn) {
 
 // ─── Tags management ──────────────────────────────────────────────────────────
 
-function openTagsModal() {
+window.openTagsModal = function() {
   openModal(`${modalHeader('标签管理')}
     <div class="modal-body">
       <div id="tags-list" style="max-height:320px;overflow-y:auto;margin-bottom:16px">
@@ -495,10 +495,20 @@ async function saveMenuPerms(memberId, btn) {
 
   toast(`✓ 已更新「${m.name}」的菜单权限`, 'success');
   if (typeof pushNotification === 'function') {
-    pushNotification({ recipientId:memberId, type:'perm_changed',
-      title:'你的菜单权限已变更',
-      body:(currentUser?.name||'管理员') + ' 重新配置了你的系统访问权限，刷新页面后生效',
-      navType:'member', navId:memberId });
+    if (currentUser && currentUser.id !== memberId) {
+      var notifResult = await pushNotification({
+        recipientId: memberId,
+        type: 'perm_changed',
+        title: '你的菜单权限已变更',
+        body: (currentUser?.name || '管理员') + ' 重新配置了你的系统访问权限，刷新页面后生效',
+        navType: 'member',
+        navId: memberId
+      });
+      if (!notifResult.ok && notifResult.error !== 'self-skip') {
+        console.warn('[Notification] perm_changed not delivered:', notifResult.error);
+        toast('权限已更新，但通知推送失败（对方可能需手动刷新页面）', 'warning');
+      }
+    }
   }
   logAction('配置菜单权限', `为「${m.name}」配置了 ${finalPerms.length} 项菜单权限`);
   openRoleManageModal();

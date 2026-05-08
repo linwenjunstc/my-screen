@@ -68,15 +68,11 @@ function exportXlsx(){
   finLogAction('导出资金报表', `导出 ${fmtMon(currentMonth)} 资金计划 Excel`);
 }
 function openSettingsModal(){
-  openModal(`<div class="modal-header"><div class="modal-title">系统配置</div><button class="modal-close" onclick="closeModal()"><i data-lucide="x"></i></button></div>
-  <div class="modal-body">
-    <div class="form-group"><label class="form-label">公司名称</label><input class="form-input" id="cfg-company" value="${finState.config.company_name||''}"></div>
-    <div class="form-group"><label class="form-label">事业部名称</label><input class="form-input" id="cfg-dept" value="${finState.config.dept_name||''}"></div>
-  </div>
-  <div class="modal-footer"><div></div><div class="modal-footer-right">
-    <button class="btn btn-ghost" onclick="closeModal()">取消</button>
-    <button class="btn btn-primary" onclick="saveSettings(this)">保存</button>
-  </div></div>`);
+  // 重定向到设置中心 - 组织信息页
+  if (typeof switchModule === 'function') switchModule('settings');
+  setTimeout(function() {
+    if (typeof openSettingsPage === 'function') openSettingsPage('organization');
+  }, 50);
 }
 async function saveSettings(btn){
   setLoading(btn,true);

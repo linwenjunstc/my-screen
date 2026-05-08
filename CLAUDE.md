@@ -783,6 +783,7 @@ requestAnimationFrame(function() { requestAnimationFrame(drawGanttDepLines); });
 20. **旧版 `finance` key 兼容**：`getEffectiveMenuPerms()` 会自动将旧版单一 `'finance'` key 展开为全部 `fin_*` 子菜单，无需手动迁移数据库。
 21. **AI 系统审计（V15 新增）**：AI 可回答成员权限查询（需 `members` 权限）、今日登录记录（仅 super_admin + `logs` 权限）。登录数据通过 `_fetchTodayLogins()` 异步拉取，缓存在 `_aiLoginCache`。
 22. **菜单权限弹窗按钮（V15 修复）**：已移除「恢复默认」按钮。「全部勾选」「全部取消」修复了重新打开弹窗时读取 DB 原始值而非编辑状态的 bug，`openMenuPermsModal()` 现在优先读取 `window._editingPerms`。
+23. **甘特图布局（V23）**：使用单一滚动容器 `.gantt-wrap` + grid 布局 + `position:sticky` 锁定左侧列和顶部表头。`.gantt-left` 为 `position:sticky;left:0`，`.gantt-header-row` / `.gantt-name-header` 为 `position:sticky;top:0`。所有行高统一为 42px。`.gantt-inner` 使用 `display:grid;grid-template-columns:200px 1fr`（JS 动态设置 chartWidth）。修改 DOM 结构时切勿恢复旧的双层 `overflow` 写法或 `#gantt-right-scroll` 中间层。
 
 ---
 
@@ -1045,7 +1046,7 @@ if (_r.loggedOut || !_s || !_s.id) {
 - 读取 `window._ganttMinDate` 和全局 `ganttDayW`
 - 计算目标周周一（`getDay() || 7` 将周日转 7，周一起始）
 - 全程使用本地时间方法，不使用 `toISOString()`
-- `scrollLeft = diffDays * ganttDayW - 16`，容器为 `#gantt-right-scroll`
+- `scrollLeft = diffDays * ganttDayW - 16`，容器为 `#gantt-wrap`（V23 后统一为单一滚动容器）
 - `scrollTo({ behavior: 'smooth' })` 平滑滚动，`Math.max(0, scrollLeft)` 保护
 
 **CSS**：`.gantt-week-group`（inline-flex + 圆角边框）+ `.gantt-week-btn`（透明背景 + hover 高亮 + active 缩放）
