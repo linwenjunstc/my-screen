@@ -730,6 +730,7 @@ function renderProjectView(pid) {
         '<span style="flex:1"></span>' +
         (canManage ? '<button class="btn btn-ghost btn-sm" onclick="openAddModule(\'' + pid + '\')">+ 模块</button>' : '') +
         '<button class="btn btn-primary btn-sm" onclick="openAddTask(\'' + pid + '\')">+ 新建任务</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="exportProjTable(\'' + pid + '\')" title="导出当前筛选结果为 Excel"><i data-lucide="download" style="width:13px;height:13px;margin-right:3px"></i>导出表格</button>' +
       '</div>' +
     '</div>';
   } else {
@@ -956,6 +957,118 @@ window.clearProjTblFilters = function(pid) {
   window._projTblDue       = '';
   window._projTblTag       = '';
   renderProjectView(pid);
+};
+
+window.exportProjTable = function(pid) {
+  var proj = state.projects.find(function(p) { return p.id === pid; });
+  if (!proj) return;
+  var tasks = state.tasks.filter(function(t) { return t.projectId === pid; });
+  if (window._projModuleFilter) tasks = tasks.filter(function(t) { return t.moduleId === window._projModuleFilter; });
+  tasks = applyGlobalSearch(tasks);
+  if (window._projTblPriority) tasks = tasks.filter(function(t) { return t.priority === window._projTblPriority; });
+  if (window._projTblStatus)   tasks = tasks.filter(function(t) { return t.status === window._projTblStatus; });
+  if (window._projTblMember)   tasks = tasks.filter(function(t) { return t.assignee === window._projTblMember || (t.assignees || []).indexOf(window._projTblMember) !== -1; });
+  if (window._projTblTag)      tasks = tasks.filter(function(t) { return (t.tags || []).indexOf(window._projTblTag) !== -1; });
+  if (window._projTblDue) {
+    var today = new Date(); today.setHours(0,0,0,0);
+    tasks = tasks.filter(function(t) {
+      if (!t.due) return false;
+      var d = new Date(t.due); d.setHours(0,0,0,0);
+      var diff = Math.round((d - today) / 86400000);
+      if (window._projTblDue === 'overdue') return diff < 0 && !t.done;
+      if (window._projTblDue === 'today')   return diff === 0;
+      if (window._projTblDue === 'week')    return diff >= 0 && diff <= 7;
+      if (window._projTblDue === 'month')   return diff >= 0 && diff <= 31;
+      return true;
+    });
+  }
+
+  var mods = state.modules.filter(function(m) { return m.projectId === pid; });
+  var modMap = {};
+  mods.forEach(function(m) { modMap[m.id] = m.name; });
+
+  var statusLabels = { todo: '待启动', doing: '进行中', blocked: '阻塞中', waiting: '待反馈', done: '已完成' };
+  var colCount = 8;
+
+  // 按模块排序，模块内按优先级排序
+  var modOrder = {};
+  mods.forEach(function(m, i) { modOrder[m.id] = i; });
+  tasks.sort(function(a, b) {
+    var ma = modOrder[a.moduleId] !== undefined ? modOrder[a.moduleId] : 9999;
+    var mb = modOrder[b.moduleId] !== undefined ? modOrder[b.moduleId] : 9999;
+    if (ma !== mb) return ma - mb;
+    return priorityOrder(a.priority) - priorityOrder(b.priority);
+  });
+
+  // 按模块分组，计算 rowspan
+  var groups = [];
+  var curMod = null;
+  tasks.forEach(function(t) {
+    var mn = modMap[t.moduleId] || '未分类';
+    if (mn !== curMod) {
+      curMod = mn;
+      groups.push({ modName: mn, count: 0, tasks: [] });
+    }
+    var g = groups[groups.length - 1];
+    g.count++;
+    g.tasks.push(t);
+  });
+
+  var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">\n<head>\n<meta charset="UTF-8">\n';
+  html += '<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>项目任务</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->\n';
+  html += '<style>\n';
+  html += 'table { border-collapse: collapse; }\n';
+  html += 'td, th { border: 1px solid #999999; padding: 6px 10px; font-size: 11pt; font-family: "Microsoft YaHei", "微软雅黑", sans-serif; }\n';
+  html += '.title-row td { font-size: 16pt; font-weight: bold; text-align: center; padding: 12px 10px; border: none; color: #1a1d27; }\n';
+  html += '.header-row td { font-weight: bold; text-align: center; background: #2563eb; color: #ffffff; font-size: 10.5pt; padding: 8px 10px; border: 1px solid #1d4ed8; }\n';
+  html += '.mod-cell { text-align: center; vertical-align: middle; font-weight: 600; background: #f0f4ff; }\n';
+  html += '.data-row td { vertical-align: middle; }\n';
+  html += '.data-row-even td { background: #f7f9fc; }\n';
+  html += '.data-row-even td.mod-cell { background: #f0f4ff; }\n';
+  html += '</style>\n</head>\n<body>\n';
+  html += '<table>\n';
+  html += '<colgroup><col width="180"><col width="1260"><col width="180"><col width="225"><col width="225"><col width="160"><col width="480"><col width="520"></colgroup>\n';
+  // Title row
+  html += '<tr class="title-row"><td colspan="' + colCount + '">' + escHtml(proj.name) + ' — 任务列表</td></tr>\n';
+  // Header row
+  html += '<tr class="header-row"><td>模块</td><td>任务</td><td>状态</td><td>开始时间</td><td>结束时间</td><td>优先级</td><td>标签</td><td>描述</td></tr>\n';
+  // Data rows with merged module cells
+  var rowIdx = 0;
+  groups.forEach(function(g) {
+    g.tasks.forEach(function(t, ti) {
+      var rowClass = (rowIdx % 2 === 0) ? 'data-row' : 'data-row data-row-even';
+      var statusText = statusLabels[t.status] || t.status || '待启动';
+      var tagStr = (t.tags || []).map(function(tid) {
+        var tg = state.globalTags.find(function(x) { return x.id === tid; });
+        return tg ? tg.name : '';
+      }).filter(Boolean).join('、');
+      var desc = (t.description || '').replace(/\n/g, ' ');
+      html += '<tr class="' + rowClass + '">';
+      if (ti === 0) {
+        html += '<td class="mod-cell" rowspan="' + g.count + '">' + escHtml(g.modName) + '</td>';
+      }
+      html += '<td>' + escHtml(t.title) + '</td>';
+      html += '<td style="text-align:center">' + escHtml(statusText) + '</td>';
+      html += '<td style="text-align:center">' + escHtml(t.startDate || '-') + '</td>';
+      html += '<td style="text-align:center">' + escHtml(t.due || '-') + '</td>';
+      html += '<td style="text-align:center">' + escHtml(t.priority || '普通') + '</td>';
+      html += '<td>' + escHtml(tagStr) + '</td>';
+      html += '<td>' + escHtml(desc) + '</td>';
+      html += '</tr>\n';
+      rowIdx++;
+    });
+  });
+  html += '</table>\n</body>\n</html>';
+
+  var blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = (proj.name || '项目') + '_任务列表.xls';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };
 
 // 快捷键 L：记录跟进（项目表格模式下）
