@@ -7,7 +7,7 @@ function taskCardHTML(t) {
   const priCls=t.priority==='紧急'?'pill-red':t.priority==='重要'?'pill-amber':'pill-gray';
   const showProj = currentView!=='project-'+t.projectId;
   const showMod = t.moduleId && currentView !== 'project-' + t.projectId;
-  const blocked = isBlocked(t);
+  const waitingDeps = isWaitingDeps(t);
   const assigneeIds = t.assignees && t.assignees.length ? t.assignees : (t.assignee ? [t.assignee] : []);
   const assigneeMembers = assigneeIds.map(function(id) { return state.members.find(function(m) { return m.id === id; }); }).filter(Boolean);
   var assigneeHTML = '';
@@ -20,14 +20,16 @@ function taskCardHTML(t) {
   const tagPills = (t.tags||[]).map(tid=>tagHTML(tid)).join('');
   const subProg = subtaskProgress(t);
   const milestoneBadge = t.milestone ? '<span class="pill pill-amber" style="font-size:10px">◆ 里程碑</span>' : '';
-  const blockedBadge = blocked ? '<span class="dep-blocked-badge"><i data-lucide=\"alert-triangle\" style=\"width:10px;height:10px;margin-right:1px\"></i>等待前置</span>' : '';
+  const waitingDepsBadge = waitingDeps ? '<span class="dep-blocked-badge"><i data-lucide=\"alert-triangle\" style=\"width:10px;height:10px;margin-right:1px\"></i>等待前置</span>' : '';
 
-  return `<div class="task-card stagger-in${t.done?' done':''}${blocked?' dep-blocked':''}" onclick="openEditTask('${t.id}')">
+	return `<div class="task-card stagger-in${t.done?' done':''}${waitingDeps?' dep-blocked':''}" data-task-id="${t.id}" onclick="openEditTask('${t.id}')">
+
     <div class="check-wrap" onclick="event.stopPropagation();if(!${t.done})celebrateCompletion(event.clientX,event.clientY);toggleDone('${t.id}')">
       <div class="check-btn${t.done?' checked':''}"></div>
     </div>
     <div class="task-body">
       <div class="task-title">${escHtml(t.title)}</div>
+      ${t.description?`<div class="task-desc-preview">${escHtml(t.description.slice(0,60))}${t.description.length>60?'…':''}</div>`:''}
       <div class="task-meta">
         ${showProj?`<span class="pill pill-project">${pn}</span>`:''}
         ${showMod?`<span class="pill pill-module">${escHtml(moduleName(t.moduleId))}</span>`:''}
@@ -35,7 +37,7 @@ function taskCardHTML(t) {
 	        ${t.startDate?`<span class="pill pill-start">${t.startDate}</span>`:''}
         <span class="pill ${priCls}">${escHtml(t.priority)}</span>
         <span class="pill ${si.cls}">${si.lbl}</span>
-        ${tagPills}${milestoneBadge}${blockedBadge}
+        ${tagPills}${milestoneBadge}${waitingDepsBadge}
         ${subProg}
       </div>
     </div>
@@ -59,42 +61,114 @@ function addTimelineEntry(t, action, detail) {
   });
 }
 
+// ─── 阻塞原因输入：自定义二级浮层 ──────────────────────────────────
+window._blockReasonResolve = null;  // Promise 回调
+
+window.requestBlockReason = function(currentReason) {
+  return new Promise(function(resolve) {
+    window._blockReasonResolve = resolve;
+    var ov = document.getElementById('block-reason-overlay');
+    var input = document.getElementById('block-reason-input');
+    var btn = document.getElementById('block-reason-confirm');
+    if (!ov || !input || !btn) { resolve(null); return; }
+    input.value = currentReason || '';
+    btn.disabled = (input.value.trim().length < 5);
+    input.oninput = function() {
+      btn.disabled = (input.value.trim().length < 5);
+    };
+    input.onkeydown = function(e) {
+      if (e.key === 'Escape') cancelBlockReason();
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !btn.disabled) confirmBlockReason();
+    };
+    ov.classList.add('open');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    setTimeout(function() { input.focus(); }, 50);
+  });
+};
+
+window.confirmBlockReason = function() {
+  var input = document.getElementById('block-reason-input');
+  var reason = input.value.trim();
+  if (reason.length < 5) return;
+  document.getElementById('block-reason-overlay').classList.remove('open');
+  if (window._blockReasonResolve) {
+    window._blockReasonResolve(reason);
+    window._blockReasonResolve = null;
+  }
+};
+
+window.cancelBlockReason = function() {
+  document.getElementById('block-reason-overlay').classList.remove('open');
+  if (window._blockReasonResolve) {
+    window._blockReasonResolve(null);  // null = 取消
+    window._blockReasonResolve = null;
+  }
+};
+
+window.onBlockReasonOverlayClick = function(e) {
+  if (e.target === document.getElementById('block-reason-overlay')) cancelBlockReason();
+};
+
+// 任务状态选择器的 onchange（替代 Part 1 的 prompt 版本）
+window.onTaskStatusChange = async function(selectEl) {
+  if (!selectEl) return;
+  if (selectEl.value !== 'blocked') return;
+  // 暂存 prev 值，万一取消用得上
+  var prev = selectEl.getAttribute('data-prev') || 'todo';
+  var reason = await requestBlockReason('');
+  if (reason == null) {
+    // 用户取消 → 状态回退
+    selectEl.value = prev;
+    selectEl.removeAttribute('data-blocked-reason');
+    return;
+  }
+  selectEl.setAttribute('data-blocked-reason', reason);
+};
+
 // ─── Toggle done ──────────────────────────────────────────────────────────────
 async function toggleDone(id) {
   const t = state.tasks.find(x => x.id === id);
   if (t) {
-    const wasDone = t.done;
-    t.done = !t.done;
-    t.status = t.done ? 'done' : 'todo';
-    if (t.done && !wasDone) {
-      t.completedAt = new Date().toISOString();
-      t.completedBy = currentUser ? currentUser.id : '';
-      addTimelineEntry(t, '完成任务', '标记任务为已完成');
-    } else if (!t.done && wasDone) {
-      t.completedAt = null;
-      t.completedBy = null;
-      addTimelineEntry(t, '重新打开', '重新打开任务');
+    try {
+      const wasDone = t.done;
+      t.done = !t.done;
+      t.status = t.done ? 'done' : 'todo';
+      if (t.done && !wasDone) {
+        t.completedAt = new Date().toISOString();
+        t.completedBy = currentUser ? currentUser.id : '';
+        addTimelineEntry(t, '完成任务', '标记任务为已完成');
+      } else if (!t.done && wasDone) {
+        t.completedAt = null;
+        t.completedBy = null;
+        addTimelineEntry(t, '重新打开', '重新打开任务');
+      }
+      await syncTask(t);
+      if (t.done && !wasDone) {
+        pushTaskNotification(t, { type:'task_done',
+          title:'「' + t.title + '」已完成',
+          body:(currentUser?.name||'系统') + ' 标记此任务为已完成',
+          navType:'task', navId:t.id });
+      }
+      _lastLoadTime = Date.now();
+      render();
+      if (t.done) logAction('完成任务', `标记「${t.title}」为已完成`);
+    } catch(e) {
+      console.error('[toggleDone]', e);
+      t.done = !t.done;
+      t.status = t.done ? 'done' : 'todo';
+      render();
+      toast('操作失败: ' + (e.message || '未知错误'), 'error');
     }
-    await syncTask(t);
-    if (t.done && !wasDone) {
-      pushTaskNotification(t, { type:'task_done',
-        title:'「' + t.title + '」已完成',
-        body:(currentUser?.name||'系统') + ' 标记此任务为已完成',
-        navType:'task', navId:t.id });
-    }
-    _lastLoadTime = Date.now();
-    render();
-    if (t.done) logAction('完成任务', `标记「${t.title}」为已完成`);
   }
 }
 
 // ─── Subtask toggle ───────────────────────────────────────────────────────────
-function toggleSubtask(taskId, subtaskId) {
+async function toggleSubtask(taskId, subtaskId) {
   const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
   const s=t.subtasks.find(x=>x.id===subtaskId); if(!s) return;
   const willDone = !s.done;
   s.done = willDone;
-  syncTask(t);
+  await syncTask(t);
   _lastLoadTime = Date.now();
   renderModalSubtasks(taskId);
   if (willDone) logAction('完成子任务', `「${t.title}」→ 子任务「${s.title}」已完成`);
@@ -104,6 +178,7 @@ function renderModalSubtasks(taskId) {
   const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
   const el=document.getElementById('subtask-list-modal'); if(!el) return;
   el.innerHTML = buildSubtaskListHTML(t.subtasks||[], taskId);
+  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function buildSubtaskListHTML(subtasks, taskId) {
@@ -115,23 +190,23 @@ function buildSubtaskListHTML(subtasks, taskId) {
   </div>`).join('');
 }
 
-function addSubtaskFromInput(taskId) {
+async function addSubtaskFromInput(taskId) {
   const inp=document.getElementById('new-subtask-input'); if(!inp) return;
   const title=inp.value.trim(); if(!title) return;
   const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
   if(!t.subtasks) t.subtasks=[];
   t.subtasks.push({id:uid(),title,done:false});
   inp.value='';
-  syncTask(t);
+  await syncTask(t);
   renderModalSubtasks(taskId);
   logAction('添加子任务', `为「${t.title}」添加子任务「${title}」`);
 }
 
-function deleteSubtask(taskId, subtaskId) {
+async function deleteSubtask(taskId, subtaskId) {
   const t = state.tasks.find(x=>x.id===taskId); if(!t) return;
   const s = t.subtasks.find(x=>x.id===subtaskId);
   t.subtasks = t.subtasks.filter(x=>x.id!==subtaskId);
-  syncTask(t);
+  await syncTask(t);
   renderModalSubtasks(taskId);
   if (s) logAction('删除子任务', `删除「${t.title}」的子任务「${s.title}」`);
 }
@@ -273,9 +348,13 @@ function openAddTask(preProjectId, preModuleId) {
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">优先级</label><select class="form-select" id="fi-pri"><option>紧急</option><option selected>重要</option><option>普通</option></select></div>
-        <div class="form-group"><label class="form-label">状态</label><select class="form-select" id="fi-status"><option value="todo">待启动</option><option value="doing">进行中</option><option value="waiting">待反馈</option><option value="done">已完成</option></select></div>
+        <div class="form-group"><label class="form-label">状态</label><select class="form-select" id="fi-status" data-prev="todo" onchange="onTaskStatusChange(this)"><option value="todo">待启动</option><option value="doing">进行中</option><option value="blocked">🚧 阻塞中</option><option value="waiting">待反馈</option><option value="done">已完成</option></select></div>
       </div>
       ${state.globalTags.length?`<div class="form-group"><label class="form-label">标签</label><select class="form-select" id="fi-tag"><option value="">无</option>${tagSelectOpts}</select></div>`:''}
+      <div class="form-group">
+        <label class="form-label">描述</label>
+        <textarea class="form-input form-textarea" id="fi-desc" rows="3" placeholder="任务背景、验收标准、参考链接..." style="resize:vertical;min-height:72px"></textarea>
+      </div>
       <div class="toggle-row">
         <div><div class="toggle-label">设为里程碑</div><div class="toggle-sub">在甘特图中以菱形节点标注</div></div>
         <button class="toggle" id="fi-milestone" onclick="this.classList.toggle('on')"></button>
@@ -335,6 +414,23 @@ async function submitAddTask(btn) {
 
   // 增加安全检查，如果元素不存在则给默认值，防止报错
   const getVal = (id, def = "") => document.getElementById(id) ? document.getElementById(id).value : def;
+  var tagVal = (document.getElementById('fi-tag') || {}).value || '';
+
+  // ★ blocked 状态：必填原因
+  var newStatus = getVal('fi-status', 'todo');
+  var newBlockedReason = null, newBlockedAt = null, newBlockedBy = null;
+  if (newStatus === 'blocked') {
+    var statusSelect = document.getElementById('fi-status');
+    var reason = (statusSelect && statusSelect.getAttribute('data-blocked-reason')) || '';
+    if (!reason || reason.length < 5) {
+      alert('选择「阻塞中」必须填写原因');
+      setLoading(btn, false);
+      return;
+    }
+    newBlockedReason = reason;
+    newBlockedAt = new Date().toISOString();
+    newBlockedBy = currentUser ? currentUser.id : '';
+  }
 
   const newTask = {
     id: uid(),
@@ -344,24 +440,36 @@ async function submitAddTask(btn) {
     assignees: assignees,
     due: getVal('fi-due', ''),
     priority: getVal('fi-pri', '重要'),
-    status: getVal('fi-status', 'todo'),
+    status: newStatus,
+    blocked_reason: newBlockedReason,
+    blocked_at: newBlockedAt,
+    blocked_by: newBlockedBy,
     done: false,
-    tags: [],
+    tags: tagVal ? [tagVal] : [],
     subtasks: [],
     start_date: document.getElementById('fi-start-date')?.value || null,
       milestone: document.getElementById('fi-milestone')?.classList.contains('on') || false,
-    created_at: new Date().toISOString().slice(0,10),
+    description: (document.getElementById('fi-desc')?.value || '').trim(),
+    created_at: (function(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })(),
     moduleId: moduleId || null,
     module_id: moduleId || null
   };
 
   addTimelineEntry(newTask, '创建任务', '创建了任务');
-  await syncTask(newTask);
-  setLoading(btn, false);
-  closeModal();
-  await loadState();
-  toast('任务已同步至云端', 'success');
-  logAction('添加任务', `新建任务「${title}」`);
+  try {
+    await syncTask(newTask);
+    _lastLoadTime = Date.now();
+    setLoading(btn, false);
+    closeModal();
+    window._newTaskAssignees = [];
+    await loadState(true);
+    toast('任务已同步至云端', 'success');
+    logAction('添加任务', `新建任务「${title}」`);
+  } catch(e) {
+    console.error('[submitAddTask]', e);
+    setLoading(btn, false);
+    toast('保存失败: ' + (e.message || '未知错误'), 'error');
+  }
 }
 
 // ─── Edit Task ────────────────────────────────────────────────────────────────
@@ -432,9 +540,13 @@ function openEditTask(id) {
         </div>
         <div class="form-row">
           <div class="form-group"><label class="form-label">优先级</label><select class="form-select" id="fi-pri"><option${t.priority==='紧急'?' selected':''}>紧急</option><option${t.priority==='重要'?' selected':''}>重要</option><option${t.priority==='普通'?' selected':''}>普通</option></select></div>
-          <div class="form-group"><label class="form-label">状态</label><select class="form-select" id="fi-status"><option value="todo"${t.status==='todo'?' selected':''}>待启动</option><option value="doing"${t.status==='doing'?' selected':''}>进行中</option><option value="waiting"${t.status==='waiting'?' selected':''}>待反馈</option><option value="done"${t.status==='done'?' selected':''}>已完成</option></select></div>
+          <div class="form-group"><label class="form-label">状态</label><select class="form-select" id="fi-status" data-prev="${t.status||'todo'}" onchange="onTaskStatusChange(this)"><option value="todo"${t.status==='todo'?' selected':''}>待启动</option><option value="doing"${t.status==='doing'?' selected':''}>进行中</option><option value="blocked"${t.status==='blocked'?' selected':''}>🚧 阻塞中</option><option value="waiting"${t.status==='waiting'?' selected':''}>待反馈</option><option value="done"${t.status==='done'?' selected':''}>已完成</option></select></div>
         </div>
         ${state.globalTags.length?`<div class="form-group"><label class="form-label">标签</label><div class="tag-list">${tagChipsHTML}</div></div>`:''}
+        <div class="form-group">
+          <label class="form-label">描述</label>
+          <textarea class="form-input form-textarea" id="fi-desc" rows="3" style="resize:vertical;min-height:72px">${escHtml(t.description || '')}</textarea>
+        </div>
         <div class="toggle-row">
           <div><div class="toggle-label">设为里程碑</div><div class="toggle-sub">在甘特图中以菱形节点标注</div></div>
           <button class="toggle${t.milestone?' on':''}" id="fi-milestone" onclick="this.classList.toggle('on')"></button>
@@ -589,17 +701,17 @@ function toggleEditTag(taskId, tagId) {
   if (el) el.classList.toggle('selected', t.tags.includes(tagId));
 }
 
-function toggleDep(taskId, depId, checked) {
+async function toggleDep(taskId, depId, checked) {
   const t = state.tasks.find(x=>x.id===taskId); if(!t) return;
   const depTask = state.tasks.find(x=>x.id===depId);
   if(!t.dependencies) t.dependencies=[];
   if (checked && !t.dependencies.includes(depId)) {
     t.dependencies.push(depId);
-    syncTask(t);
+    await syncTask(t);
     if (depTask) logAction('设置前置条件', `「${t.title}」的前置条件设为「${depTask.title}」`);
   } else if (!checked) {
     t.dependencies = t.dependencies.filter(x=>x!==depId);
-    syncTask(t);
+    await syncTask(t);
     if (depTask) logAction('移除前置条件', `移除「${t.title}」的前置条件「${depTask.title}」`);
   }
 }
@@ -654,8 +766,31 @@ async function submitEditTask(id, btn) {
     t.completedBy = null;
   }
 
+  // ★ blocked 状态进入/退出处理
+  if (newStatus === 'blocked' && oldStatus !== 'blocked') {
+    var statusSelect = document.getElementById('fi-status');
+    var reason = (statusSelect && statusSelect.getAttribute('data-blocked-reason')) || '';
+    if (!reason || reason.length < 5) {
+      alert('请重新选择「阻塞中」并填写原因');
+      t.status = oldStatus;  // 回退
+      setLoading(btn, false);
+      return;
+    }
+    t.blocked_reason = reason;
+    t.blocked_at = new Date().toISOString();
+    t.blocked_by = currentUser ? currentUser.id : '';
+    logAction('标记阻塞', '任务「' + t.title + '」标记为阻塞 · 原因：' + reason);
+    addTimelineEntry(t, '标记阻塞', '原因：' + reason);
+  } else if (oldStatus === 'blocked' && newStatus !== 'blocked') {
+    var oldReason = t.blocked_reason || '';
+    t.blocked_reason = null;
+    t.blocked_at = null;
+    t.blocked_by = null;
+    logAction('解除阻塞', '任务「' + t.title + '」解除阻塞 · 原原因：' + oldReason);
+    addTimelineEntry(t, '解除阻塞', '原原因：' + oldReason);
+  }
+
   // 生成时间线事件
-  const si = (s) => ({todo:'待启动',doing:'进行中',waiting:'待反馈',done:'已完成'}[s]||s);
   if (title !== oldTitle) addTimelineEntry(t, '修改标题', `从「${oldTitle}」改为「${title}」`);
   if (newProjId !== (oldProjId||'')) addTimelineEntry(t, '变更项目', `项目已变更`);
   if (newAssignee !== (oldAssignee||'')) {
@@ -666,58 +801,75 @@ async function submitEditTask(id, btn) {
   if (newDue !== (oldDue||'')) addTimelineEntry(t, '修改截止日', `从「${oldDue||'无'}」改为「${newDue}」`);
   if (newStart !== oldStart) addTimelineEntry(t, '修改开始时间', `从「${oldStart||'无'}」改为「${newStart||'无'}」`);
   if (newPriority !== oldPriority) addTimelineEntry(t, '修改优先级', `从「${oldPriority}」改为「${newPriority}」`);
-  if (newStatus !== oldStatus) addTimelineEntry(t, '状态变更', `从「${si(oldStatus)}」改为「${si(newStatus)}」`);
+  if (newStatus !== oldStatus && !(newStatus === 'blocked' && oldStatus !== 'blocked') && !(oldStatus === 'blocked' && newStatus !== 'blocked')) {
+    addTimelineEntry(t, '状态变更', '从「' + (STATUS_LABELS[oldStatus] || oldStatus) + '」改为「' + (STATUS_LABELS[newStatus] || newStatus) + '」');
+  }
   if (newMilestone !== oldMilestone) addTimelineEntry(t, newMilestone?'设为里程碑':'取消里程碑', '');
+  var newDesc = (document.getElementById('fi-desc')?.value || '').trim();
+  if (newDesc !== (t.description || '')) addTimelineEntry(t, '修改描述', '');
+  t.description = newDesc;
 
-  await syncTask(t);
-  _lastLoadTime = Date.now();
-  {
-    var _si2 = function(s) { return ({todo:'待启动',doing:'进行中',waiting:'待反馈',done:'已完成'}[s]||s); };
-    var _changer = currentUser?.name || '系统';
-    if (newStatus !== oldStatus) {
-      pushTaskNotification(t, { type:'task_changed',
-        title:'「' + t.title + '」状态已变更',
-        body:_changer + ' 将状态从「' + _si2(oldStatus) + '」改为「' + _si2(newStatus) + '」',
+  try {
+    await syncTask(t);
+    _lastLoadTime = Date.now();
+    {
+      var _si2 = function(s) { return (STATUS_LABELS[s]||s); };
+      var _changer = currentUser?.name || '系统';
+      if (newStatus !== oldStatus) {
+        pushTaskNotification(t, { type:'task_changed',
+          title:'「' + t.title + '」状态已变更',
+          body:_changer + ' 将状态从「' + _si2(oldStatus) + '」改为「' + _si2(newStatus) + '」',
+          navType:'task', navId:t.id });
+      }
+      if (newDue !== (oldDue||'') && newDue) {
+        pushTaskNotification(t, { type:'task_changed',
+          title:'「' + t.title + '」截止日已调整',
+          body:_changer + ' 将截止日从「' + (oldDue||'无') + '」改为「' + newDue + '」',
+          navType:'task', navId:t.id });
+      }
+      if (newPriority !== oldPriority && newPriority === '紧急') {
+        pushTaskNotification(t, { type:'task_changed',
+          title:'「' + t.title + '」已标记为紧急',
+          body:_changer + ' 将优先级升为「紧急」',
+          navType:'task', navId:t.id });
+      }
+    }
+    if (typeof pushNotification === 'function' && newAssignee && newAssignee !== (oldAssignee||'')) {
+      pushNotification({ recipientId:newAssignee, type:'task_assigned',
+        title:'你被分配了任务「' + t.title + '」',
+        body:(currentUser?.name||'系统') + ' 将此任务分配给你',
         navType:'task', navId:t.id });
     }
-    if (newDue !== (oldDue||'') && newDue) {
-      pushTaskNotification(t, { type:'task_changed',
-        title:'「' + t.title + '」截止日已调整',
-        body:_changer + ' 将截止日从「' + (oldDue||'无') + '」改为「' + newDue + '」',
-        navType:'task', navId:t.id });
-    }
-    if (newPriority !== oldPriority && newPriority === '紧急') {
-      pushTaskNotification(t, { type:'task_changed',
-        title:'「' + t.title + '」已标记为紧急',
-        body:_changer + ' 将优先级升为「紧急」',
-        navType:'task', navId:t.id });
-    }
+    setLoading(btn, false);
+    closeModal();
+    window._editTaskAssignees = [];
+    render();
+    toast('更改已同步至云端', 'success');
+    logAction('编辑任务', `更新任务「${t.title}」`);
+  } catch(e) {
+    console.error('[submitEditTask]', e);
+    setLoading(btn, false);
+    toast('保存失败: ' + (e.message || '未知错误'), 'error');
   }
-  if (typeof pushNotification === 'function' && newAssignee && newAssignee !== (oldAssignee||'')) {
-    pushNotification({ recipientId:newAssignee, type:'task_assigned',
-      title:'你被分配了任务「' + t.title + '」',
-      body:(currentUser?.name||'系统') + ' 将此任务分配给你',
-      navType:'task', navId:t.id });
-  }
-  setLoading(btn, false);
-  closeModal();
-  render();
-  toast('更改已同步至云端', 'success');
-  logAction('编辑任务', `更新任务「${t.title}」`);
 }
 
 async function confirmDeleteTask(id) {
   showConfirm('删除任务', '确认删除这个任务？该操作无法撤销', async function() {
+    try {
     const t = state.tasks.find(x => x.id === id);
     const title = t ? t.title : id;
     const success = await deleteFromCloud('tasks', id);
     if (success) {
       state.tasks = state.tasks.filter(x => x.id !== id);
       closeModal();
-      _lastLoadTime = Date.now(); // 阻止实时 loadState 800ms 内二次触发
+      _lastLoadTime = Date.now();
       render();
       toast('任务已永久删除', 'success');
       logAction('删除任务', `删除任务「${title}」`);
+    }
+    } catch(e) {
+      console.error('[confirmDeleteTask]', e);
+      toast('删除失败: ' + (e.message || '未知错误'), 'error');
     }
   }, {danger: true, confirmLabel: '删除'});
 }
@@ -727,13 +879,14 @@ function openLog(id) {
   openModal(`${modalHeader('记录跟进')}
     <div class="modal-body">
       <div style="font-size:13px;color:var(--text2);padding:8px 12px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:16px">${escHtml(t.title)}</div>
-      <div class="form-group"><label class="form-label">跟进内容</label><textarea class="form-textarea" id="fi-log" placeholder="记录这次跟进的内容、结论、下一步行动..." autofocus></textarea></div>
+      <div class="form-group" style="position:relative"><label class="form-label">跟进内容</label><textarea class="form-textarea" id="fi-log" placeholder="记录这次跟进的内容、结论、下一步行动... 输入 @ 提及成员" autofocus oninput="onLogInputChange('${id}')" onkeydown="onLogInputKeydown(event,'${id}')"></textarea><div id="mention-dropdown" class="mention-dropdown" style="display:none"></div></div>
       <div class="form-group">
         <label class="form-label">更新状态（可选）</label>
-        <select class="form-select" id="fi-status">
+        <select class="form-select" id="fi-status" data-prev="${t.status||'todo'}" onchange="onTaskStatusChange(this)">
           <option value="">状态不变</option>
           <option value="todo"${t.status==='todo'?' selected':''}>待启动</option>
           <option value="doing"${t.status==='doing'?' selected':''}>进行中</option>
+          <option value="blocked"${t.status==='blocked'?' selected':''}>🚧 阻塞中</option>
           <option value="waiting"${t.status==='waiting'?' selected':''}>待反馈</option>
           <option value="done">已完成</option>
         </select>
@@ -749,7 +902,7 @@ function openLog(id) {
   setTimeout(()=>document.getElementById('fi-log').focus(),80);
 }
 
-function submitLog(id) {
+async function submitLog(id) {
   const t=state.tasks.find(x=>x.id===id); if(!t) return;
   const text=document.getElementById('fi-log').value.trim();
   if (!text) { document.getElementById('fi-log').style.borderColor='var(--red)'; return; }
@@ -762,18 +915,206 @@ function submitLog(id) {
     action: '备注',
     detail: text
   });
-  if(status) {
-    const oldStatus = t.status;
+  if (status && status !== t.status) {
+    var oldStatus = t.status;
     t.status = status;
     t.done = status === 'done';
+
     if (status === 'done' && oldStatus !== 'done') {
       t.completedAt = new Date().toISOString();
       t.completedBy = currentUser ? currentUser.id : '';
     }
-    const si = (s) => ({todo:'待启动',doing:'进行中',waiting:'待反馈',done:'已完成'}[s]||s);
-    addTimelineEntry(t, '状态变更', `从「${si(oldStatus)}」改为「${si(status)}」（通过备注）`);
+
+    // ★ blocked 状态进入：必填原因
+    if (status === 'blocked' && oldStatus !== 'blocked') {
+      var statusSelect = document.getElementById('fi-status');
+      var reason = (statusSelect && statusSelect.getAttribute('data-blocked-reason')) || '';
+      if (!reason || reason.length < 5) {
+        alert('请重新选择「阻塞中」并填写原因');
+        t.status = oldStatus;  // 回退
+        return;
+      }
+      t.blocked_reason = reason;
+      t.blocked_at = new Date().toISOString();
+      t.blocked_by = currentUser ? currentUser.id : '';
+      logAction('标记阻塞', '任务「' + t.title + '」标记为阻塞 · 原因：' + reason);
+      addTimelineEntry(t, '标记阻塞', '原因：' + reason);
+    }
+    // ★ blocked 状态退出：清空字段
+    else if (oldStatus === 'blocked' && status !== 'blocked') {
+      var oldReason = t.blocked_reason || '';
+      t.blocked_reason = null;
+      t.blocked_at = null;
+      t.blocked_by = null;
+      logAction('解除阻塞', '任务「' + t.title + '」解除阻塞 · 原原因：' + oldReason);
+      addTimelineEntry(t, '解除阻塞', '原原因：' + oldReason);
+    }
+
+    addTimelineEntry(t, '状态变更', '从「' + (STATUS_LABELS[oldStatus] || oldStatus) + '」改为「' + (STATUS_LABELS[status] || status) + '」（通过备注）');
   }
-  saveState(); closeModal(); render(); toast('备注已记录', 'success');
+	// @提及通知
+	var mentionedIds = [];
+	var mentions = text.match(/@(\S+)/g);
+	if (mentions && state.members) {
+	  mentions.forEach(function(m) {
+	    var name = m.slice(1);
+	    var member = state.members.find(function(x) { return x.name === name; });
+	    if (member && mentionedIds.indexOf(member.id) === -1) {
+	      mentionedIds.push(member.id);
+	      if (typeof pushNotification === 'function') {
+	        pushNotification({
+	          recipientId: member.id,
+	          type: 'task_mentioned',
+	          title: '有人在备注中提到了你',
+	          body: (currentUser ? currentUser.name : '') + ' 在任务「' + t.title + '」的跟进中 @ 了你',
+	          navType: 'task',
+	          navId: t.id
+	        });
+	      }
+	    }
+	  });
+	}
+	try {
+	  await saveState(id);
+	  _lastLoadTime = Date.now();
+	  closeModal();
+	  render();
+	  toast('备注已记录', 'success');
+	} catch(e) {
+	  console.error('[submitLog]', e);
+	  toast('保存失败: ' + (e.message || '未知错误'), 'error');
+	}
 }
 
-// ─── Projects CRUD ────────────────────────────────────────────────────────────
+// ── @提及 ──
+
+function getCaretCoordinates(textarea, pos) {
+  var mirror = document.getElementById('mention-mirror');
+  if (!mirror) {
+    mirror = document.createElement('div');
+    mirror.id = 'mention-mirror';
+    mirror.style.cssText = 'position:fixed;visibility:hidden;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:break-word;pointer-events:none;z-index:-1;';
+    document.body.appendChild(mirror);
+  }
+  var style = window.getComputedStyle(textarea);
+  mirror.style.width = textarea.clientWidth + 'px';
+  mirror.style.font = style.font;
+  mirror.style.fontSize = style.fontSize;
+  mirror.style.fontFamily = style.fontFamily;
+  mirror.style.lineHeight = style.lineHeight;
+  mirror.style.padding = style.padding;
+  mirror.style.border = style.border;
+  mirror.style.letterSpacing = style.letterSpacing;
+  mirror.style.wordSpacing = style.wordSpacing;
+  mirror.style.boxSizing = style.boxSizing;
+  mirror.style.top = '-9999px';
+  mirror.style.left = '-9999px';
+  mirror.style.display = 'block';
+  var textBefore = textarea.value.substring(0, pos);
+  mirror.textContent = textBefore;
+  var span = document.createElement('span');
+  span.textContent = '.';
+  mirror.appendChild(span);
+  var taRect = textarea.getBoundingClientRect();
+  var mirrorRect = mirror.getBoundingClientRect();
+  var spanRect = span.getBoundingClientRect();
+  mirror.style.display = 'none';
+  return {
+    left: taRect.left + (spanRect.left - mirrorRect.left) - textarea.scrollLeft,
+    top: taRect.top + (spanRect.top - mirrorRect.top) - textarea.scrollTop,
+    bottom: taRect.top + (spanRect.top - mirrorRect.top) + (parseInt(style.lineHeight) || 16) - textarea.scrollTop
+  };
+}
+
+function onLogInputChange(taskId) {
+  var textarea = document.getElementById('fi-log');
+  if (!textarea) return;
+  var val = textarea.value;
+  var pos = textarea.selectionStart;
+  var atPos = -1;
+  for (var i = pos - 1; i >= 0; i--) {
+    if (val[i] === '@') { atPos = i; break; }
+    if (val[i] === ' ' || val[i] === '\n') break;
+  }
+  var dd = document.getElementById('mention-dropdown');
+  if (atPos === -1) { if (dd) dd.style.display = 'none'; return; }
+  var query = val.slice(atPos + 1, pos).toLowerCase();
+  var members = (state.members || []).filter(function(m) {
+    return m.name.toLowerCase().indexOf(query) !== -1 || (m.id && m.id.toString().toLowerCase().indexOf(query) !== -1);
+  });
+  if (!members.length) { if (dd) dd.style.display = 'none'; return; }
+  if (!dd) return;
+  window._mentionList = members;
+  window._mentionTaskId = taskId;
+  window._mentionStartPos = atPos;
+  dd.style.display = 'block';
+  dd.innerHTML = members.map(function(m, i) {
+    return '<div class="mention-item' + (i === 0 ? ' mention-active' : '') + '" data-idx="' + i + '" onmousedown="event.preventDefault();selectMention(' + i + ')">' +
+      '<div class="member-avatar" style="background:' + (memberColor ? memberColor(m.id) : '#ccc') + '">' + (memberInitial ? memberInitial(m.id) : (m.name||'').charAt(0)) + '</div>' +
+      '<span>' + escHtml(m.name) + '</span>' +
+    '</div>';
+  }).join('');
+  var caret = getCaretCoordinates(textarea, atPos);
+  var ddWidth = Math.min(220, Math.max(180, textarea.clientWidth));
+  var ddLeft = Math.min(caret.left, window.innerWidth - ddWidth - 12);
+  var ddTop = caret.bottom + 4;
+  var estHeight = Math.min(members.length, 6) * 34 + 4;
+  if (ddTop + estHeight > window.innerHeight - 40) {
+    ddTop = caret.top - estHeight - 8;
+  }
+  dd.style.position = 'fixed';
+  dd.style.left = Math.max(4, ddLeft) + 'px';
+  dd.style.top = Math.max(4, ddTop) + 'px';
+  dd.style.width = ddWidth + 'px';
+  dd.style.maxHeight = Math.min(estHeight + 10, 300) + 'px';
+  dd.style.zIndex = '99999';
+}
+
+function onLogInputKeydown(event, taskId) {
+  var dd = document.getElementById('mention-dropdown');
+  if (!dd || dd.style.display === 'none') return;
+  var items = dd.querySelectorAll('.mention-item');
+  if (!items.length) return;
+  var activeIdx = -1;
+  items.forEach(function(item, i) {
+    if (item.classList.contains('mention-active')) activeIdx = i;
+  });
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    activeIdx = (activeIdx + 1) % items.length;
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    activeIdx = (activeIdx - 1 + items.length) % items.length;
+  } else if (event.key === 'Enter') {
+    event.preventDefault();
+    if (activeIdx >= 0) { selectMention(activeIdx); return; }
+  } else if (event.key === 'Escape') {
+    dd.style.display = 'none';
+    return;
+  } else { return; }
+  items.forEach(function(item, i) {
+    item.classList.toggle('mention-active', i === activeIdx);
+  });
+  var activeItem = items[activeIdx];
+  if (activeItem) activeItem.scrollIntoView({ block: 'nearest' });
+}
+
+function selectMention(idx) {
+  var m = window._mentionList && window._mentionList[idx];
+  if (!m) return;
+  var textarea = document.getElementById('fi-log');
+  if (!textarea) return;
+  var val = textarea.value;
+  var startPos = window._mentionStartPos;
+  if (typeof startPos === 'undefined' || startPos === -1) return;
+  var before = val.slice(0, startPos);
+  var endPos = textarea.selectionStart;
+  var after = val.slice(endPos);
+  textarea.value = before + '@' + m.name + ' ' + after;
+  var newPos = startPos + m.name.length + 2;
+  textarea.setSelectionRange(newPos, newPos);
+  textarea.focus();
+  var dd = document.getElementById('mention-dropdown');
+  if (dd) dd.style.display = 'none';
+  window._mentionStartPos = -1;
+}// ─── Projects CRUD ────────────────────────────────────────────────────────────

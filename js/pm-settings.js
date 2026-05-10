@@ -159,17 +159,24 @@ window.discardSettingsChanges = function() {
   if (cb) cb();
 };
 
-window.saveCurrentSettingsPage = function() {
-  // 触发当前页面的保存逻辑
+window.saveCurrentSettingsPage = async function() {
   var key = window.activeSettingsPage;
-  if (key === 'roles' && window._editingMemberId !== null) {
-    saveRolesPanel();
-  } else if (key === 'profile' && typeof saveProfile === 'function') {
-    saveProfile();
-  } else if (key === 'password' && typeof savePassword === 'function') {
-    savePassword();
+  try {
+    if (key === 'roles' && window._editingMemberId !== null) {
+      await saveRolesPanel();
+    } else if (key === 'security' && typeof submitChangePassword === 'function') {
+      await submitChangePassword();
+    } else if (key === 'basic_info' && typeof saveOrganization === 'function') {
+      saveOrganization();
+      if (typeof saveBaseMarginSettings === 'function') saveBaseMarginSettings();
+    } else if (key === 'integrations' && typeof saveIntegrations === 'function') {
+      await saveIntegrations();
+    }
+  } catch(e) {
+    console.error('[Settings] save error:', e);
+    if (typeof toast === 'function') toast('保存失败: ' + (e.message || '未知错误'), 'error');
+    return; // keep dirty state on error
   }
-  // 保存完成后清除 dirty 并执行回调
   clearSettingsDirty();
   var cb = window._dirtyGuardCallback;
   window._dirtyGuardCallback = null;
@@ -402,7 +409,7 @@ window.renderNotifPrefsPage = function(wrap) {
       '<div class="settings-page-title">通知偏好</div>' +
       '<div class="settings-page-desc">控制哪些事件会出现在铃铛通知中</div>' +
     '</div>' +
-    '<div class="settings-section-card" style="max-width:640px">' +
+    '<div class="settings-section-card">' +
       '<div class="ssc-header"><div class="ssc-title">通知类型</div></div>' +
       '<div class="ssc-body">' +
         PREFS.map(function(p) {
@@ -648,9 +655,10 @@ function buildPermSummaryBadges(m) {
   var isSA = m.role === 'super_admin';
   var perms = isSA ? null : (m.menuPerms || []);
   var PERM_GROUPS = [
-    { key: 'pm',      label: '项目管理', color: 'blue',   keys: ['today','tasks','charts','gantt','projects','add_task'] },
-    { key: 'finance', label: '资金计划', color: 'teal',   keys: ['fin_t1','fin_receipt','fin_payment','fin_t4','fin_t5','fin_t6','fin_dashboard'] },
-    { key: 'base',    label: '基础库',   color: 'purple', keys: ['base_contracts','base_customers','base_suppliers','basic_info'] },
+    { key: 'pm',         label: '项目管理', color: 'blue',   keys: ['today','tasks','charts','gantt','projects','add_task'] },
+    { key: 'finance',    label: '资金计划', color: 'teal',   keys: ['fin_t1','fin_receipt','fin_payment','fin_t4','fin_t5','fin_t6','fin_dashboard'] },
+    { key: 'investment', label: '投资测算', color: 'green',  keys: ['inv_list','inv_calc','inv_edit','inv_logs','inv_sensitivity'] },
+    { key: 'base',       label: '基础库',   color: 'purple', keys: ['base_contracts','base_customers','base_suppliers','basic_info'] },
     { key: 'ai',      label: 'AI 助手',  color: 'amber',  keys: ['ai_assistant'] },
     { key: 'admin',   label: '系统管理', color: 'red',    keys: ['members','tags','logs','system_config'] },
   ];
@@ -754,8 +762,9 @@ function buildMenuPermsGrouped(m) {
 
   var GROUPS = [
     { key: 'pm',      label: '项目管理', desc: '任务看板、甘特图、数据统计等' },
-    { key: 'finance', label: '资金计划', desc: '月度计划、收付款台账、资金看板' },
-    { key: 'base',    label: '基础库',   desc: '合同库、客户库、供应商库、基础信息' },
+    { key: 'finance',    label: '资金计划', desc: '月度计划、收付款台账、资金看板' },
+    { key: 'investment', label: '投资测算', desc: '投资项目列表、测算、敏感性分析' },
+    { key: 'base',       label: '基础库',   desc: '合同库、客户库、供应商库、基础信息' },
     { key: 'ai',      label: 'AI 助手',  desc: 'AI 对话面板（仅超级管理员可授权）' },
     { key: 'admin',   label: '系统管理', desc: '成员、标签、日志、系统配置' },
   ];
@@ -877,14 +886,15 @@ window.saveRolesPanel = async function() {
 // 4.7 团队 - 标签管理
 // ═══════════════════════════════════════════════════════════════
 window.renderTagsPage = function(wrap) {
-  var isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin');
+  var effPerms = typeof getEffectiveMenuPerms === 'function' ? getEffectiveMenuPerms() : [];
+  var canEdit = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || effPerms.includes('tags'));
   wrap.innerHTML =
     '<div class="settings-page-header" style="display:flex;justify-content:space-between;align-items:flex-start">' +
       '<div>' +
         '<div class="settings-page-title">标签管理</div>' +
         '<div class="settings-page-desc">创建和管理任务标签</div>' +
       '</div>' +
-      (isAdmin ? '<button class="btn btn-primary" onclick="showAddTagForm()"><i data-lucide="plus" style="width:14px;height:14px"></i>新建标签</button>' : '') +
+      (canEdit ? '<button class="btn btn-primary" onclick="showAddTagForm()"><i data-lucide="plus" style="width:14px;height:14px"></i>新建标签</button>' : '') +
     '</div>' +
     '<div id="add-tag-form" style="display:none;margin-bottom:8px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);gap:8px;align-items:center">' +
       '<input class="settings-form-input" id="new-tag-name" placeholder="输入标签名称" onkeydown="if(event.key===\'Enter\')submitAddTagInline()" style="flex:1;height:34px">' +
@@ -901,7 +911,8 @@ window.renderTagsPage = function(wrap) {
 
 function buildTagsListHTML() {
   var tags = state.globalTags || state.tags || [];
-  var isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin');
+  var effPerms = typeof getEffectiveMenuPerms === 'function' ? getEffectiveMenuPerms() : [];
+  var canEdit = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || effPerms.includes('tags'));
   if (tags.length === 0) {
     return '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px">暂无标签，点击上方按钮创建</div>';
   }
@@ -913,7 +924,7 @@ function buildTagsListHTML() {
         '<span style="width:10px;height:10px;border-radius:50%;background:' + color + ';flex-shrink:0"></span>' +
         '<span style="font-size:13px;font-weight:500">' + escHtml(tg.name) + '</span>' +
       '</div>' +
-      (isAdmin ? '<div style="display:flex;gap:6px">' +
+      (canEdit ? '<div style="display:flex;gap:6px">' +
         '<button class="btn btn-ghost btn-sm" onclick="editTagFromSettings(\'' + tg.id + '\')"><i data-lucide="pencil" style="width:12px;height:12px"></i>编辑</button>' +
         '<button class="btn btn-ghost btn-sm" onclick="deleteTagFromSettings(\'' + tg.id + '\')" style="color:var(--red)"><i data-lucide="trash-2" style="width:12px;height:12px"></i>删除</button>' +
       '</div>' : '') +
@@ -922,6 +933,8 @@ function buildTagsListHTML() {
 }
 
 window.showAddTagForm = function() {
+  var effPerms = typeof getEffectiveMenuPerms === 'function' ? getEffectiveMenuPerms() : [];
+  if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'super_admin' && !effPerms.includes('tags'))) return;
   var form = document.getElementById('add-tag-form');
   if (form) { form.style.display = 'flex'; }
   var inp = document.getElementById('new-tag-name');
@@ -934,6 +947,8 @@ window.hideAddTagForm = function() {
 };
 
 window.submitAddTagInline = async function() {
+  var effPerms = typeof getEffectiveMenuPerms === 'function' ? getEffectiveMenuPerms() : [];
+  if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'super_admin' && !effPerms.includes('tags'))) return;
   var inp = document.getElementById('new-tag-name');
   if (!inp) return;
   var name = inp.value.trim();
@@ -955,6 +970,8 @@ window.submitAddTagInline = async function() {
 };
 
 window.editTagFromSettings = function(tagId) {
+  var effPerms = typeof getEffectiveMenuPerms === 'function' ? getEffectiveMenuPerms() : [];
+  if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'super_admin' && !effPerms.includes('tags'))) return;
   var tags = state.globalTags || state.tags || [];
   var tg = tags.find(function(t) { return t.id === tagId; });
   if (!tg) return;
@@ -974,6 +991,8 @@ window.editTagFromSettings = function(tagId) {
 };
 
 window.deleteTagFromSettings = function(tagId) {
+  var effPerms = typeof getEffectiveMenuPerms === 'function' ? getEffectiveMenuPerms() : [];
+  if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'super_admin' && !effPerms.includes('tags'))) return;
   var tags = state.globalTags || state.tags || [];
   var tg = tags.find(function(t) { return t.id === tagId; });
   if (!tg) return;
@@ -1177,7 +1196,8 @@ var LOG_CATS_DEF = {
   gantt:   { label: '甘特图', icon: 'chart-no-axes-gantt', color: '#e67e22', keys: ['甘特图调整','gantt_adjust'] },
   finance: { label: '资金',   icon: 'landmark',           color: '#0ea5e9', keys: ['新增收款记录','更新收款记录','删除收款记录','新增付款明细','更新付款明细','删除付款明细','新增实际收款','更新实际收款','删除实际收款','新增实际支付','更新实际支付','删除实际支付','新增对上合同','更新对上合同','删除对上合同','新增对下合同','更新对下合同','删除对下合同','新增客户','更新客户','删除客户','新增供应商','更新供应商','删除供应商','导出资金报表','编辑月度计划','编辑完成情况','编辑基础信息','更新合同状态','保存收款偏差分析','保存付款偏差分析','导入客户库','导出客户库'] },
   member:  { label: '成员',   icon: 'users',              color: '#ec4899', keys: ['添加成员','删除成员','修改角色','修改密码','重置密码','配置菜单权限','修改权限','AI修改成员权限'] },
-  login:   { label: '登录',   icon: 'log-in',              color: '#6b7280', keys: ['用户登录'] }
+  login:      { label: '登录',     icon: 'log-in',             color: '#6b7280', keys: ['用户登录'] },
+  investment: { label: '投资测算', icon: 'landmark',           color: '#10b981', keys: ['新建投资项目','编辑投资项目','删除投资项目','新建测算版本','编辑测算版本','删除测算版本','保存测算输入','保存测算输出','保存敏感性分析','编辑敏感性分析','删除敏感性分析'] }
 };
 
 // 构建 action → catKey 快速查找表
@@ -1199,6 +1219,7 @@ function classifyLogType(action) {
   if (action.indexOf('收款') !== -1 || action.indexOf('付款') !== -1 || action.indexOf('合同') !== -1 || action.indexOf('客户') !== -1 || action.indexOf('供应商') !== -1 || action.indexOf('资金') !== -1 || action.indexOf('月度') !== -1 || action.indexOf('完成情况') !== -1 || action.indexOf('基础信息') !== -1 || action.indexOf('偏差') !== -1 || action.indexOf('实际') !== -1) return 'finance';
   if (action.indexOf('成员') !== -1 || action.indexOf('角色') !== -1 || action.indexOf('密码') !== -1 || action.indexOf('权限') !== -1 || action.indexOf('菜单') !== -1) return 'member';
   if (action.indexOf('登录') !== -1) return 'login';
+  if (action.indexOf('投资') !== -1 || action.indexOf('测算') !== -1 || action.indexOf('敏感性') !== -1) return 'investment';
   // 未知类型：直接用 action 本身作为 key，这样至少能看到原始值
   return '__raw__|' + action;
 }
@@ -1387,10 +1408,16 @@ window.renderExportPage = function(wrap) {
 };
 
 window.exportAllPMData = function() {
+  // Strip sensitive fields (password hashes) from export
+  var safeMembers = (state.members || []).map(function(m) {
+    var copy = Object.assign({}, m);
+    delete copy.password;
+    return copy;
+  });
   var dump = {
     exportAt: new Date().toISOString(),
-    version: 'V23',
-    members:  state.members,
+    version: 'V24',
+    members:  safeMembers,
     projects: state.projects,
     tasks:    state.tasks,
     modules:  state.modules || [],

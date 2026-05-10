@@ -85,7 +85,7 @@ function setLoading(btn, loading) {
   }
 }
 
-let currentView = 'today';
+let currentView = 'dashboard';
 let searchQuery = '';
 var filterProject = 'all';
 var filterStatus = 'all';
@@ -138,6 +138,8 @@ const TAG_PALETTES = [
   {bg:'#edf8f4',color:'#0ea57c',border:'#90d8c2'},
   {bg:'#fefaf4',color:'#c06020',border:'#f5c898'},
 ];
+const STATUS_LABELS = { todo:'待启动', doing:'进行中', blocked:'阻塞中', waiting:'待反馈', done:'已完成' };
+window.STATUS_LABELS = STATUS_LABELS;
 const PROJ_COLORS = ['#2e7dd1','#27ae60','#d4842a','#e74c3c','#8b4de8','#0ea57c','#e04080','#c06020','#a8a59e'];
 
 /* UI-V18: TASK-UI-10 */
@@ -205,13 +207,16 @@ async function loadState(force) {
         startDate: t.start_date,
         completedAt: t.completed_at,
         completedBy: t.completed_by,  // 映射创建时间
-        assignees: t.assignees || []  // V20: 多负责人
+        assignees: t.assignees || [],  // V20: 多负责人
+        description: t.description || ''
     }));
-    
+
     state.projects = (projsRes.data || []).map(p => ({
         id: p.id, name: p.name,
         colorIdx: p.color_idx || 0,
-        members: p.members || []
+        members: p.members || [],
+        status:   p.status   || 'active',
+        deadline: p.deadline || null
     }));
     
     state.members = (memsRes.data || []).map(m => ({
@@ -299,8 +304,9 @@ async function syncTask(t) {
     completed_at: t.completedAt || t.completed_at,
     completed_by: t.completedBy || t.completed_by
   };
-  // V20: 确保 assignees 同步到数据库
+  // V20: 确保 assignees / description 同步到数据库
   dbData.assignees = t.assignees || [];
+  dbData.description = t.description || '';
   // 移除 JS 内部使用的驼峰属性，保持数据库整洁
   delete dbData.projectId;
   delete dbData.moduleId;
@@ -362,27 +368,7 @@ async function handleCustomLogin() {
 
 
 
-// ─── 核心修复：确保项目及成员列表同步到云端 ───
-async function syncProject(proj) {
-  // 必须显式映射：JS 的驼峰命名 -> 数据库的下划线命名
-  const dbData = {
-    id: proj.id,
-    name: proj.name,
-    color_idx: proj.colorIdx || 0,
-    members: proj.members || [],
-  };
-
-  const { error } = await sb.from('projects').upsert(dbData);
-  
-  if (error) {
-    console.error("项目同步失败:", error);
-    toast("保存失败，请检查数据库 members 字段是否为 JSONB 类型");
-    return false;
-  }
-  return true;
-}
-
-// ─── 核心修复：处理“选择成员”并触发保存 ───
+// ─── 核心修复：处理”选择成员”并触发保存 ───
 async function addMemberToProject(projId) {
   const sel = document.getElementById('proj-add-member-sel');
   if (!sel || !sel.value) {
@@ -425,15 +411,24 @@ async function removeMemberFromProject(projId, memberId) {
 
 // 同步项目到云端
 async function syncProject(proj) {
-  // 注意：数据库字段是 color_idx，JS 传入的是 colorIdx，需做个转换
+  // 注意：数据库字段和 JS 命名差异
   const { error } = await sb.from('projects').upsert({
     id: proj.id,
     name: proj.name,
-    color_idx: proj.colorIdx || 0, // 适配 SQL 里的下划线命名
-    members: proj.members || []
+    color_idx: proj.colorIdx || 0,
+    members: proj.members || [],
+    status:   proj.status   || 'active',
+    deadline: proj.deadline || null
   });
   if (error) { console.error(error); toast("项目同步失败"); }
 }
+
+window._globalSearch  = '';
+
+window.onGlobalSearch = function(val) {
+  window._globalSearch = (val || '').trim().toLowerCase();
+  render();
+};
 
 // 通用的云端删除函数
 async function deleteFromCloud(tableName, id) {
@@ -598,13 +593,14 @@ function isAdmin()      { return currentUser && (currentUser.role === 'admin' ||
 // 菜单项定义
 const MENU_DEFS = [
   // ── 项目管理 ──
+  { key: 'dashboard', label: '总体概览',   icon: '⬛', group: 'pm' },
   { key: 'today',     label: '今日看板',   icon: '○', group: 'pm' },
   { key: 'tasks',     label: '全部任务',   icon: '≡', group: 'pm' },
   { key: 'charts',    label: '数据统计',   icon: '◉', group: 'pm' },
   { key: 'gantt',     label: '甘特图',     icon: '▦', group: 'pm' },
+  { key: 'calendar',  label: '月历视图',   icon: '📅', group: 'pm' },
   { key: 'projects',  label: '项目列表',   icon: '□', group: 'pm' },
   { key: 'add_task',  label: '快速添加任务', icon: '+', group: 'pm' },
-  { key: 'logs',      label: '操作日志',   icon: '📋', group: 'pm' },
   // ── 资金计划 ──
   { key: 'fin_t1',        label: '月度资金计划', icon: '📊', group: 'finance' },
   { key: 'fin_receipt',   label: '对上收款台账', icon: '📥', group: 'finance' },
@@ -623,8 +619,15 @@ const MENU_DEFS = [
   { key: 'tags',      label: '标签管理',   icon: '🏷', group: 'admin', adminOnly: true },
   { key: 'roles',     label: '角色权限',   icon: '🔐', group: 'admin', adminOnly: true },
   { key: 'system_config', label: '系统配置', icon: '⚙', group: 'admin', adminOnly: true },
+  { key: 'logs',      label: '操作日志',   icon: '📋', group: 'admin' },
   // ── AI 助手 ──
   { key: 'ai_assistant', label: 'AI 任务助手', icon: '🤖', group: 'ai' },
+  // ── 投资测算 ──
+  { key: 'inv_list',        label: '投资项目列表', icon: '📊', group: 'investment' },
+  { key: 'inv_calc',        label: '项目测算',     icon: '🧮', group: 'investment' },
+  { key: 'inv_edit',        label: '测算编辑',     icon: '✏️', group: 'investment' },
+  { key: 'inv_logs',        label: '测算操作日志', icon: '📋', group: 'investment' },
+  { key: 'inv_sensitivity', label: '敏感性分析',   icon: '📈', group: 'investment' },
 ];
 
 // 暴露常量到 window 供 settings 等模块使用
@@ -679,15 +682,24 @@ function applyMenuPerms() {
   var hasPM = hasGroupPerm('pm');
   var hasFinance = hasGroupPerm('finance');
   var hasBase = hasGroupPerm('base');
-  const pmTab = document.getElementById('top-tab-pm');
-  const finTab = document.getElementById('top-tab-finance');
-  if (pmTab) pmTab.classList.toggle('menu-hidden', !hasPM);
-  if (finTab) finTab.classList.toggle('menu-hidden', !hasFinance && !hasBase);
+  var hasInvestment = hasGroupPerm('investment');
+  const pmTab     = document.getElementById('top-tab-pm');
+  const finTab    = document.getElementById('top-tab-finance');
+  const investTab = document.getElementById('top-tab-invest');
+
+  if (pmTab)     pmTab.classList.toggle('menu-hidden', !hasPM);
+  if (finTab)    finTab.classList.toggle('menu-hidden', !hasFinance && !hasBase);
+  if (investTab) investTab.classList.toggle('menu-hidden', !hasInvestment);
   // 如果当前激活的模块被隐藏了，自动切换
-  if (activeModule === 'pm' && !hasPM && (hasFinance || hasBase)) {
-    switchModule('finance');
-  } else if (activeModule === 'finance' && !hasFinance && !hasBase && hasPM) {
-    switchModule('pm');
+  if (activeModule === 'pm' && !hasPM) {
+    if (hasFinance || hasBase) switchModule('finance');
+    else if (hasInvestment)    switchModule('invest');
+  } else if (activeModule === 'finance' && !hasFinance && !hasBase) {
+    if (hasPM)                 switchModule('pm');
+    else if (hasInvestment)    switchModule('invest');
+  } else if (activeModule === 'invest' && !hasInvestment) {
+    if (hasPM)                 switchModule('pm');
+    else if (hasFinance || hasBase) switchModule('finance');
   }
   // 基础库配置：拥有任一基础库权限即显示
   var baseLibBtn = document.getElementById('base-lib-btn');
@@ -900,7 +912,7 @@ function dueInfo(t) {
 }
 
 function statusInfo(s) {
-  return {todo:{lbl:'待启动',cls:'pill-gray'},doing:{lbl:'进行中',cls:'pill-blue'},waiting:{lbl:'待反馈',cls:'pill-amber'},done:{lbl:'已完成',cls:'pill-green'}}[s] || {lbl:s,cls:'pill-gray'};
+  return {todo:{lbl:'待启动',cls:'pill-gray'},doing:{lbl:'进行中',cls:'pill-blue'},blocked:{lbl:'阻塞中',cls:'pill-purple'},waiting:{lbl:'待反馈',cls:'pill-amber'},done:{lbl:'已完成',cls:'pill-green'}}[s] || {lbl:s,cls:'pill-gray'};
 }
 
 function projName(id) { const p=state.projects.find(x=>x.id===id); return p?p.name:'未分类'; }
@@ -912,10 +924,53 @@ function memberColor(id) { const m=state.members.find(x=>x.id===id); return m?ME
 function memberInitial(id) { const n=memberName(id); return n?n.slice(0,1):'?'; }
 function getColorName(colorIdx) { const names=['blue','green','amber','red','purple','teal','orange','blue']; return names[(colorIdx||0)%names.length]; }
 
-function isBlocked(t) {
-  if (!t.dependencies||!t.dependencies.length) return false;
-  return t.dependencies.some(depId => { const dep=state.tasks.find(x=>x.id===depId); return dep&&!dep.done; });
+// ─── 阻塞判定（两个独立概念，不能混淆） ────────────────────────
+// isWaitingDeps：派生 — 任务的 dependencies 中有未完成项（甘特图依赖线、任务卡"等待前置"徽章用）
+// isManuallyBlocked：主动 — PM 把 status 标为 blocked + 填了 reason（总览页"阻塞中"指标用）
+
+function isWaitingDeps(t) {
+  if (!t.dependencies || !t.dependencies.length) return false;
+  return t.dependencies.some(function(depId) {
+    var dep = state.tasks.find(function(x) { return x.id === depId; });
+    return dep && !dep.done;
+  });
 }
+
+function isManuallyBlocked(t) {
+  return t && t.status === 'blocked';
+}
+
+// 已阻塞工作日数（跳过周末，节假日不跳）
+function getBlockedDays(t) {
+  if (!isManuallyBlocked(t) || !t.blocked_at) return 0;
+  return countWorkdays(new Date(t.blocked_at), new Date());
+}
+
+// 工作日计数（跳过周六周日）
+function countWorkdays(fromDate, toDate) {
+  if (!fromDate || !toDate) return 0;
+  var from = new Date(fromDate); from.setHours(0,0,0,0);
+  var to   = new Date(toDate);   to.setHours(0,0,0,0);
+  if (to < from) return 0;
+  var days = 0;
+  var cur = new Date(from);
+  while (cur < to) {
+    var dow = cur.getDay();  // 0=Sun, 6=Sat
+    if (dow !== 0 && dow !== 6) days++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return days;
+}
+
+// 旧名兼容（保留 90 天，避免外部调用断裂）
+// TODO: V26 移除以下兼容层
+function isBlocked(t) { return isWaitingDeps(t); }
+
+// 暴露到 window
+window.isWaitingDeps = isWaitingDeps;
+window.isManuallyBlocked = isManuallyBlocked;
+window.getBlockedDays = getBlockedDays;
+window.countWorkdays = countWorkdays;
 
 function tagHTML(tagId) {
   const tg = state.globalTags.find(x=>x.id===tagId); if (!tg) return '';
@@ -1145,12 +1200,15 @@ function switchView(v) {
     if (el) el.style.display = val;
   };
 
-  setDisplay('task-search-wrap', v === 'tasks' ? 'flex' : 'none');
+  var searchViews = ['dashboard', 'today', 'tasks', 'projects'];
+  var showSearch = searchViews.indexOf(v) !== -1 || v.startsWith('project-');
+  setDisplay('task-search-wrap', showSearch ? 'flex' : 'none');
   setDisplay('header-add-btn', (v === 'tasks' || v.startsWith('project-')) ? 'block' : 'none');
   setDisplay('header-add-proj-btn', v === 'projects' ? 'block' : 'none');
   setDisplay('header-export-btn', v === 'tasks' ? 'block' : 'none');
 
   searchQuery = '';
+  window._globalSearch = '';
   const inp = document.getElementById('task-search-input');
   if (inp) inp.value = '';
 
@@ -1170,33 +1228,38 @@ function switchView(v) {
   render();
 }
 
-function onSearch(val) { searchQuery=val; render(); }
+function onSearch(val) { window._globalSearch = (val || '').trim().toLowerCase(); render(); }
 
 function render() {
   if (typeof activeModule !== 'undefined' && activeModule !== 'pm') return;
+  if (currentView==='dashboard') { renderPMDashboard(); return; }
   if (currentView==='today') renderToday();
   else if (currentView==='tasks') renderTaskList();
   else if (currentView==='projects') renderProjects();
   else if (currentView==='charts') renderCharts();
   else if (currentView==='gantt') renderGantt();
+  else if (currentView==='calendar') renderCalendar();
   else if (currentView.startsWith('project-')) renderProjectView(currentView.slice(8));
-  else renderToday();
+  else renderPMDashboard();
   if (typeof lucide !== 'undefined') lucide.createIcons();
   requestAnimationFrame(() => {
-    const pane = document.querySelector('.view-pane');
+    var pane = document.querySelector('.view-pane');
     if (pane) {
       pane.classList.remove('slide-in-left', 'slide-in-right');
-      const lastView = window._viewHistory[window._viewHistory.length-1];
-      const isBack = lastView && (
-        (currentView==='today' && ['tasks','projects','charts','gantt'].indexOf(lastView)>=0) ||
-        (currentView==='tasks' && ['projects','charts','gantt'].indexOf(lastView)>=0)
-      );
-      pane.classList.add(isBack ? 'slide-in-left' : 'slide-in-right');
+      var lastView = window._viewHistory[window._viewHistory.length - 1];
+      var VIEW_ORDER = ['dashboard','today','tasks','projects','charts','gantt','week','calendar'];
+      var curIdx  = VIEW_ORDER.indexOf(currentView);
+      var lastIdx = VIEW_ORDER.indexOf(lastView);
+      if (curIdx > -1 && lastIdx > -1 && curIdx !== lastIdx) {
+        void pane.offsetWidth;
+        pane.classList.add(curIdx > lastIdx ? 'slide-in-right' : 'slide-in-left');
+      }
     }
     staggerEntrance();
     setupChartTipListeners();
     animateStatNumbers();
     animateChartBars();
+
   });
 }
 
@@ -1249,7 +1312,7 @@ function initKeyboardShortcuts() {
         }
         break;
       case '1':
-        if (activeModule === 'pm') { e.preventDefault(); switchView('today'); }
+        if (activeModule === 'pm') { e.preventDefault(); switchView('dashboard'); }
         break;
       case '2':
         if (activeModule === 'pm') { e.preventDefault(); switchView('tasks'); }
@@ -1382,7 +1445,7 @@ window.buildNotifItems = function() {
           navType: 'task',
           navId: t.id
         });
-      } else if (due.getTime() === now.getTime()) {
+      } else if (due.getTime() === now.getTime() && getPref('task_overdue', true)) {
         items.push({
           id: 'task-today-' + t.id,
           type: 'red',
@@ -1818,10 +1881,10 @@ window.refreshNotifs = function() {
 
   // 分组
   var pmItems = unreadItems.filter(function(i) {
-    return ['overdue','urgent','upcoming'].includes(i.type) && i.navType !== 'finance' && !(i.raw && i.raw.module === 'finance');
+    return i.navType === 'task' && !i.isCloud;
   });
   var finItems = unreadItems.filter(function(i) {
-    return i.navType === 'finance' || (i.raw && i.raw.module === 'finance');
+    return (i.navType === 'receipt' || i.navType === 'payment') && !i.isCloud;
   });
   var cloudItems = unreadItems.filter(function(i) { return i.isCloud; });
 
@@ -1929,16 +1992,15 @@ function formatRelativeTime(ts) {
 }
 
 // 点击通知 → 标记已读 + 导航
-window.notifNavigate = function(navType, navId, itemId) {
+window.notifNavigate = async function(navType, navId, itemId) {
   // 标记已读（同时写本地缓存 + localStorage + Supabase）
   _markLocalReadAsync(itemId);
 
   // 将当前通知项推入已读历史（云通知 + 本地通知均处理）
-  var nowTs = Date.now();
   var clickedItem = null;
   var cloudItem = (window._cloudNotifItems || []).find(function(c) { return c.id === itemId; });
   if (cloudItem && cloudItem._dbId) {
-    markCloudNotifRead(cloudItem._dbId);
+    try { await markCloudNotifRead(cloudItem._dbId); } catch(e) {}
     cloudItem.isRead = true;
     cloudItem.readAt = new Date().toISOString();
     clickedItem = cloudItem;
@@ -2003,13 +2065,13 @@ window.toggleNotifPanel = function(e) {
   if (isOpen) {
     closeNotifPanel();
   } else {
-    // 每次打开时重置到未读 Tab
-    window._notifCurrentTab = 'unread';
+    // 保持当前 Tab 选择，首次默认未读
+    var curTab = window._notifCurrentTab || 'unread';
     document.querySelectorAll('.notif-tab').forEach(function(btn) {
-      btn.classList.toggle('active', btn.getAttribute('data-tab') === 'unread');
+      btn.classList.toggle('active', btn.getAttribute('data-tab') === curTab);
     });
     var readAllBtn = document.getElementById('notif-read-all-btn');
-    if (readAllBtn) readAllBtn.style.display = '';
+    if (readAllBtn) readAllBtn.style.display = curTab === 'read' ? 'none' : '';
     refreshNotifs();
     loadCloudNotifications(); // 每次打开面板时从服务器拉取最新通知（兜底 realtime）
     panel.style.display = 'block';
@@ -2033,6 +2095,23 @@ window.markAllNotifsRead = async function() {
 
   // 批量同步本地已读到云端
   await _markLocalReadsBatch(newKeys);
+
+  // 将未读的本地通知推入已读历史
+  var nowTs = Date.now();
+  var newlyReadItems = items.filter(function(it) {
+    return newKeys.includes(it.id);
+  }).map(function(found) {
+    return {
+      id: found.id, type: found.type, icon: found.icon, iconCls: found.iconCls,
+      title: found.title, sub: found.sub, tag: found.tag, ts: found.ts,
+      navType: found.navType, navId: found.navId,
+      isRead: true, readAt: new Date().toISOString()
+    };
+  });
+  if (newlyReadItems.length > 0) {
+    window._cloudNotifReadHistory = newlyReadItems.concat(window._cloudNotifReadHistory || []).slice(0, 100);
+    _saveHistoryToStore(window._cloudNotifReadHistory);
+  }
 
   // 云端通知批量标记已读
   var cloudDbIds = (window._cloudNotifItems || []).map(function(c) { return c._dbId; }).filter(Boolean);

@@ -35,6 +35,21 @@ function openAddProject() {
           ${PROJ_COLORS.map((col,i)=>`<div onclick="selectProjColor(${i},'new')" id="pcolor-${i}" style="width:26px;height:26px;border-radius:50%;background:${col};cursor:pointer;border:3px solid ${i===0?'var(--text)':'transparent'};transition:border .15s"></div>`).join('')}
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">项目状态</label>
+          <select class="form-select" id="fi-proj-status">
+            <option value="active">进行中</option>
+            <option value="on_hold">已暂停</option>
+            <option value="completed">已完成</option>
+            <option value="archived">已归档</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">截止日期</label>
+          <input class="form-input" type="date" id="fi-proj-deadline">
+        </div>
+      </div>
       <div class="form-group">
         <label class="form-label">项目成员 <span style="color:var(--red)">*</span></label>
         <div id="new-proj-member-list" style="margin-bottom:10px">${buildNewProjMemberListHTML()}</div>
@@ -105,7 +120,9 @@ async function submitAddProject(btn) {
   const p = {
     id: uid(), name,
     members: window._newProjMembers || [],
-    colorIdx: window._newProjColor || 0
+    colorIdx: window._newProjColor || 0,
+    status:   document.getElementById('fi-proj-status')?.value  || 'active',
+    deadline: document.getElementById('fi-proj-deadline')?.value || null
   };
   await syncProject(p);
   state.projects.push(p);
@@ -152,6 +169,21 @@ function openEditProject(id) {
         <label class="form-label">颜色标识</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
           ${PROJ_COLORS.map((col,i)=>`<div onclick="selectProjColor(${i},'edit')" id="epcolor-${i}" style="width:26px;height:26px;border-radius:50%;background:${col};cursor:pointer;border:3px solid ${i===curColorIdx?'var(--text)':'transparent'};transition:border .15s" title="${col}"></div>`).join('')}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">项目状态</label>
+          <select class="form-select" id="fi-proj-status">
+            <option value="active"${p.status==='active'?' selected':''}>进行中</option>
+            <option value="on_hold"${p.status==='on_hold'?' selected':''}>已暂停</option>
+            <option value="completed"${p.status==='completed'?' selected':''}>已完成</option>
+            <option value="archived"${p.status==='archived'?' selected':''}>已归档</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">截止日期</label>
+          <input class="form-input" type="date" id="fi-proj-deadline" value="${p.deadline||''}">
         </div>
       </div>
       <div class="form-group">
@@ -235,6 +267,8 @@ async function submitEditProject(id) {
 
   p.name = name;
   p.colorIdx = window._editProjColor !== undefined ? window._editProjColor : (p.colorIdx || 0);
+  p.status   = document.getElementById('fi-proj-status')?.value  || 'active';
+  p.deadline = document.getElementById('fi-proj-deadline')?.value || null;
   await syncProject(p);
   closeModal();
   _lastLoadTime = Date.now();
@@ -244,17 +278,23 @@ async function submitEditProject(id) {
 }
 
 async function confirmDeleteProject(id) {
-  showConfirm('删除项目', '删除项目后，所属任务将变为未分类。确认删除？', async function() {
-    const success = await deleteFromCloud('projects', id);
+  var p = state.projects.find(function(x) { return x.id === id; });
+  if (!p) return;
+  var pName = p.name;
+  var taskCount = state.tasks.filter(function(t) { return t.project_id === id; }).length;
+  if (taskCount > 0) {
+    toast('该项目下还有 ' + taskCount + ' 个任务，请先将任务移出后再删除项目', 'warning');
+    return;
+  }
+  showConfirm('删除项目', '确认删除项目「' + pName + '」？', async function() {
+    var success = await deleteFromCloud('projects', id);
     if (success) {
-      state.tasks.forEach(t => { if (t.project_id === id) t.project_id = ''; });
-      state.projects = state.projects.filter(p => p.id !== id);
-      const pName = state.projects.find(x => x.id === id)?.name || id;
+      state.projects = state.projects.filter(function(p) { return p.id !== id; });
       closeModal();
       _lastLoadTime = Date.now();
       switchView('today');
       toast('项目已删除', 'success');
-      logAction('删除项目', `删除项目「${pName}」`);
+      logAction('删除项目', '删除项目「' + pName + '」');
     }
   }, {danger: true, confirmLabel: '删除'});
 }
@@ -350,19 +390,17 @@ window.confirmDeleteModule = async function(moduleId) {
   var mod = state.modules.find(function(m) { return m.id === moduleId; });
   if (!mod) return;
   var taskCount = state.tasks.filter(function(t) { return t.moduleId === moduleId; }).length;
-  var msg = taskCount > 0
-    ? '该模块下有 ' + taskCount + ' 个任务，删除后将归入未分类。确认删除？'
-    : '确认删除模块「' + mod.name + '」？';
-  showConfirm('删除模块', msg, async function() {
+  if (taskCount > 0) {
+    toast('该模块下还有 ' + taskCount + ' 个任务，请先将任务移出后再删除模块', 'warning');
+    return;
+  }
+  showConfirm('删除模块', '确认删除模块「' + mod.name + '」？', async function() {
     var success = await deleteFromCloud('modules', moduleId);
     if (success) {
-      state.tasks.forEach(function(t) {
-        if (t.moduleId === moduleId) { t.moduleId = null; t.module_id = null; }
-      });
       state.modules = state.modules.filter(function(m) { return m.id !== moduleId; });
       closeModal(); render();
       toast('模块已删除', 'success');
-      logAction('删除模块', '删除模块「' + mod.name + '」（含 ' + taskCount + ' 个任务）');
+      logAction('删除模块', '删除模块「' + mod.name + '」');
     }
   }, { danger: true, confirmLabel: '删除' });
 };

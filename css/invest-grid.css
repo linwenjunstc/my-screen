@@ -1,0 +1,164 @@
+/* ════════════════════════════════════════════════
+ * invest-grid.css — 电子表格网格组件样式
+ * ════════════════════════════════════════════════ */
+
+/* ── 容器 ── */
+.ig-container {
+  display: flex; flex-direction: column;
+  height: calc(100vh - 210px);
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* ── 公式栏 ── */
+.ig-formula-bar {
+  display: flex; align-items: center; gap: 0;
+  height: 36px; padding: 0 8px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ig-cell-ref {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 52px; height: 28px; padding: 0 6px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 3px 0 0 3px;
+  font-size: 11px; font-family: var(--mono); font-weight: 600;
+  color: var(--text2);
+}
+.ig-fx {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  background: var(--surface2); border: 1px solid var(--border); border-left: none;
+  font-size: 11px; font-style: italic; font-weight: 700;
+  color: var(--text3);
+}
+.ig-formula-input {
+  flex: 1; height: 28px; padding: 0 8px;
+  border: 1px solid var(--border); border-left: none;
+  border-radius: 0 3px 3px 0;
+  font-size: 12px; font-family: var(--mono);
+  background: var(--surface); color: var(--text);
+  outline: none;
+}
+.ig-formula-input:focus { border-color: var(--accent); }
+
+/* ── 表标签页 ── */
+.ig-sheet-tabs {
+  display: flex; gap: 1px;
+  padding: 4px 8px 0;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto; flex-shrink: 0;
+}
+.ig-sheet-tab {
+  padding: 6px 14px; border: 1px solid var(--border); border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: var(--surface3); color: var(--text3);
+  font-size: 11px; cursor: pointer; white-space: nowrap;
+  transition: background .12s, color .12s;
+}
+.ig-sheet-tab:hover { background: var(--surface); color: var(--text2); }
+.ig-sheet-tab.active {
+  background: var(--surface); color: var(--accent);
+  font-weight: 600; border-bottom: 1px solid var(--surface);
+  margin-bottom: -1px;
+}
+
+/* ── 滚动容器 ── */
+.ig-scroll-wrap {
+  flex: 1; overflow: auto; position: relative;
+}
+
+/* ── 列头行 ── */
+.ig-col-headers {
+  position: sticky; top: 0; z-index: 5;
+  height: 32px; overflow: hidden;
+  pointer-events: none;
+}
+.ig-col-header {
+  position: absolute; top: 0;
+  background: var(--surface3); border-right: 1px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  padding: 0 4px; font-size: 10px; font-weight: 600;
+  color: var(--text2); text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  box-sizing: border-box;
+}
+.ig-corner-header { background: var(--surface3); border-right: 1px solid var(--border); border-bottom: 2px solid var(--border); }
+
+/* ── 行头 ── */
+.ig-row-header {
+  background: var(--surface3); border-right: 2px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  font-size: 10px; font-weight: 500;
+  color: var(--text2); text-align: center;
+  overflow: hidden; white-space: nowrap;
+  z-index: 2; box-sizing: border-box;
+}
+
+/* ── 单元格 ── */
+.ig-cell {
+  background: var(--surface); border-right: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 5px; font-size: 11px;
+  color: var(--text); cursor: cell;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  box-sizing: border-box; user-select: none;
+}
+.ig-cell:hover { background: var(--accent-50); }
+.ig-cell-num { text-align: right; font-family: var(--mono); }
+.ig-cell-formula { }  /* 公式单元格正常显示，无特殊背景 */
+
+/* 选中 */
+.ig-cell-selected {
+  background: var(--accent-100) !important;
+  outline: none;
+}
+/* 编辑中 */
+.ig-cell-editing { background: var(--surface) !important; }
+
+/* ── 选区高亮 ── */
+.ig-selection {
+  position: absolute; pointer-events: none; z-index: 3;
+  border: 2px solid var(--accent);
+  border-radius: 1px;
+  box-shadow: 0 0 0 1px rgba(37,99,235,.25);
+  box-sizing: border-box;
+}
+
+/* ── 编辑浮层 ── */
+.ig-cell-editor {
+  position: absolute; z-index: 10; border: 2px solid var(--accent);
+  padding: 0 5px; font-size: 11px; font-family: inherit;
+  background: var(--surface); color: var(--text);
+  outline: none; box-shadow: 0 0 0 2px rgba(37,99,235,.2);
+  box-sizing: border-box;
+}
+
+/* ── 主容器 ── */
+.ig-main-wrap {
+  flex: 1; overflow: hidden;
+}
+
+/* ── 暗色主题 ── */
+[data-theme="dark"] .ig-container { background: var(--surface); }
+[data-theme="dark"] .ig-formula-bar { background: var(--surface2); }
+[data-theme="dark"] .ig-cell { background: var(--surface); color: var(--text); }
+[data-theme="dark"] .ig-cell:hover { background: rgba(88,166,255,.08); }
+[data-theme="dark"] .ig-cell-selected { background: rgba(88,166,255,.16) !important; }
+[data-theme="dark"] .ig-col-header,
+[data-theme="dark"] .ig-row-header { background: var(--surface2); color: var(--text2); }
+[data-theme="dark"] .ig-cell-editor { background: var(--surface); color: var(--text); }
+[data-theme="dark"] .ig-sheet-tab { background: var(--surface2); border-color: var(--border); }
+[data-theme="dark"] .ig-sheet-tab.active { background: var(--surface); }
+
+/* ── 移动端 ── */
+@media (max-width: 768px) {
+  .ig-container { height: calc(100vh - 160px); }
+  .ig-sheet-tab { font-size: 10px; padding: 4px 8px; }
+  .ig-cell { font-size: 10px; padding: 0 3px; }
+  .ig-formula-bar { padding: 0 4px; height: 32px; }
+  .ig-formula-input { font-size: 11px; }
+}

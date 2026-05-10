@@ -24,6 +24,8 @@ function getLogBadgeColor(action) {
     return { bg: 'var(--purple-bg)', text: 'var(--purple)', border: 'var(--purple-border)' };
   if (['设置前置条件','移除前置条件'].includes(action))
     return { bg: 'var(--amber-bg)', text: 'var(--amber)', border: 'var(--amber-border)' };
+  if (['标记阻塞','解除阻塞'].includes(action))
+    return { bg: 'var(--purple-bg)', text: 'var(--purple)', border: 'var(--purple-border)' };
   if (['甘特图调整'].includes(action))
     return { bg: 'var(--orange-bg,#fef3e2)', text: 'var(--orange,#e67e22)', border: 'var(--orange-border,#f5c98e)' };
   // 资金模块
@@ -258,6 +260,7 @@ async function refreshLogsList() {
          '更新收款记录','更新付款明细','更新实际收款','更新实际支付',
          '更新对上合同','更新对下合同','更新客户','更新供应商'].includes(action)) return 'dot-fin';
     if (['添加成员','删除成员','修改角色','重置密码','修改密码','配置菜单权限','用户登录'].includes(action)) return 'dot-sys';
+    if (['标记阻塞','解除阻塞'].includes(action)) return 'dot-blocked';
     if (action.includes('编辑') || action.includes('修改') || action.includes('更新') || action.includes('调整')) return 'dot-edit';
     return 'dot-sys';
   }

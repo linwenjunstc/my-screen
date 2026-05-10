@@ -378,11 +378,12 @@ function openMenuPermsModal(memberId) {
 
   // 按分组整理
   var GROUPS = [
-    { key: 'pm',      label: '项目管理',   desc: '任务看板、甘特图、数据统计等' },
-    { key: 'finance', label: '资金计划',   desc: '月度资金计划、收付款管理' },
-    { key: 'base',    label: '基础库配置', desc: '基础信息、合同库、客户库、供应商库' },
-    { key: 'ai',      label: 'AI 助手',    desc: 'AI 任务助手对话面板' },
-    { key: 'admin',   label: '系统管理',   desc: '成员、标签、角色、系统配置' },
+    { key: 'pm',         label: '项目管理',   desc: '任务看板、甘特图、数据统计等' },
+    { key: 'finance',    label: '资金计划',   desc: '月度资金计划、收付款管理' },
+    { key: 'investment', label: '投资测算',   desc: '投资项目列表、测算、敏感性分析' },
+    { key: 'base',       label: '基础库配置', desc: '基础信息、合同库、客户库、供应商库' },
+    { key: 'ai',         label: 'AI 助手',    desc: 'AI 任务助手对话面板' },
+    { key: 'admin',      label: '系统管理',   desc: '成员、标签、角色、日志、系统配置' },
   ];
 
   // 仅超级管理员可配置 AI 助手权限，其他角色看不到此分组

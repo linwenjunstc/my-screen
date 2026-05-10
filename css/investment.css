@@ -1,0 +1,412 @@
+/* ════════════════════════════════════════════════
+ * investment.css — 投资测算模块样式
+ * 遵循 V23 设计令牌体系
+ * ════════════════════════════════════════════════ */
+
+/* ── 项目列表 ── */
+.inv-project-list { display:flex; flex-direction:column; gap:12px; padding:20px 24px; }
+.inv-project-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius-lg); box-shadow:var(--shadow);
+  padding:20px 24px; cursor:pointer; transition:all .2s;
+}
+.inv-project-card:hover {
+  box-shadow:var(--shadow-md); border-color:var(--accent);
+  transform:translateY(-1px);
+}
+.inv-project-card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.inv-project-name { font-size:15px; font-weight:600; color:var(--text); }
+.inv-project-status { font-size:11px; padding:2px 10px; border-radius:999px; font-weight:500; }
+.inv-status-active { background:var(--green-bg); color:var(--green); border:1px solid var(--green-border); }
+.inv-status-archived { background:var(--red-bg); color:var(--red); border:1px solid var(--red-border); }
+.inv-project-meta { display:flex; gap:20px; flex-wrap:wrap; }
+.inv-project-meta-item { font-size:12px; color:var(--text2); }
+.inv-project-meta-item span { color:var(--text); font-weight:500; }
+.inv-project-indicators { display:flex; gap:16px; margin-top:14px; padding-top:14px; border-top:1px solid var(--border); flex-wrap:wrap; }
+.inv-indicator { display:flex; flex-direction:column; gap:2px; min-width:100px; }
+.inv-indicator-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; }
+.inv-indicator-value { font-size:18px; font-weight:700; font-family:var(--mono); color:var(--text); }
+.inv-indicator-value.positive { color:var(--green); }
+.inv-indicator-value.negative { color:var(--red); }
+
+/* ── 搜索栏 ── */
+.inv-search-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; padding:0 24px 8px; }
+.inv-search-bar input, .inv-search-bar select {
+  padding:7px 12px; border:1px solid var(--border); border-radius:var(--radius-sm);
+  font-size:13px; font-family:var(--font); background:var(--surface); color:var(--text);
+  outline:none; transition:border-color .15s;
+}
+.inv-search-bar input:focus, .inv-search-bar select:focus { border-color:var(--accent); }
+.inv-search-bar input { min-width:200px; }
+.inv-btn {
+  padding:7px 16px; border-radius:var(--radius-sm); border:1px solid var(--border);
+  background:var(--surface); color:var(--text); font-size:12px; font-weight:500;
+  cursor:pointer; font-family:var(--font); transition:all .15s;
+}
+.inv-btn:hover { background:var(--surface2); border-color:var(--border2); }
+.inv-btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+.inv-btn-primary:hover { background:var(--accent2); }
+.inv-btn-danger { color:var(--red); border-color:var(--red-border); }
+.inv-btn-danger:hover { background:var(--red-bg); }
+
+/* ── 测算列表 ── */
+.inv-calc-toolbar { display:flex; align-items:center; justify-content:space-between; padding:16px 24px; }
+.inv-calc-toolbar-title { font-size:16px; font-weight:600; color:var(--text); }
+.inv-back-btn {
+  display:inline-flex; align-items:center; gap:4px; padding:6px 10px;
+  border:1px solid var(--border); border-radius:var(--radius-sm);
+  background:var(--surface); color:var(--text2); font-size:12px;
+  cursor:pointer; font-family:var(--font); transition:all .15s;
+}
+.inv-back-btn:hover { background:var(--surface2); color:var(--text); }
+
+/* ── 测算版本列表表格 ── */
+.inv-table-wrap { padding:0 24px 20px; overflow-x:auto; }
+.inv-table {
+  width:100%; border-collapse:collapse; font-size:13px;
+  background:var(--surface); border-radius:var(--radius-lg);
+  overflow:hidden; border:1px solid var(--border);
+}
+.inv-table th {
+  padding:10px 14px; text-align:left; font-size:11px; font-weight:600;
+  color:var(--text3); text-transform:uppercase; letter-spacing:.5px;
+  background:var(--surface2); border-bottom:1px solid var(--border);
+  white-space:nowrap;
+}
+.inv-table td {
+  padding:10px 14px; border-bottom:1px solid var(--border); color:var(--text);
+  white-space:nowrap;
+}
+.inv-table tbody tr:hover td { background:var(--blue-bg); }
+.inv-table tbody tr:last-child td { border-bottom:none; }
+.inv-table .mono { font-family:var(--mono); font-weight:500; }
+.inv-table .actions { display:flex; gap:6px; }
+
+/* ── 测算编辑（Step Wizard） ── */
+.inv-edit-container { padding:16px 24px; }
+.inv-step-nav {
+  display:flex; gap:0; border-bottom:2px solid var(--border);
+  margin-bottom:20px; overflow-x:auto;
+}
+.inv-step-tab {
+  padding:10px 18px; font-size:13px; font-weight:500; color:var(--text3);
+  cursor:pointer; border:none; background:none; font-family:var(--font);
+  border-bottom:2px solid transparent; margin-bottom:-2px;
+  white-space:nowrap; transition:all .15s;
+}
+.inv-step-tab:hover { color:var(--text); }
+.inv-step-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.inv-step-tab.done { color:var(--green); }
+.inv-step-content { min-height:400px; }
+.inv-step-footer { display:flex; justify-content:space-between; padding-top:16px; border-top:1px solid var(--border); margin-top:20px; }
+
+/* ── 土地信息卡片 ── */
+.inv-land-cards { display:flex; flex-direction:column; gap:16px; }
+.inv-land-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); overflow:hidden;
+}
+.inv-land-card-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px; background:var(--surface2);
+  border-bottom:1px solid var(--border);
+}
+.inv-land-card-title { font-size:14px; font-weight:600; }
+.inv-land-card-body { padding:16px; display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; }
+
+/* ── 表单字段 ── */
+.inv-field { display:flex; flex-direction:column; gap:4px; }
+.inv-field-label { font-size:11px; font-weight:500; color:var(--text3); }
+.inv-field-label .required { color:var(--red); }
+.inv-field input, .inv-field select {
+  padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius-sm);
+  font-size:13px; font-family:var(--font); background:var(--surface); color:var(--text);
+  outline:none; transition:border-color .15s;
+}
+.inv-field input:focus, .inv-field select:focus { border-color:var(--accent); }
+.inv-field input.error { border-color:var(--red); }
+.inv-field input[type="number"] { font-family:var(--mono); }
+
+/* ── 物业业态 / 产品业态 ── */
+.inv-biz-section { margin-top:16px; padding:16px; background:var(--surface2); border-radius:var(--radius); border:1px solid var(--border); }
+.inv-biz-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.inv-biz-title { font-size:13px; font-weight:600; color:var(--text); }
+.inv-biz-tag { font-size:10px; padding:2px 8px; border-radius:999px; background:var(--accent-dim); color:var(--accent); }
+.inv-add-row-btn {
+  display:inline-flex; align-items:center; gap:4px; padding:5px 10px;
+  border:1px dashed var(--border); border-radius:var(--radius-sm);
+  background:transparent; color:var(--accent); font-size:12px; font-weight:500;
+  cursor:pointer; font-family:var(--font); transition:all .15s;
+}
+.inv-add-row-btn:hover { background:var(--accent-dim); border-color:var(--accent); }
+
+/* ── 输出表 ── */
+.inv-output-section { margin-bottom:24px; }
+.inv-output-title { font-size:14px; font-weight:600; margin-bottom:10px; color:var(--text); display:flex; align-items:center; gap:8px; }
+.inv-output-title .badge { font-size:10px; padding:2px 6px; border-radius:999px; font-weight:500; }
+.inv-output-title .badge.verified { background:var(--green-bg); color:var(--green); }
+.inv-output-title .badge.warning { background:var(--amber-bg); color:var(--amber); }
+
+/* ── 计算校验 ── */
+.inv-verify-grid { display:flex; flex-direction:column; gap:12px; }
+.inv-verify-item {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); box-shadow:var(--shadow-sm);
+}
+.inv-verify-name { font-size:13px; font-weight:500; color:var(--text); }
+.inv-verify-result { font-size:13px; font-weight:600; }
+.inv-verify-result.pass { color:var(--green); }
+.inv-verify-result.fail { color:var(--red); }
+
+/* ── 敏感性分析 ── */
+.inv-sensitivity-board { padding:20px 24px; }
+.inv-sensitivity-table { width:100%; margin-top:16px; }
+.inv-dev-positive { color:var(--green); font-weight:600; }
+.inv-dev-negative { color:var(--red); font-weight:600; }
+
+/* ── 走势图 ── */
+.inv-chart-container { padding:20px 24px; }
+.inv-chart-row { display:flex; gap:20px; flex-wrap:wrap; }
+.inv-chart-card {
+  flex:1; min-width:400px; background:var(--surface);
+  border:1px solid var(--border); border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-sm); padding:20px;
+}
+.inv-chart-card-title { font-size:14px; font-weight:600; margin-bottom:12px; color:var(--text); }
+.inv-chart-canvas { width:100%; height:280px; position:relative; }
+
+/* ── 空状态 ── */
+.inv-empty {
+  text-align:center; padding:60px 20px; color:var(--text3);
+  font-size:14px;
+}
+.inv-empty svg { margin-bottom:12px; opacity:.3; }
+
+/* ════════════════════════════════════════════════
+ * 移动端响应式 (max-width: 768px)
+ * ════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* 项目列表 */
+  .inv-project-list { padding:12px 14px; gap:10px; }
+  .inv-project-card { padding:14px 16px; }
+  .inv-project-card-header { flex-wrap:wrap; gap:6px; }
+  .inv-project-name { font-size:14px; }
+  .inv-project-meta { gap:12px; }
+  .inv-project-indicators { gap:10px; }
+  .inv-indicator { min-width:72px; }
+  .inv-indicator-value { font-size:15px; }
+
+  /* 搜索栏 */
+  .inv-search-bar { padding:0 14px 8px; flex-direction:column; align-items:stretch; }
+  .inv-search-bar input, .inv-search-bar select { width:100%; min-width:0; }
+  .inv-search-bar .inv-btn { width:100%; text-align:center; justify-content:center; }
+
+  /* 工具栏 */
+  .inv-calc-toolbar { padding:12px 14px; flex-wrap:wrap; gap:8px; }
+  .inv-calc-toolbar-title { font-size:14px; }
+
+  /* 表格 */
+  .inv-table-wrap { padding:0 8px 12px; }
+  .inv-table { font-size:12px; }
+  .inv-table th, .inv-table td { padding:8px 10px; }
+
+  /* 编辑容器 */
+  .inv-edit-container { padding:12px 14px; }
+  .inv-step-nav { gap:0; }
+  .inv-step-tab { padding:8px 12px; font-size:12px; }
+  .inv-step-content { min-height:auto; }
+  .inv-step-footer { flex-wrap:wrap; gap:8px; }
+
+  /* 土地卡片 */
+  .inv-land-card-body { grid-template-columns:1fr; gap:10px; padding:12px; }
+  .inv-land-card-header { padding:10px 12px; }
+
+  /* 业务分区 */
+  .inv-biz-section { padding:12px; }
+  .inv-biz-header { flex-wrap:wrap; gap:6px; }
+
+  /* 表单字段 */
+  .inv-field input, .inv-field select { font-size:16px; /* 防止 iOS 缩放 */ }
+
+  /* 图表 */
+  .inv-chart-container { padding:12px 14px; }
+  .inv-chart-row { flex-direction:column; gap:12px; }
+  .inv-chart-card { min-width:0; flex:none; padding:14px; }
+  .inv-chart-card-title { font-size:13px; }
+  .inv-chart-canvas { height:200px; }
+
+  /* 敏感性分析 */
+  .inv-sensitivity-board { padding:12px 14px; }
+
+  /* 校验 */
+  .inv-verify-item { padding:12px; flex-wrap:wrap; gap:6px; }
+  .inv-verify-name, .inv-verify-result { font-size:12px; }
+
+  /* 按钮触控优化 */
+  .inv-btn { min-height:40px; display:inline-flex; align-items:center; justify-content:center; padding:9px 16px; }
+  .inv-add-row-btn { min-height:36px; }
+
+  /* 操作按钮列 */
+  .inv-table .actions { flex-wrap:wrap; }
+}
+
+/* ════════════════════════════════════════════════
+ * 小屏手机 (max-width: 480px)
+ * ════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .inv-project-indicators { flex-direction:column; gap:8px; }
+  .inv-project-card { padding:12px; }
+  .inv-search-bar { padding:0 8px 6px; }
+  .inv-edit-container { padding:8px 10px; }
+  .inv-table { font-size:11px; }
+  .inv-table th, .inv-table td { padding:6px 8px; }
+  .inv-chart-canvas { height:160px; }
+  .inv-verify-grid { gap:8px; }
+  .inv-verify-item { padding:10px 12px; flex-direction:column; align-items:flex-start; }
+}
+
+/* ── 自动计算标签 ── */
+.inv-auto-tag {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* ── 只读字段 ── */
+.inv-field-readonly input[readonly] {
+  background: var(--surface2);
+  color: var(--text2);
+  cursor: not-allowed;
+}
+
+/* ── Step 完成标记 ── */
+.inv-step-done {
+  display: inline-block;
+  color: var(--green);
+  font-size: 11px;
+  margin-left: 3px;
+}
+
+/* ── 项目卡片 KPI 区域 ── */
+.inv-project-kpis {
+  display: flex;
+  gap: 16px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface2);
+}
+.inv-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.inv-kpi-label {
+  font-size: 11px;
+  color: var(--text3);
+}
+.inv-kpi-val {
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--mono);
+  color: var(--text);
+}
+.inv-kpi-val.inv-green { color: var(--green); }
+.inv-kpi-val.inv-red   { color: var(--red);   }
+.inv-kpis-empty {
+  font-size: 12px;
+  color: var(--text3);
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface2);
+}
+
+/* ── 项目卡片操作区 ── */
+.inv-project-card-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  justify-content: flex-end;
+}
+
+/* ── 版本状态标签 ── */
+.inv-version-status {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+.inv-status-draft     { background: #f1f5f9; color: var(--text2); }
+.inv-status-submitted { background: #fef9c3; color: #92400e; }
+.inv-status-approved  { background: #d1fae5; color: #065f46; }
+
+/* ── 输出表样式增强 ── */
+.inv-output-table .inv-row-total td {
+  font-weight: 700;
+  border-top: 2px solid var(--border);
+  color: var(--text);
+}
+.inv-output-table .inv-row-tax td {
+  color: var(--amber);
+}
+.inv-output-summary-row {
+  display: flex;
+  gap: 24px;
+  padding: 12px 16px;
+  background: var(--surface2);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text2);
+}
+.inv-output-summary-row strong { font-family: var(--mono); }
+.inv-green { color: var(--green) !important; }
+.inv-red   { color: var(--red)   !important; }
+
+/* ── 校验汇总行 ── */
+.inv-verify-summary {
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+.inv-verify-summary.all-pass {
+  background: #d1fae5;
+  color: #065f46;
+}
+.inv-verify-summary.has-fail {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.inv-verify-detail {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text3);
+  margin-top: 2px;
+}
+.inv-verify-val {
+  font-family: var(--mono);
+}
+
+/* ── 小尺寸按钮 ── */
+.inv-btn.inv-btn-sm {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+.inv-btn.inv-btn-success {
+  background: var(--green);
+  color: #fff;
+  border-color: var(--green);
+}
+.inv-btn.inv-btn-success:hover {
+  opacity: 0.85;
+}

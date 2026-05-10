@@ -173,7 +173,7 @@
   line-height: 1.5;
 }
 .ssc-body{
-  padding: 4px 0;
+  padding: 8px 0;
 }
 
 /* ── 主区 ── */
@@ -284,7 +284,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 0;
+  padding: 14px 20px;
   border-top: 1px solid var(--border-subtle);
   gap: 16px;
 }

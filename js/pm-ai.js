@@ -56,15 +56,49 @@ async function _decryptApiKey(ciphertext) {
 }
 
 // ── 从 DB 加载 API Key ─────────────────────────────
+var _aiKeyLoading = false;
 async function _loadApiKey() {
-  if (typeof sb === 'undefined') { _aiKeyLoaded = true; return; }
+  if (_aiKeyLoaded) return;                // 已加载，跳过
+  if (_aiKeyLoading) {                     // 正在加载，等待完成
+    var waited = 0;
+    while (_aiKeyLoading && waited < 5000) { await new Promise(function(r) { setTimeout(r, 100); }); waited += 100; }
+    return;
+  }
+  _aiKeyLoading = true;
+  if (typeof sb === 'undefined') {
+    console.warn('[AI] sb 未初始化，无法加载 API Key');
+    _aiKeyLoaded = true; _aiKeyLoading = false; return;
+  }
   try {
     var { data, error } = await sb.from('app_settings').select('value').eq('key', 'deepseek_api_key').maybeSingle();
-    if (error || !data) { _aiKeyLoaded = true; return; }
+    if (error) {
+      console.warn('[AI] 查询 app_settings 失败：' + error.message + ' (code: ' + (error.code || '') + ')');
+      _aiKeyLoaded = true; _aiKeyLoading = false; return;
+    }
+    if (!data) {
+      console.log('[AI] app_settings 中未找到 deepseek_api_key');
+      _aiKeyLoaded = true; _aiKeyLoading = false; return;
+    }
     var decrypted = await _decryptApiKey(data.value);
-    if (decrypted) _aiApiKey = decrypted;
-  } catch(e) { }
+    if (decrypted) {
+      _aiApiKey = decrypted;
+      console.log('[AI] API Key 加载成功（已解密）');
+    } else if (data.value && data.value.indexOf('sk-') === 0) {
+      // 兼容设置页的明文存储：自动升级为加密存储
+      _aiApiKey = data.value;
+      console.log('[AI] API Key 加载成功（明文，将自动升级加密）');
+      // 异步升级，不阻塞加载
+      _encryptApiKey(data.value).then(function(enc) {
+        sb.from('app_settings').upsert({ key: 'deepseek_api_key', value: enc, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      }).catch(function(){});
+    } else {
+      console.warn('[AI] API Key 解密失败且非明文格式，请重新配置');
+    }
+  } catch(e) {
+    console.error('[AI] 加载 API Key 异常：' + (e.message || e));
+  }
   _aiKeyLoaded = true;
+  _aiKeyLoading = false;
 }
 
 // ── 保存 API Key（仅 super_admin 可调用）───────────
@@ -103,6 +137,20 @@ window.saveAiApiKey = async function(btn) {
   }
   btn.disabled = false;
   btn.textContent = '保存';
+};
+
+// 供设置页调用的加密保存函数（接收 key 字符串，无需 DOM）
+window._saveAiApiKey = async function(keyStr) {
+  if (!keyStr || keyStr.indexOf('sk-') !== 0) throw new Error('API Key 格式不正确');
+  var encrypted = await _encryptApiKey(keyStr);
+  var { error } = await sb.from('app_settings').upsert({
+    key: 'deepseek_api_key',
+    value: encrypted,
+    updated_at: new Date().toISOString(),
+    updated_by: (currentUser && currentUser.name) || ''
+  }, { onConflict: 'key' });
+  if (error) throw new Error(error.message);
+  _aiApiKey = keyStr;
 };
 
 // ── API Key 设置面板开关（仅 super_admin 可见）────
@@ -476,8 +524,8 @@ function _buildAuditContext() {
 
 // 权限分组摘要（给 AI 看的简短版）
 function _permGroupSummary(perms) {
-  var groups = { pm: [], finance: [], base: [], ai: [], admin: [] };
-  var labels = { pm: 'PM', finance: '资金', base: '基础库', ai: 'AI', admin: '系统' };
+  var groups = { pm: [], finance: [], base: [], ai: [], admin: [], investment: [] };
+  var labels = { pm: 'PM', finance: '资金', base: '基础库', ai: 'AI', admin: '系统', investment: '投资' };
   (typeof MENU_DEFS !== 'undefined' ? MENU_DEFS : []).forEach(function(md) {
     if (perms.includes(md.key)) groups[md.group].push(md.label);
   });
@@ -683,7 +731,7 @@ function _buildSystemPrompt(ctx) {
   var writeSection = '';
   if (p.canWriteTask) {
     writeSection = '你有权执行以下操作（需用户确认）：\n' +
-      '- 更新任务状态：待启动 / 进行中 / 待反馈 / 已完成\n' +
+      '- 更新任务状态：待启动 / 进行中 / 阻塞中 / 待反馈 / 已完成\n' +
       '- 更新任务优先级：紧急 / 重要 / 普通\n' +
       '- 更新任务负责人（仅限系统中已有成员）\n' +
       '- 创建新任务（需提供标题，截止日期和负责人可选）\n' +
@@ -698,6 +746,8 @@ function _buildSystemPrompt(ctx) {
       '3. 等待用户确认，绝不自动执行\n\n' +
       '[WRITE_ACTION] 格式示例（每种操作对应不同的 type）：\n' +
       '更新状态：[WRITE_ACTION] {"type":"task_update","taskId":"ID","field":"status","value":"已完成","display":"将「任务名」标记为【已完成】"}\n' +
+      '标记阻塞：[WRITE_ACTION] {"type":"task_update","taskId":"ID","field":"status","value":"blocked","blocked_reason":"阻塞原因（≥5字）","display":"将「任务名」标记为【阻塞中】"}\n' +
+      '解除阻塞：[WRITE_ACTION] {"type":"task_update","taskId":"ID","field":"status","value":"doing","display":"将「任务名」解除阻塞，恢复【进行中】"}\n' +
       '更新优先级：[WRITE_ACTION] {"type":"task_update","taskId":"ID","field":"priority","value":"紧急","display":"将「任务名」优先级设为【紧急】"}\n' +
       '更新负责人：[WRITE_ACTION] {"type":"task_update","taskId":"ID","field":"assigneeId","value":"成员ID","valueName":"成员姓名","display":"将「任务名」指派给【成员姓名】"}\n' +
       '创建任务：{"type":"task_create","projectId":"项目ID或null（从项目概况取 projectId）","title":"任务标题","assigneeId":"成员ID或null（从成员概况取 memberId）","due":"YYYY-MM-DD或null","startDate":"YYYY-MM-DD或null","priority":"紧急/重要/普通","status":"待启动/进行中","tags":[],"display":"创建任务「任务标题」"}\n' +
@@ -943,6 +993,26 @@ window.aiConfirmWrite = async function(actionStr, btn) {
         updateObj.completed_by = (currentUser && currentUser.name) || '';
       }
 
+      // AI 标记/解除阻塞：处理 blocked_reason / blocked_at / blocked_by
+      if (action.field === 'status' && action.value === 'blocked' && task.status !== 'blocked') {
+        if (!action.blocked_reason || action.blocked_reason.trim().length < 5) {
+          throw new Error('标记为阻塞需要原因（至少 5 字符），请在 WRITE_ACTION 中补充 blocked_reason 字段');
+        }
+        updateObj.blocked_reason = action.blocked_reason.trim();
+        updateObj.blocked_at = new Date().toISOString();
+        updateObj.blocked_by = (currentUser && currentUser.id) || '';
+        task.blocked_reason = updateObj.blocked_reason;
+        task.blocked_at = updateObj.blocked_at;
+        task.blocked_by = updateObj.blocked_by;
+      } else if (task.status === 'blocked' && action.field === 'status' && action.value !== 'blocked') {
+        updateObj.blocked_reason = null;
+        updateObj.blocked_at = null;
+        updateObj.blocked_by = null;
+        task.blocked_reason = null;
+        task.blocked_at = null;
+        task.blocked_by = null;
+      }
+
       if (typeof sb !== 'undefined') {
         var res = await sb.from('tasks').update(updateObj).eq('id', action.taskId);
         if (res.error) throw new Error(res.error.message);
@@ -961,7 +1031,7 @@ window.aiConfirmWrite = async function(actionStr, btn) {
       var newTask = {
         id:          uid(),
         title:       action.title.trim(),
-        status:      action.status || '待启动',
+        status:      action.status || 'todo',
         priority:    action.priority || '普通',
         project_id:  action.projectId || null,
         assignee: action.assigneeId || null,
@@ -1241,7 +1311,7 @@ async function _generateProactiveInsight() {
   _appendMsg('welcome', insightHTML);
 }
 
-function _openAiPanel() {
+async function _openAiPanel() {
   if (!_aiHasPerm('ai_assistant')) {
     if (typeof toast === 'function') toast('你没有 AI 助手的访问权限，请联系管理员开通', 'error');
     return;
@@ -1254,6 +1324,16 @@ function _openAiPanel() {
   localStorage.setItem('pm_ai_seen_v1', '1');
   var badge = document.querySelector('.ai-new-badge');
   if (badge) badge.remove();
+
+  // 等待 Key 从 DB 加载完成再渲染状态，失败则重试一次
+  if (!_aiKeyLoaded) {
+    await _loadApiKey();
+  }
+  if (!_aiApiKey && _aiKeyLoaded) {
+    // 首次加载可能失败，重试
+    _aiKeyLoaded = false;
+    await _loadApiKey();
+  }
 
   _renderQuickChips();
   _renderPermBadge();
@@ -1326,7 +1406,15 @@ window.sendAiMsg = async function() {
   var question = input.value.trim();
   if (!question) return;
 
-  // API Key 未配置
+  // API Key 未加载或未配置
+  if (!_aiKeyLoaded) {
+    await _loadApiKey();
+  }
+  if (!_aiApiKey && _aiKeyLoaded) {
+    // 首次加载可能失败，重试
+    _aiKeyLoaded = false;
+    await _loadApiKey();
+  }
   if (!_aiApiKey) {
     _appendMsg('user', question);
     _appendMsg('assistant',
@@ -1620,7 +1708,7 @@ window.sendAiMsg = async function() {
         }
       }
     } else {
-      _updateMsg(placeholderId, '请求失败：' + _esc(err.message) + '\n\n请检查 API Key 是否配置正确。');
+      _updateMsg(placeholderId, '请求失败：' + _esc(err.message || err) + '\n\n请检查网络或稍后重试。');
     }
   } finally {
     _aiSending = false;

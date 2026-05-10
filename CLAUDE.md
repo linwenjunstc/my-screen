@@ -1,10 +1,10 @@
-﻿# V16 项目管理系统 — AI 上手指南
+﻿# V24 项目管理系统 — AI 上手指南
 
 ## 项目概览
 
-双模块 Web 应用（项目管理 PM + 资金计划 Finance），纯原生 HTML/CSS/JS，后端用 Supabase。
+三模块 Web 应用（项目管理 PM + 资金计划 Finance + 投资测算 Investment），纯原生 HTML/CSS/JS，后端用 Supabase。
 
-- **主入口**: `projectManage.html`（同时承载 PM 和 Finance）
+- **主入口**: `projectManage.html`（同时承载 PM、Finance 和 Investment）
 - **独立入口**: `finance.html`（仅 Finance 模块）
 - **Supabase**: `https://rfjrkcclhvuldenpdlye.supabase.co`
 - **运行方式**: 所有页面通过本地文件直接打开（非构建工具），依赖 CDN 加载 lucide-icons 和 SheetJS
@@ -14,37 +14,45 @@
 ## 文件结构
 
 ```
-V15/
+V24/
 ├── login.html              # 登录页
-├── projectManage.html      # ★ 主应用壳（PM + Finance 双模块，含通知铃铛 HTML、AI 面板 HTML）
+├── projectManage.html      # ★ 主应用壳（PM + Finance + Investment 三模块，含通知铃铛 HTML、AI 面板 HTML）
 ├── finance.html            # Finance 独立页
 ├── css/
 │   ├── app.css             # 登录页样式
 │   ├── pm.css              # ★ 主样式（设计令牌、全局组件、Gantt、日志时间线、周视图、通知面板、暗色主题）
 │   ├── ai-panel.css        # AI 助手面板样式（按钮脉冲光晕、消息气泡、欢迎卡片、确认组件）
 │   ├── finance.css         # Finance 独立页样式
-│   └── finance-extra.css   # Finance 覆盖样式（侧边栏、表格、进度条、快捷录入按钮）
-└── js/
-    ├── pm-core.js          # ★ PM 核心：state、loadState、render、CRUD、主题、键盘、实时同步、通知铃铛、MENU_DEFS、权限系统、数据权限过滤
-    ├── pm-views.js         # ★ PM 视图：Today、任务列表、项目、甘特图（含拖拽+依赖线）、图表、图表点击弹窗、周视图
-    ├── pm-tasks.js         # 任务 CRUD、子任务、前置条件、任务详情弹窗、时间线
-    ├── pm-projects.js      # 项目 CRUD、成员管理、颜色选择
-    ├── pm-members.js       # 成员管理、标签管理、角色管理、菜单权限配置（含 AI 助手分组）
-    ├── pm-logs.js          # 操作日志弹窗（Tab 分类 + 时间线视图渲染 + 登录记录 super_admin TAB）
-    ├── pm-auth.js          # 修改密码、快捷键注册
-    ├── pm-ai.js            # ★ AI 任务助手（DeepSeek API、权限感知 Context、关键词拦截、写操作确认）
-    ├── finance-core.js     # ★ Finance 核心：finState、loadAll、月选择器、Tab 路由（含 TAB_PERM_MAP 权限守卫）、数据权限过滤
-    ├── finance-t1.js       # T1 月度资金计划（固定支出 + 资金筹措）
-    ├── finance-t2.js       # T2 对上收款台账（含快捷录入实际收款）
-    ├── finance-t3.js       # T3 对下付款计划（含快捷录入实际支付）
-    ├── finance-t4.js       # T4 完成情况（计划 vs 实际对比）
-    ├── finance-t5t6.js     # T5/T6 偏差分析
-    ├── finance-base.js     # 资金看板（含图表点击弹窗）、合同库、客户库、供应商库、基础库配置、基础信息配置、Excel 导入导出
-    └── finance-export.js   # Excel 导出、系统配置保存、finLogAction
+│   ├── finance-extra.css   # Finance 覆盖样式（侧边栏、表格、进度条、快捷录入按钮）
+│   └── investment.css      # ★ 投资测算样式（项目卡片、步骤向导、输入表格、输出面板、敏感性分析）
+├── js/
+│   ├── pm-core.js          # ★ PM 核心：state、loadState、render、CRUD、主题、键盘、实时同步、通知铃铛、MENU_DEFS、权限系统、数据权限过滤
+│   ├── pm-views.js         # ★ PM 视图：Today、任务列表、项目、甘特图（含拖拽+依赖线）、图表、图表点击弹窗、周视图
+│   ├── pm-tasks.js         # 任务 CRUD、子任务、前置条件、任务详情弹窗、时间线
+│   ├── pm-projects.js      # 项目 CRUD、成员管理、颜色选择
+│   ├── pm-members.js       # 成员管理、标签管理、角色管理、菜单权限配置（含 AI 助手分组）
+│   ├── pm-logs.js          # 操作日志弹窗（Tab 分类 + 时间线视图渲染 + 登录记录 super_admin TAB）
+│   ├── pm-auth.js          # 修改密码、快捷键注册
+│   ├── pm-ai.js            # ★ AI 任务助手（DeepSeek API、权限感知 Context、关键词拦截、写操作确认）
+│   ├── finance-core.js     # ★ Finance 核心：finState、loadAll、月选择器、Tab 路由（含 TAB_PERM_MAP 权限守卫）、数据权限过滤
+│   ├── finance-t1.js       # T1 月度资金计划（固定支出 + 资金筹措）
+│   ├── finance-t2.js       # T2 对上收款台账（含快捷录入实际收款）
+│   ├── finance-t3.js       # T3 对下付款计划（含快捷录入实际支付）
+│   ├── finance-t4.js       # T4 完成情况（计划 vs 实际对比）
+│   ├── finance-t5t6.js     # T5/T6 偏差分析
+│   ├── finance-base.js     # 资金看板（含图表点击弹窗）、合同库、客户库、供应商库、基础库配置、基础信息配置、Excel 导入导出
+│   ├── finance-export.js   # Excel 导出、系统配置保存、finLogAction
+│   ├── invest-core.js      # ★ Investment 核心：invState、switchInvTab、invRender、数据加载、权限过滤、invLogAction
+│   ├── invest-list.js      # 投资项目列表：卡片视图、项目 CRUD、趋势图
+│   ├── invest-calc.js      # 项目测算：版本管理、6步输入向导、6区输出面板、前端计算引擎
+│   └── invest-sensitivity.js # 敏感性分析：单因素分析、偏离计算、事件管理
+└── supabase/
+    └── migrations/
+        └── 006_investment_module.sql  # 投资测算 6 表建表语句
 ```
 
 ### JS 加载顺序（projectManage.html）
-`pm-core.js` → `pm-views.js` → `pm-tasks.js` → `pm-projects.js` → `pm-members.js` → `pm-auth.js` → `pm-logs.js` → `pm-ai.js` → `finance-core.js` → `finance-t1~t5t6.js` → `finance-base.js` → `finance-export.js`
+`pm-core.js` → `pm-views.js` → `pm-tasks.js` → `pm-projects.js` → `pm-members.js` → `pm-auth.js` → `pm-logs.js` → `pm-ai.js` → `finance-core.js` → `finance-t1~t5t6.js` → `finance-base.js` → `finance-export.js` → `invest-core.js` → `invest-list.js` → `invest-calc.js` → `invest-sensitivity.js` → `pm-settings.js`
 
 ---
 
@@ -107,6 +115,26 @@ const finState = {
   customers, suppliers, contractsUp, contractsDown,
   monthlyRevenues
 };
+```
+
+### Investment 模块（invest-core.js）
+```js
+var currentInvTab = 'inv_list';         // Investment 当前 Tab
+var currentCalcProjectId = null;        // 当前选中的投资项目 ID
+var currentEditVersionId = null;        // 当前编辑的测算版本 ID
+var currentInvStep = 'land';            // 当前编辑步骤 (land/product/cost/area/pay/sales)
+var invState = {
+  projects: [],           // 投资项目列表
+  versions: [],           // 测算版本列表
+  currentVersion: null,   // 当前选中版本
+  lands: [],              // 土地信息
+  inputs: {},             // 输入数据 (JSONB)
+  outputs: {},            // 输出数据 (JSONB)
+  sensitivityItems: []    // 敏感性分析记录
+};
+var INV_STEPS = ['land', 'product', 'cost', 'area', 'pay', 'sales'];        // 6 个输入步骤
+var INV_OUTPUT_STEPS = ['composite', 'vat', 'cashflow', 'profit', 'total', 'verify'];  // 6 个输出区域
+var INV_TAB_PERM_MAP = { inv_list: 'inv_list', inv_calc: 'inv_calc', inv_edit: 'inv_edit', inv_logs: 'inv_logs', inv_sensitivity: 'inv_sensitivity' };
 ```
 
 ### V14 新增全局变量
@@ -1446,3 +1474,154 @@ window._ganttFilterModule    // 模块筛选（falsy = 全部）
 |-------|------|------|
 | `.week-more-label:hover` | pm.css | 周视图更多标签 hover 高亮效果 |
 | `.gantt-wrap` max-height | pm.css | 甘特图最大高度限制 |
+
+---
+
+## V23 迭代更新（2026-05-09）
+
+### 1. 移除今日看板 成员负载
+
+**位置**：`js/pm-views.js`、`css/pm.css`
+
+- `renderToday()` 中移除整个成员负载概览区域（计算逻辑 + HTML 渲染，~53 行）
+- `renderCharts()` 副标题「任务状态 · 优先级 · 成员负载 · 月度趋势」→「任务状态 · 优先级 · 月度趋势」
+- 移除 `.member-load-section`、`.member-load-card`、`.mlc-*` 等全部 CSS（~85 行）
+
+### 2. 权限 Bug 修复（PRD_08 §A）
+
+**位置**：`js/pm-settings.js`
+
+`pm-settings.js` 三处权限守卫原先只检查 `role`（admin/super_admin），不检查 `menuPerms`。修复后统一调用 `getEffectiveMenuPerms()`：
+
+| 函数 | 变更 |
+|------|------|
+| `buildSettingsNav()` | 导航栏渲染 `adminOnly` 页面 — 增加 `getEffectiveMenuPerms().includes(p.key)` 检查 |
+| `openSettingsPage()` | 打开页面守卫 — 同上 |
+| `renderCommandList()` | Ctrl+K 命令面板 — 同上 |
+
+**效果**：super_admin 通过 menuPerms 给普通用户授予 `tags`/`members`/`roles` 等独立权限后，用户可在设置中心看到对应入口，不再弹「需要管理员权限」。
+
+### 3. 设置入口调整（PRD_08 §B）
+
+**位置**：`projectManage.html`
+
+- **头像下拉菜单**：移除独立的「设置」入口，新增「修改密码」快捷入口（带 lock 图标，点击直接跳转设置中心 → 密码与安全页）。后来恢复「设置」入口（普通用户也需要），最终结构：用户信息 / 设置 / 修改密码 / 退出登录
+- **左侧侧边栏**：移除 PM 侧边栏和 Finance 侧边栏左下角的「设置」按钮。设置入口统一为右上角头像下拉菜单
+
+### 4. 基础信息配置移入设置中心
+
+**位置**：`js/pm-settings.js`、`projectManage.html`
+
+- Finance 侧边栏的「基础信息配置」按钮移除
+- 设置中心新增 `basic_info` 设置页（替换原有 `organization`，key 与 menuPerms 对齐）
+- `renderBasicInfoPage()` 读写 `finance_config` 表（公司名称 + 事业部名称 + 基准毛利率）
+- `saveOrganization()` 改为写入 `finance_config`
+- 移除 `adminOnly`，通过 menuPerms 的 `basic_info` key 控制可见性
+
+### 5. 修复 `_lastNonSettingsModule` 更新时机（PRD_08 §C）
+
+**位置**：`projectManage.html` — `switchModule()`
+
+```js
+// 只在进入 settings 时记录来源模块，以便「返回」按钮使用
+if (mod === 'settings') window._lastNonSettingsModule = activeModule;
+```
+
+此前每次模块切换都无条件更新，导致 PM → Finance → PM 切换时意外覆盖返回来源。
+
+### 6. 通知偏好卡片宽度
+
+**位置**：`js/pm-settings.js` — `renderNotifPrefsPage()`
+
+通知偏好卡片添加 `style="max-width:640px"`，避免白色框过窄。
+
+### 7. 操作日志改为平铺表格
+
+**位置**：`js/pm-settings.js`、`css/settings.css`
+
+- 从折叠分组视图改为平铺表格（`logs-flat-table`），列：时间 | 用户 | 操作 | 详情
+- 每行操作类型显示为彩色标签 pill（带图标）
+- 移除 `toggleLogGroup()`、`onLogsSearch()`、`onLogsFilter()`、`onLogsDateFilter()`、`clearLogsFilters()`
+- 新增「查询」按钮（`onLogsQuery()`）替代实时筛选，新增「重置」按钮（`resetLogsFilters()`）
+- 新增 CSS：`.logs-table-wrap`（横向滚动）、`.logs-flat-table`（sticky 表头、行 hover 高亮）
+
+---
+
+## V24 迭代更新（2026-05-09）
+
+### 投资测算模块（Investment Calculation Module）
+
+基于"建元资管-数字沙盘-项目概览&投资决策需求分析及方案设计说明书"构建的第三模块，与 PM 和 Finance 同级，零数据耦合，仅共享认证、权限、通知、AI 助手和操作日志。
+
+**设计原则**：独立数据表、独立 JS 文件、独立 CSS、独立侧边栏，通过统一的 `switchModule('invest')` 入口切换。
+
+### 数据库表（6 张新表）
+
+| 表名 | 说明 |
+|------|------|
+| `invest_projects` | 投资项目（独立于 PM projects，有 name/land_date/end_date/status） |
+| `invest_versions` | 测算版本（pre_tax_irr/after_tax_irr/net_profit/net_margin + created_by） |
+| `invest_land` | 土地信息（多地块，JSONB land_details + total_land_price/total_land_area） |
+| `invest_input` | 输入数据（JSONB，按 section 存储：land/product/cost/area/pay/sales） |
+| `invest_output` | 输出数据（JSONB，按 section 存储：composite/vat/cashflow/profit/total/verify） |
+| `invest_sensitivity` | 敏感性分析（event_name/factor/original_value/modified_value + 4 偏离指标） |
+
+所有表通过 `version_id` 外键关联到 `invest_versions`，级联删除。
+
+### 新增文件
+
+| 文件 | 说明 |
+|------|------|
+| `css/investment.css` | 投资测算完整样式（项目卡片、步骤向导、输入表格、输出面板、敏感性分析） |
+| `js/invest-core.js` | 核心模块：invState、switchInvTab、invRender、数据加载、权限过滤 |
+| `js/invest-list.js` | 投资项目列表：卡片视图、搜索筛选、项目 CRUD、趋势迷你图 |
+| `js/invest-calc.js` | 项目测算：版本管理、6 步输入向导、6 区输出面板、前端计算引擎 |
+| `js/invest-sensitivity.js` | 敏感性分析：单因素事件管理、弹性偏离计算、表格渲染 |
+| `supabase/migrations/006_investment_module.sql` | 6 表建表语句 + 索引 + Realtime publication |
+
+### 已修改文件
+
+| 文件 | 变更 |
+|------|------|
+| `projectManage.html` | 添加 investment.css 引用、投资侧栏 HTML、JS 脚本标签、switchModule/updateHeaderForModule invest 分支 |
+| `js/pm-core.js` | MENU_DEFS 新增 5 个 investment 分组菜单项 |
+| `js/pm-members.js` | GROUPS 数组新增 investment 分组 |
+
+### 菜单权限
+
+| key | label | group |
+|-----|-------|-------|
+| `inv_list` | 投资项目列表 | investment |
+| `inv_calc` | 项目测算 | investment |
+| `inv_edit` | 测算编辑 | investment |
+| `inv_logs` | 测算操作日志 | investment |
+| `inv_sensitivity` | 敏感性分析 | investment |
+
+### 关键函数
+
+| 函数 | 位置 | 说明 |
+|------|------|------|
+| `switchInvTab(tab)` | invest-core.js | 切换投资模块 Tab（含权限守卫） |
+| `invRender()` | invest-core.js | 视图路由（5 个视图） |
+| `loadInvProjects()` | invest-core.js | 加载投资项目列表（数据级权限过滤） |
+| `loadInvVersions(projectId)` | invest-core.js | 加载某项目的测算版本 |
+| `loadInvVersionData(versionId)` | invest-core.js | 加载某版本的土地/输入/输出数据 |
+| `invLogAction(action, detail)` | invest-core.js | 写入投资模块操作日志 |
+| `renderInvProjectList()` | invest-list.js | 渲染项目卡片列表 |
+| `openInvAddProject()` / `submitInvAddProject()` | invest-list.js | 新增投资项目 |
+| `renderInvVersionList()` | invest-calc.js | 渲染测算版本表格 |
+| `openInvNewVersion()` / `submitInvNewVersion()` | invest-calc.js | 新建测算版本 |
+| `renderInvEditForm()` | invest-calc.js | 渲染 6 步输入 + 6 区输出向导 |
+| `saveInvVersion()` | invest-calc.js | 保存版本（upsert 土地 + 输入 + 输出） |
+| `runInvCalculation()` | invest-calc.js | 前端计算引擎（IRR/净利润/净利率） |
+| `renderSensitivityBoard()` | invest-sensitivity.js | 渲染敏感性分析看板 |
+| `submitSensEvent()` | invest-sensitivity.js | 保存并计算敏感性事件 |
+| `initInvestModule()` | invest-core.js | 初始化投资侧边栏权限过滤 |
+
+### 注意事项
+
+1. **投资模块完全独立**：不与 PM/Finance 共享任何数据表，仅共用 `sb`（Supabase）、`currentUser`、`uid()`、`escHtml()`、`toast()`、`openModal()`、`closeModal()`、`modalHeader()`、`showConfirm()`、`hasGroupPerm()`、`getEffectiveMenuPerms()`、`logAction()` 等基础设施函数
+2. **权限系统**：通过 `investment` 分组控制准入，`switchModule('invest')` 会检查 `hasGroupPerm('investment')`
+3. **前端计算**：IRR 等财务指标在前端通过 `runInvCalculation()` 计算，不依赖后端
+4. **数据级权限**：`loadInvProjects()` 按角色过滤（super_admin 全量、admin 排除 super_admin、user 仅自己创建）
+5. **CSS 类名前缀**：所有投资样式使用 `inv-` 前缀，与 PM/Finance 样式隔离
